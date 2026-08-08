@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/app/qesto_app.dart';
+import 'package:qesto/mocks/fixtures/mock_deals.dart';
 import 'package:qesto/mocks/mock_qesto_repository.dart';
+
+import 'fixtures/sample_user_financial_data.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -28,8 +31,13 @@ void main() {
   });
 
   Widget buildApp() {
-    return const QestoApp(
-      repository: MockQestoRepository(delay: Duration.zero),
+    return QestoApp(
+      repository: MockQestoRepository(
+        delay: Duration.zero,
+        financialData: sampleUserFinancialData,
+        coupons: mockCoupons,
+        promotions: mockPromotions,
+      ),
     );
   }
 

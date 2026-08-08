@@ -72,28 +72,3 @@ const mockPromotions = <Deal>[
     visualKey: 'delivery',
   ),
 ];
-
-const mockTrackedProducts = <TrackedProduct>[
-  TrackedProduct(
-    id: 'tracked-headphones',
-    userId: 'demo-user',
-    title: 'Беспроводные наушники',
-    currentPrice: 18990,
-    currency: 'RUB',
-    bestMarketplace: 'Яндекс Маркет',
-    changePercent: -8.4,
-    trackedStoresCount: 6,
-    visualKey: 'electronics',
-  ),
-  TrackedProduct(
-    id: 'tracked-coffee',
-    userId: 'demo-user',
-    title: 'Кофе в зёрнах, 1 кг',
-    currentPrice: 1590,
-    currency: 'RUB',
-    bestMarketplace: 'Metro',
-    changePercent: -12.0,
-    trackedStoresCount: 4,
-    visualKey: 'coffee',
-  ),
-];

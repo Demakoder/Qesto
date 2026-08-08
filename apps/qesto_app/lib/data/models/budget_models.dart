@@ -238,24 +238,10 @@ class UpcomingExpense {
   }
 }
 
-class BudgetStatement {
-  const BudgetStatement({
-    required this.referenceDate,
-    required this.periods,
-    required this.categories,
-    required this.categoryBudgets,
-    required this.transactions,
-    required this.upcomingExpenses,
-    required this.plannedCumulativePoints,
-  });
+class BudgetConfiguration {
+  const BudgetConfiguration({required this.categories});
 
-  final DateTime referenceDate;
-  final List<BudgetPeriod> periods;
   final List<BudgetCategory> categories;
-  final List<CategoryBudget> categoryBudgets;
-  final List<BudgetTransaction> transactions;
-  final List<UpcomingExpense> upcomingExpenses;
-  final List<BudgetPlanPoint> plannedCumulativePoints;
 }
 
 class SpendingCategory {

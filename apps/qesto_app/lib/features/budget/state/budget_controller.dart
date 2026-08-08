@@ -7,19 +7,55 @@ import '../services/category_budget_calculation_service.dart';
 
 class BudgetController extends ChangeNotifier {
   BudgetController({
-    required BudgetStatement statement,
-    required List<QestoAccount> accounts,
+    required BudgetConfiguration configuration,
+    required UserFinancialData financialData,
     this.calculationService = const BudgetCalculationService(),
     this.forecastService = const BudgetForecastService(),
     this.categoryCalculationService = const CategoryBudgetCalculationService(),
-  }) : referenceDate = statement.referenceDate,
-       periods = List.of(statement.periods),
-       categories = List.of(statement.categories),
-       categoryBudgets = List.of(statement.categoryBudgets),
-       plannedCumulativePoints = List.of(statement.plannedCumulativePoints),
-       accounts = List.of(accounts),
-       _transactions = List.of(statement.transactions),
-       _upcomingExpenses = List.of(statement.upcomingExpenses);
+  }) : referenceDate = financialData.referenceDate,
+       periods = _resolvedPeriods(financialData),
+       categories = List.of(configuration.categories),
+       categoryBudgets = List.of(financialData.categoryBudgets),
+       plannedCumulativePoints = List.of(financialData.plannedCumulativePoints),
+       accounts = _resolvedAccounts(financialData),
+       _transactions = List.of(financialData.transactions),
+       _upcomingExpenses = List.of(financialData.upcomingExpenses);
+
+  static List<BudgetPeriod> _resolvedPeriods(UserFinancialData data) {
+    if (data.budgetPeriods.isNotEmpty) {
+      return List.of(data.budgetPeriods);
+    }
+
+    final date = data.referenceDate;
+    return [
+      BudgetPeriod(
+        id: 'local-${date.year}-${date.month.toString().padLeft(2, '0')}',
+        userId: data.user.id,
+        startDate: DateTime(date.year, date.month),
+        endDate: DateTime(date.year, date.month + 1, 0),
+        type: BudgetPeriodType.calendarMonth,
+        totalPlan: 0,
+        currency: data.user.defaultCurrency,
+      ),
+    ];
+  }
+
+  static List<QestoAccount> _resolvedAccounts(UserFinancialData data) {
+    if (data.accounts.isNotEmpty) {
+      return List.of(data.accounts);
+    }
+
+    return [
+      QestoAccount(
+        id: 'local-default-account',
+        userId: data.user.id,
+        title: 'Основной счёт',
+        balance: 0,
+        currency: data.user.defaultCurrency,
+        type: AccountType.other,
+      ),
+    ];
+  }
 
   final DateTime referenceDate;
   final List<BudgetPeriod> periods;

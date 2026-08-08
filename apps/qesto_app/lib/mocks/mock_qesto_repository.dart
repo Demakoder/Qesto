@@ -1,15 +1,20 @@
 import '../data/models/qesto_models.dart';
 import '../data/repositories/qesto_repository.dart';
-import 'fixtures/mock_accounts.dart';
-import 'fixtures/mock_budget_statement.dart';
-import 'fixtures/mock_deals.dart';
-import 'fixtures/mock_savings.dart';
-import 'fixtures/mock_user.dart';
+import 'fixtures/budget_categories.dart';
+import 'fixtures/empty_user_financial_data.dart';
 
 class MockQestoRepository extends QestoRepository {
-  const MockQestoRepository({this.delay = const Duration(milliseconds: 220)});
+  const MockQestoRepository({
+    this.delay = const Duration(milliseconds: 220),
+    this.financialData,
+    this.coupons = const [],
+    this.promotions = const [],
+  });
 
   final Duration delay;
+  final UserFinancialData? financialData;
+  final List<Deal> coupons;
+  final List<Deal> promotions;
 
   Future<T> _respond<T>(T value) async {
     if (delay > Duration.zero) {
@@ -19,24 +24,16 @@ class MockQestoRepository extends QestoRepository {
   }
 
   @override
-  Future<List<QestoAccount>> getAccounts() => _respond(mockAccounts);
+  Future<BudgetConfiguration> getBudgetConfiguration() =>
+      _respond(budgetConfiguration);
 
   @override
-  Future<BudgetStatement> getBudgetStatement() => _respond(mockBudgetStatement);
+  Future<UserFinancialData> getUserFinancialData() =>
+      _respond(financialData ?? emptyUserFinancialData);
 
   @override
-  Future<List<Deal>> getCoupons() => _respond(mockCoupons);
+  Future<List<Deal>> getCoupons() => _respond(coupons);
 
   @override
-  Future<List<Deal>> getPromotions() => _respond(mockPromotions);
-
-  @override
-  Future<List<SavingsGoal>> getSavingsGoals() => _respond(mockSavingsGoals);
-
-  @override
-  Future<List<TrackedProduct>> getTrackedProducts() =>
-      _respond(mockTrackedProducts);
-
-  @override
-  Future<QestoUser> getUser() => _respond(mockUser);
+  Future<List<Deal>> getPromotions() => _respond(promotions);
 }
