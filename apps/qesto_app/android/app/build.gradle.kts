@@ -43,3 +43,7 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+dependencies {
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+}

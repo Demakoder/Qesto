@@ -10,10 +10,13 @@ import 'fixtures/sample_user_financial_data.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const notificationChannel = MethodChannel('ru.qesto.qesto/notifications');
+  const statementChannel = MethodChannel('ru.qesto.qesto/statements');
   late List<Map<String, Object?>> mockNotifications;
+  Map<String, Object?>? mockStatement;
 
   setUp(() {
     mockNotifications = [];
+    mockStatement = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(notificationChannel, (call) async {
           return switch (call.method) {
@@ -23,11 +26,17 @@ void main() {
             _ => null,
           };
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(statementChannel, (call) async {
+          return call.method == 'pickPdf' ? mockStatement : null;
+        });
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(notificationChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(statementChannel, null);
   });
 
   Widget buildApp() {
@@ -216,6 +225,50 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('47 700 ₽'), findsWidgets);
+  });
+
+  testWidgets('PDF-выписка Сбербанка открывается и импортируется', (
+    tester,
+  ) async {
+    mockStatement = {
+      'fileName': 'sber-test.pdf',
+      'text': '''
+СБЕР 900 www.sberbank.ru
+Выписка по платёжному счёту
+За период 01.07.2026 — 31.07.2026
+Номер счёта 40817 810 0 0000 0012345
+Расшифровка операций
+07.07.2026 10:30 Супермаркеты 84,99 6 010,12
+07.07.2026 737816 MAGNIT TEST MOSCOW RUS. Операция по карте ****8505
+06.07.2026 13:00 Перевод на карту +500,00 6 095,11
+06.07.2026 123456 Перевод от И. Имя. Операция по счету ****2345
+04.07.2026 13:00 Возврат, отмена операции +540,00 6 247,60
+04.07.2026 659298 CAFE TEST MOSCOW RUS. Операция по карте ****8505
+''',
+    };
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Добавить'));
+    await tester.tap(find.text('Добавить'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Загрузить выписку'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Загрузить выписку'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Выписка Сбербанка в PDF'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('pick-statement-pdf')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('sber-test.pdf'), findsOneWidget);
+    expect(find.text('Найдено расходов и возвратов: 2'), findsOneWidget);
+    expect(find.text('MAGNIT TEST MOSCOW RUS'), findsOneWidget);
+    expect(find.text('−84,99 ₽'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('import-statement-transactions')));
+    await tester.pumpAndSettle();
+    expect(find.text('Добавлено операций: 2'), findsOneWidget);
   });
 
   testWidgets('статистика открывается и вкладки переключаются', (tester) async {

@@ -6,6 +6,7 @@ import '../../core/widgets/states.dart';
 import '../../data/models/qesto_models.dart';
 import '../shared/placeholder_screen.dart';
 import '../statistics/presentation/screens/statistics_screen.dart';
+import '../statement_import/presentation/statement_import_screen.dart';
 import 'accounts_screen.dart';
 import 'add_expense_screen.dart';
 import 'budget_details_screen.dart';
@@ -25,8 +26,9 @@ class BudgetScreen extends StatefulWidget {
 
 class BudgetScreenState extends State<BudgetScreen> {
   late final PageController _pageController;
-  late final List<ScrollController> _scrollControllers;
+  late final Map<String, ScrollController> _scrollControllers;
   late int _currentIndex;
+  late String _currentPeriodId;
 
   List<BudgetPeriod> get _periods => widget.controller.periods;
 
@@ -34,11 +36,10 @@ class BudgetScreenState extends State<BudgetScreen> {
   void initState() {
     super.initState();
     _currentIndex = _initialIndex();
+    _currentPeriodId = _periods[_currentIndex].id;
     _pageController = PageController(initialPage: _currentIndex);
-    _scrollControllers = List.generate(
-      _periods.length,
-      (_) => ScrollController(),
-    );
+    _scrollControllers = <String, ScrollController>{};
+    widget.controller.addListener(_handleControllerChanged);
   }
 
   int _initialIndex() {
@@ -48,8 +49,8 @@ class BudgetScreenState extends State<BudgetScreen> {
   }
 
   void scrollToTop() {
-    if (_scrollControllers.isEmpty) return;
-    final controller = _scrollControllers[_currentIndex];
+    final controller = _scrollControllers[_currentPeriodId];
+    if (controller == null) return;
     if (controller.hasClients) {
       controller.animateTo(
         0,
@@ -61,11 +62,28 @@ class BudgetScreenState extends State<BudgetScreen> {
 
   @override
   void dispose() {
+    widget.controller.removeListener(_handleControllerChanged);
     _pageController.dispose();
-    for (final controller in _scrollControllers) {
+    for (final controller in _scrollControllers.values) {
       controller.dispose();
     }
     super.dispose();
+  }
+
+  ScrollController _scrollControllerFor(String periodId) =>
+      _scrollControllers.putIfAbsent(periodId, ScrollController.new);
+
+  void _handleControllerChanged() {
+    final index = _periods.indexWhere(
+      (period) => period.id == _currentPeriodId,
+    );
+    if (index < 0 || index == _currentIndex) return;
+    _currentIndex = index;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageController.hasClients) {
+        _pageController.jumpToPage(index);
+      }
+    });
   }
 
   void _goToPage(int index) {
@@ -164,11 +182,7 @@ class BudgetScreenState extends State<BudgetScreen> {
               _AddMenuItem(
                 icon: Icons.upload_file_rounded,
                 title: 'Загрузить выписку',
-                onTap: () => _openPlaceholder(
-                  sheetContext,
-                  'Загрузить выписку',
-                  Icons.description_outlined,
-                ),
+                onTap: () => _openStatementImport(sheetContext),
               ),
               _AddMenuItem(
                 icon: Icons.receipt_long_rounded,
@@ -183,6 +197,19 @@ class BudgetScreenState extends State<BudgetScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _openStatementImport(BuildContext sheetContext) async {
+    Navigator.of(sheetContext).pop();
+    final importedCount = await Navigator.of(context).push<int>(
+      MaterialPageRoute<int>(
+        builder: (_) => StatementImportScreen(controller: widget.controller),
+      ),
+    );
+    if (!mounted || importedCount == null || importedCount == 0) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Добавлено операций: $importedCount')),
     );
   }
 
@@ -217,13 +244,16 @@ class BudgetScreenState extends State<BudgetScreen> {
       builder: (context, _) => PageView.builder(
         controller: _pageController,
         itemCount: _periods.length,
-        onPageChanged: (index) => setState(() => _currentIndex = index),
+        onPageChanged: (index) => setState(() {
+          _currentIndex = index;
+          _currentPeriodId = _periods[index].id;
+        }),
         itemBuilder: (context, index) {
           final period = _periods[index];
           final summary = widget.controller.summaryFor(period);
           return SingleChildScrollView(
             key: PageStorageKey(period.id),
-            controller: _scrollControllers[index],
+            controller: _scrollControllerFor(period.id),
             padding: const EdgeInsets.fromLTRB(18, 4, 18, 26),
             child: Column(
               children: [

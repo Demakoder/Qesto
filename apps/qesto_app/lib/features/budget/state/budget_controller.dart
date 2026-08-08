@@ -13,6 +13,8 @@ class BudgetController extends ChangeNotifier {
     this.forecastService = const BudgetForecastService(),
     this.categoryCalculationService = const CategoryBudgetCalculationService(),
   }) : referenceDate = financialData.referenceDate,
+       _userId = financialData.user.id,
+       _defaultCurrency = financialData.user.defaultCurrency,
        periods = _resolvedPeriods(financialData),
        categories = List.of(configuration.categories),
        categoryBudgets = List.of(financialData.categoryBudgets),
@@ -58,6 +60,8 @@ class BudgetController extends ChangeNotifier {
   }
 
   final DateTime referenceDate;
+  final String _userId;
+  final String _defaultCurrency;
   final List<BudgetPeriod> periods;
   final List<BudgetCategory> categories;
   final List<CategoryBudget> categoryBudgets;
@@ -158,6 +162,39 @@ class BudgetController extends ChangeNotifier {
     (account) => account.id == id,
     orElse: () => accounts.first,
   );
+
+  BudgetPeriod periodForOrCreate(DateTime date) {
+    for (final period in periods) {
+      if (period.contains(date)) return period;
+    }
+
+    final period = BudgetPeriod(
+      id: 'imported-${date.year}-${date.month.toString().padLeft(2, '0')}',
+      userId: _userId,
+      startDate: DateTime(date.year, date.month),
+      endDate: DateTime(date.year, date.month + 1, 0),
+      type: BudgetPeriodType.calendarMonth,
+      totalPlan: 0,
+      currency: _defaultCurrency,
+    );
+    periods.add(period);
+    periods.sort((a, b) => a.startDate.compareTo(b.startDate));
+    return period;
+  }
+
+  bool hasTransaction(String id) =>
+      _transactions.any((transaction) => transaction.id == id);
+
+  void addImportedTransactions(Iterable<BudgetTransaction> transactions) {
+    final knownIds = _transactions.map((transaction) => transaction.id).toSet();
+    final additions = <BudgetTransaction>[];
+    for (final transaction in transactions) {
+      if (knownIds.add(transaction.id)) additions.add(transaction);
+    }
+    if (additions.isEmpty) return;
+    _transactions.addAll(additions);
+    notifyListeners();
+  }
 
   void addExpense({
     required BudgetPeriod period,

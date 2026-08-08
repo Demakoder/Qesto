@@ -8,10 +8,13 @@ class MerchantCategoryClassifier {
 
     if (_containsAny(value, const [
       'burger king',
+      'burgerrus',
       'бургер кинг',
       'kfc',
       'ростикс',
+      'rostics',
       'вкусно и точка',
+      'vkusnoitochka',
       'mcdonald',
     ])) {
       return const CategorySuggestion(
@@ -22,14 +25,43 @@ class MerchantCategoryClassifier {
 
     if (_containsAny(value, const [
       'пятерочка',
+      'pyaterochka',
       'перекресток',
+      'perekrestok',
       'вкусвилл',
+      'vkusvill',
       'магнит',
+      'magnit',
+      'magnoliya',
+      'auchan',
+      'avokado',
+      'metro store',
     ])) {
       return const CategorySuggestion(
         categoryId: 'groceries',
         subcategoryId: 'Супермаркеты',
       );
+    }
+
+    if (_containsAny(value, const [
+      'mos transport',
+      'moskva metro',
+      'sbscr',
+      'аэроэкспресс',
+      'aeroexpress',
+      'scooters',
+      'такси',
+      'taxi',
+    ])) {
+      return const CategorySuggestion(categoryId: 'transport');
+    }
+
+    if (_containsAny(value, const ['ozon', 'avito', 'market'])) {
+      return const CategorySuggestion(categoryId: 'shopping');
+    }
+
+    if (_containsAny(value, const ['playerok', 'whoosh'])) {
+      return const CategorySuggestion(categoryId: 'fun');
     }
 
     return const CategorySuggestion(categoryId: 'other');
