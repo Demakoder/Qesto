@@ -211,7 +211,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
               const SizedBox(height: 8),
               Text(
                 'Выберите выписку по платёжному счёту. Файл обрабатывается '
-                'только на телефоне и никуда не отправляется.',
+                'только на вашем устройстве и никуда не отправляется.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),

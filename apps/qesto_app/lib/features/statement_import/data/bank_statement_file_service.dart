@@ -1,26 +1,13 @@
-import 'package:flutter/services.dart';
+import 'bank_statement_file_models.dart';
+import 'bank_statement_file_service_stub.dart'
+    if (dart.library.io) 'bank_statement_file_service_native.dart'
+    if (dart.library.js_interop) 'bank_statement_file_service_web.dart'
+    as platform;
 
-class ExtractedStatementFile {
-  const ExtractedStatementFile({required this.fileName, required this.text});
-
-  final String fileName;
-  final String text;
-}
+export 'bank_statement_file_models.dart';
 
 class BankStatementFileService {
   const BankStatementFileService();
 
-  static const _channel = MethodChannel('ru.qesto.qesto/statements');
-
-  Future<ExtractedStatementFile?> pickPdf() async {
-    final value = await _channel.invokeMapMethod<String, Object?>('pickPdf');
-    if (value == null) return null;
-
-    final fileName = value['fileName'];
-    final text = value['text'];
-    if (fileName is! String || text is! String || text.trim().isEmpty) {
-      throw const FormatException('PDF не содержит доступного текста');
-    }
-    return ExtractedStatementFile(fileName: fileName, text: text);
-  }
+  Future<ExtractedStatementFile?> pickPdf() => platform.pickStatementPdf();
 }
