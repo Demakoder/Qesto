@@ -128,20 +128,40 @@ class SavingsGoal {
 
 class QestoAppData {
   const QestoAppData({
-    required this.user,
-    required this.budgetStatement,
-    required this.accounts,
+    required this.budgetConfiguration,
+    required this.financialData,
     required this.coupons,
     required this.promotions,
-    required this.trackedProducts,
-    required this.savingsGoals,
+  });
+
+  final BudgetConfiguration budgetConfiguration;
+  final UserFinancialData financialData;
+  final List<Deal> coupons;
+  final List<Deal> promotions;
+}
+
+class UserFinancialData {
+  const UserFinancialData({
+    required this.user,
+    required this.referenceDate,
+    this.accounts = const [],
+    this.budgetPeriods = const [],
+    this.categoryBudgets = const [],
+    this.transactions = const [],
+    this.upcomingExpenses = const [],
+    this.plannedCumulativePoints = const [],
+    this.savingsGoals = const [],
+    this.trackedProducts = const [],
   });
 
   final QestoUser user;
-  final BudgetStatement budgetStatement;
+  final DateTime referenceDate;
   final List<QestoAccount> accounts;
-  final List<Deal> coupons;
-  final List<Deal> promotions;
-  final List<TrackedProduct> trackedProducts;
+  final List<BudgetPeriod> budgetPeriods;
+  final List<CategoryBudget> categoryBudgets;
+  final List<BudgetTransaction> transactions;
+  final List<UpcomingExpense> upcomingExpenses;
+  final List<BudgetPlanPoint> plannedCumulativePoints;
   final List<SavingsGoal> savingsGoals;
+  final List<TrackedProduct> trackedProducts;
 }

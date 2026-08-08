@@ -35,8 +35,8 @@ class _QestoAppShellState extends State<QestoAppShell> {
   void initState() {
     super.initState();
     _budgetController = BudgetController(
-      statement: widget.data.budgetStatement,
-      accounts: widget.data.accounts,
+      configuration: widget.data.budgetConfiguration,
+      financialData: widget.data.financialData,
     );
   }
 
@@ -81,7 +81,7 @@ class _QestoAppShellState extends State<QestoAppShell> {
   }
 
   void _openProfile() {
-    final user = widget.data.user;
+    final user = widget.data.financialData.user;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => PlaceholderScreen(
@@ -132,10 +132,11 @@ class _QestoAppShellState extends State<QestoAppShell> {
   @override
   Widget build(BuildContext context) {
     final data = widget.data;
+    final financialData = data.financialData;
     return Scaffold(
       appBar: StickyAppHeader(
         title: _titles[_selectedIndex],
-        user: data.user,
+        user: financialData.user,
         onNotificationsPressed: _openNotifications,
         onProfilePressed: _openProfile,
       ),
@@ -147,9 +148,9 @@ class _QestoAppShellState extends State<QestoAppShell> {
             key: _benefitsKey,
             coupons: data.coupons,
             promotions: data.promotions,
-            trackedProducts: data.trackedProducts,
+            trackedProducts: financialData.trackedProducts,
           ),
-          SavingsScreen(key: _savingsKey, goals: data.savingsGoals),
+          SavingsScreen(key: _savingsKey, goals: financialData.savingsGoals),
         ],
       ),
       bottomNavigationBar: QestoBottomNavigation(
