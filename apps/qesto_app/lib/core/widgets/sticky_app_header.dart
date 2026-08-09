@@ -7,6 +7,7 @@ class StickyAppHeader extends StatelessWidget implements PreferredSizeWidget {
   const StickyAppHeader({
     required this.title,
     required this.user,
+    required this.onHistoryPressed,
     required this.onNotificationsPressed,
     required this.onProfilePressed,
     super.key,
@@ -14,6 +15,7 @@ class StickyAppHeader extends StatelessWidget implements PreferredSizeWidget {
 
   final String title;
   final QestoUser user;
+  final VoidCallback onHistoryPressed;
   final VoidCallback onNotificationsPressed;
   final VoidCallback onProfilePressed;
 
@@ -28,6 +30,13 @@ class StickyAppHeader extends StatelessWidget implements PreferredSizeWidget {
       titleSpacing: 20,
       title: Text(title, style: Theme.of(context).textTheme.titleLarge),
       actions: [
+        IconButton(
+          key: const Key('action-history-button'),
+          onPressed: onHistoryPressed,
+          tooltip: 'История действий',
+          icon: const Icon(Icons.history_rounded, size: 27),
+          color: QestoColors.secondaryText,
+        ),
         IconButton(
           onPressed: onNotificationsPressed,
           tooltip: 'Уведомления',

@@ -9,6 +9,8 @@ enum TransactionType {
   investment,
 }
 
+enum TransferDirection { incoming, outgoing }
+
 enum UpcomingExpenseSource { manual, detectedRecurring, subscription }
 
 class TransactionReceiptItem {
@@ -98,6 +100,7 @@ class BudgetTransaction {
     this.isPotentialDuplicate = false,
     this.classificationConfidence = 1,
     this.originalCategoryId,
+    this.transferDirection,
     this.tags = const [],
     this.receipt,
   });
@@ -122,6 +125,7 @@ class BudgetTransaction {
   final bool isPotentialDuplicate;
   final double classificationConfidence;
   final String? originalCategoryId;
+  final TransferDirection? transferDirection;
   final List<String> tags;
   final TransactionReceiptDetails? receipt;
 
@@ -143,6 +147,7 @@ class BudgetTransaction {
     bool? isPotentialDuplicate,
     double? classificationConfidence,
     String? originalCategoryId,
+    TransferDirection? transferDirection,
     List<String>? tags,
     TransactionReceiptDetails? receipt,
   }) {
@@ -168,6 +173,7 @@ class BudgetTransaction {
       classificationConfidence:
           classificationConfidence ?? this.classificationConfidence,
       originalCategoryId: originalCategoryId ?? this.originalCategoryId,
+      transferDirection: transferDirection ?? this.transferDirection,
       tags: tags ?? this.tags,
       receipt: receipt ?? this.receipt,
     );

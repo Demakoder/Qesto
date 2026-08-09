@@ -4,5 +4,5 @@ import 'app/qesto_app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const QestoApp());
+  runApp(QestoApp());
 }

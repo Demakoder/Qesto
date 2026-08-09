@@ -277,13 +277,31 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('sber-test.pdf'), findsOneWidget);
-    expect(find.text('Найдено расходов и возвратов: 2'), findsOneWidget);
+    expect(find.text('Найдено операций: 3'), findsOneWidget);
     expect(find.text('MAGNIT TEST MOSCOW RUS'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Перевод от И. Имя'), 260);
+    expect(find.text('Перевод от И. Имя'), findsOneWidget);
     expect(find.text('−84,99 ₽'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('import-statement-transactions')));
     await tester.pumpAndSettle();
-    expect(find.text('Добавлено операций: 2'), findsOneWidget);
+    expect(find.text('Добавлено операций: 3'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Капитал'));
+    await tester.tap(find.text('Капитал'));
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(find.text('Счёт Сбербанка • 2345'), 300);
+    expect(find.text('Счёт Сбербанка • 2345'), findsOneWidget);
+    expect(find.text('6 010 ₽'), findsWidgets);
+
+    await tester.tap(find.byTooltip('Назад'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('action-history-button')));
+    await tester.pumpAndSettle();
+    expect(find.text('Импорт выписки sber-test.pdf'), findsOneWidget);
+    await tester.tap(find.text('Отменить'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('отменено'), findsOneWidget);
   });
 
   testWidgets('QR-код кассового чека сканируется и добавляется', (

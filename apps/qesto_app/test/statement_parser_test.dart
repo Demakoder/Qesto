@@ -47,19 +47,24 @@ void main() {
   test('отделяет доходы, переводы и возвраты от расходов', () {
     final transactions = parser.parse(redactedSberStatementText).transactions;
 
-    expect(transactions[1].kind, StatementTransactionKind.income);
+    expect(transactions[1].kind, StatementTransactionKind.transfer);
+    expect(transactions[1].isIncoming, isTrue);
     expect(transactions[2].kind, StatementTransactionKind.transfer);
+    expect(transactions[2].isIncoming, isFalse);
     expect(transactions[3].kind, StatementTransactionKind.refund);
+    expect(transactions[3].isIncoming, isTrue);
   });
 
   test('в список потребительских операций входят расход и возврат', () {
     final statement = parser.parse(redactedSberStatementText);
 
-    expect(statement.consumerTransactions, hasLength(2));
-    expect(
-      statement.consumerTransactions.map((item) => item.authorizationCode),
-      ['737816', '659298'],
-    );
+    expect(statement.transactions, hasLength(4));
+    expect(statement.transactions.map((item) => item.authorizationCode), [
+      '737816',
+      '123456',
+      '468119',
+      '659298',
+    ]);
   });
 
   test('отклоняет документ другого банка', () {
@@ -69,7 +74,7 @@ void main() {
     );
   });
 
-  test('контроллер создаёт недостающий месяц и не добавляет дубль', () {
+  test('контроллер создаёт недостающий месяц и не добавляет дубль', () async {
     final controller = BudgetController(
       configuration: budgetConfiguration,
       financialData: UserFinancialData(
@@ -93,7 +98,7 @@ void main() {
       categoryId: 'other',
     );
 
-    controller.addImportedTransactions([transaction, transaction]);
+    await controller.addImportedTransactions([transaction, transaction]);
 
     expect(period.startDate, DateTime(2026, 5));
     expect(controller.periods, hasLength(2));

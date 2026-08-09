@@ -34,11 +34,11 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   ParsedBankStatement? _statement;
   Set<String> _selectedIds = <String>{};
 
-  List<ParsedStatementTransaction> get _consumerTransactions =>
-      _statement?.consumerTransactions ?? const [];
+  List<ParsedStatementTransaction> get _statementTransactions =>
+      _statement?.transactions ?? const [];
 
   List<ParsedStatementTransaction> get _eligibleTransactions =>
-      _consumerTransactions
+      _statementTransactions
           .where(
             (transaction) => !widget.controller.hasTransaction(transaction.id),
           )
@@ -52,6 +52,10 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
       _eligibleTransactions
           .where((transaction) => _selectedIds.contains(transaction.id))
           .toList(growable: false);
+
+  bool get _hasExistingStatementTransactions => _statementTransactions.any(
+    (transaction) => widget.controller.hasTransaction(transaction.id),
+  );
 
   Future<void> _pickStatement() async {
     if (_loading) return;
@@ -67,7 +71,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
         return;
       }
       final statement = widget.parser.parse(file.text);
-      final selected = statement.consumerTransactions
+      final selected = statement.transactions
           .where((item) => !widget.controller.hasTransaction(item.id))
           .map((item) => item.id)
           .toSet();
@@ -115,16 +119,36 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
     });
   }
 
-  void _importSelected() {
+  Future<void> _importSelected() async {
     final selected = _selectedTransactions;
-    if (selected.isEmpty) return;
-    final account = widget.controller.accounts.firstWhere(
-      (item) => item.type != AccountType.liability,
-      orElse: () => widget.controller.accounts.first,
+    final selectedIds = selected.map((item) => item.id).toSet();
+    final transactionsToApply = _statementTransactions
+        .where(
+          (item) =>
+              selectedIds.contains(item.id) ||
+              widget.controller.hasTransaction(item.id),
+        )
+        .toList();
+    if (transactionsToApply.isEmpty) return;
+    final statement = _statement!;
+    final currentAccount = widget.controller.accounts.first;
+    final accountSuffix = statement.accountLastFour == null
+        ? ''
+        : ' • ${statement.accountLastFour}';
+    final account = QestoAccount(
+      id: 'sber-account-${statement.accountLastFour ?? 'statement'}',
+      userId: currentAccount.userId,
+      title: 'Счёт Сбербанка$accountSuffix',
+      balance: statement.closingBalanceRubles,
+      currency: currentAccount.currency,
+      type: AccountType.bankCard,
     );
+    final knownPeriodIds = widget.controller.periods
+        .map((period) => period.id)
+        .toSet();
 
     final transactions = <BudgetTransaction>[];
-    for (final item in selected) {
+    for (final item in transactionsToApply) {
       final period = widget.controller.periodForOrCreate(item.operationDate);
       final exactAmount = _formatMinorMoney(item.amountMinor);
       transactions.add(
@@ -135,9 +159,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           date: item.operationDate,
           amount: item.roundedRubles,
           currency: period.currency,
-          type: item.kind == StatementTransactionKind.refund
-              ? TransactionType.refund
-              : TransactionType.expense,
+          type: _transactionType(item.kind),
           categoryId: item.category.categoryId,
           subcategoryId: item.category.subcategoryId,
           merchant: item.merchant,
@@ -148,13 +170,33 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
               '${item.hasKopecks ? ' · точная сумма $exactAmount ₽' : ''}',
           normalizedMerchant: _normalizeMerchant(item.merchant),
           classificationConfidence: item.confidence,
-          tags: const ['statement-import', 'sberbank'],
+          transferDirection: item.kind == StatementTransactionKind.transfer
+              ? item.isIncoming
+                    ? TransferDirection.incoming
+                    : TransferDirection.outgoing
+              : null,
+          tags: [
+            'statement-import',
+            'sberbank',
+            if (item.kind == StatementTransactionKind.transfer)
+              item.isIncoming ? 'transfer-incoming' : 'transfer-outgoing',
+          ],
         ),
       );
     }
 
-    widget.controller.addImportedTransactions(transactions);
-    Navigator.of(context).pop(transactions.length);
+    final createdPeriodIds = widget.controller.periods
+        .map((period) => period.id)
+        .where((id) => !knownPeriodIds.contains(id))
+        .toSet();
+    final importedCount = await widget.controller.importStatement(
+      account: account,
+      transactions: transactions,
+      createdPeriodIds: createdPeriodIds,
+      actionTitle: 'Импорт выписки ${_fileName ?? 'Сбербанка'}',
+    );
+    if (!mounted) return;
+    Navigator.of(context).pop(importedCount);
   }
 
   @override
@@ -181,9 +223,16 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 padding: const EdgeInsets.fromLTRB(18, 10, 18, 14),
                 child: FilledButton.icon(
                   key: const Key('import-statement-transactions'),
-                  onPressed: _selectedIds.isEmpty ? null : _importSelected,
+                  onPressed:
+                      _selectedIds.isEmpty && !_hasExistingStatementTransactions
+                      ? null
+                      : _importSelected,
                   icon: const Icon(Icons.download_done_rounded),
-                  label: Text('Добавить выбранные (${_selectedIds.length})'),
+                  label: Text(
+                    _selectedIds.isEmpty
+                        ? 'Обновить данные счёта'
+                        : 'Добавить выбранные (${_selectedIds.length})',
+                  ),
                 ),
               ),
             ),
@@ -244,15 +293,28 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   }
 
   Widget _buildStatement(BuildContext context, ParsedBankStatement statement) {
-    final skipped =
-        statement.transactions.length - statement.consumerTransactions.length;
+    final counts = {
+      for (final kind in StatementTransactionKind.values)
+        kind: statement.transactions
+            .where((transaction) => transaction.kind == kind)
+            .length,
+    };
+    final incomingTransfers = statement.transactions
+        .where(
+          (transaction) =>
+              transaction.kind == StatementTransactionKind.transfer &&
+              transaction.isIncoming,
+        )
+        .length;
+    final outgoingTransfers =
+        (counts[StatementTransactionKind.transfer] ?? 0) - incomingTransfers;
     final duplicates =
-        statement.consumerTransactions.length - _eligibleTransactions.length;
+        statement.transactions.length - _eligibleTransactions.length;
     final allSelected = _selectedIds.length == _eligibleTransactions.length;
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 24),
-      itemCount: _consumerTransactions.length + 1,
+      itemCount: _statementTransactions.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
           return Padding(
@@ -272,13 +334,25 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                         '${formatDate(statement.periodStart, includeYear: true)} — '
                         '${formatDate(statement.periodEnd, includeYear: true)}',
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Счёт Сбербанка'
+                        '${statement.accountLastFour == null ? '' : ' • ${statement.accountLastFour}'}'
+                        ' · остаток ${formatMoney(statement.closingBalanceRubles, 'RUB')}',
+                      ),
                       const SizedBox(height: 8),
                       Text(
-                        'Найдено расходов и возвратов: '
-                        '${statement.consumerTransactions.length}',
+                        'Найдено операций: ${statement.transactions.length}',
                       ),
-                      if (skipped > 0)
-                        Text('Доходов и переводов пропущено: $skipped'),
+                      Text(
+                        'Расходов: ${counts[StatementTransactionKind.expense]} · '
+                        'возвратов: ${counts[StatementTransactionKind.refund]}',
+                      ),
+                      Text(
+                        'Доходов: ${counts[StatementTransactionKind.income]} · '
+                        'переводов: ${counts[StatementTransactionKind.transfer]} '
+                        '(входящих: $incomingTransfers, исходящих: $outgoingTransfers)',
+                      ),
                       if (duplicates > 0)
                         Text('Уже добавленных операций: $duplicates'),
                       if (_roundingCount > 0) ...[
@@ -315,7 +389,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           );
         }
 
-        final transaction = _consumerTransactions[index - 1];
+        final transaction = _statementTransactions[index - 1];
         final duplicate = widget.controller.hasTransaction(transaction.id);
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
@@ -337,17 +411,16 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
               ),
               subtitle: Text(
                 '${formatDate(transaction.operationDate, includeYear: true)} · '
+                '${_kindLabel(transaction.kind)} · '
                 '${_categoryName(transaction.category.categoryId)}'
                 '${duplicate ? ' · уже добавлено' : ''}',
               ),
               secondary: Text(
-                '${transaction.kind == StatementTransactionKind.refund ? '+' : '−'}'
+                '${_amountSign(transaction)}'
                 '${_formatMinorMoney(transaction.amountMinor)} ₽',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: transaction.kind == StatementTransactionKind.refund
-                      ? QestoColors.primary
-                      : null,
+                  color: _isCredit(transaction) ? QestoColors.primary : null,
                 ),
               ),
             ),
@@ -364,6 +437,29 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
       )
       .name;
 }
+
+TransactionType _transactionType(StatementTransactionKind kind) =>
+    switch (kind) {
+      StatementTransactionKind.expense => TransactionType.expense,
+      StatementTransactionKind.income => TransactionType.income,
+      StatementTransactionKind.transfer => TransactionType.transfer,
+      StatementTransactionKind.refund => TransactionType.refund,
+    };
+
+String _kindLabel(StatementTransactionKind kind) => switch (kind) {
+  StatementTransactionKind.expense => 'Расход',
+  StatementTransactionKind.income => 'Доход',
+  StatementTransactionKind.transfer => 'Перевод',
+  StatementTransactionKind.refund => 'Возврат',
+};
+
+bool _isCredit(ParsedStatementTransaction transaction) =>
+    transaction.kind == StatementTransactionKind.refund ||
+    transaction.kind == StatementTransactionKind.income ||
+    transaction.isIncoming;
+
+String _amountSign(ParsedStatementTransaction transaction) =>
+    _isCredit(transaction) ? '+' : '−';
 
 String _formatMinorMoney(int amountMinor) {
   final whole = amountMinor.abs() ~/ 100;

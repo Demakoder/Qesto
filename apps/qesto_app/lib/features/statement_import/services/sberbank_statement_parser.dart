@@ -126,6 +126,7 @@ class SberbankStatementParser {
       amountMinor: amountMinor.abs(),
       balanceMinor: _parseMoneyMinor(pending.balanceText),
       kind: kind,
+      isIncoming: pending.amountText.trimLeft().startsWith('+'),
       category: category,
       confidence: category.categoryId == 'other' ? 0.55 : 0.9,
       cardLastFour: cardLastFour,
@@ -137,13 +138,13 @@ class SberbankStatementParser {
     if (normalized.contains('возврат') || normalized.contains('отмена')) {
       return StatementTransactionKind.refund;
     }
-    if (amountText.trimLeft().startsWith('+')) {
-      return StatementTransactionKind.income;
-    }
     if (normalized.startsWith('перевод') ||
         normalized.contains('внесение наличных') ||
         normalized.contains('выдача наличных')) {
       return StatementTransactionKind.transfer;
+    }
+    if (amountText.trimLeft().startsWith('+')) {
+      return StatementTransactionKind.income;
     }
     return StatementTransactionKind.expense;
   }
