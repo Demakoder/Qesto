@@ -21,6 +21,7 @@ void main() {
       expect(data.plannedCumulativePoints, isEmpty);
       expect(data.savingsGoals, isEmpty);
       expect(data.trackedProducts, isEmpty);
+      expect(data.actions, isEmpty);
     },
   );
 
@@ -28,7 +29,7 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const QestoApp(repository: MockQestoRepository(delay: Duration.zero)),
+      QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
     );
     await tester.pumpAndSettle();
 

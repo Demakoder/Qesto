@@ -9,6 +9,8 @@ enum TransactionType {
   investment,
 }
 
+enum TransferDirection { incoming, outgoing }
+
 enum UpcomingExpenseSource { manual, detectedRecurring, subscription }
 
 class BudgetPeriod {
@@ -62,6 +64,7 @@ class BudgetTransaction {
     this.isPotentialDuplicate = false,
     this.classificationConfidence = 1,
     this.originalCategoryId,
+    this.transferDirection,
     this.tags = const [],
   });
 
@@ -85,6 +88,7 @@ class BudgetTransaction {
   final bool isPotentialDuplicate;
   final double classificationConfidence;
   final String? originalCategoryId;
+  final TransferDirection? transferDirection;
   final List<String> tags;
 
   BudgetTransaction copyWith({
@@ -105,6 +109,7 @@ class BudgetTransaction {
     bool? isPotentialDuplicate,
     double? classificationConfidence,
     String? originalCategoryId,
+    TransferDirection? transferDirection,
     List<String>? tags,
   }) {
     return BudgetTransaction(
@@ -129,6 +134,7 @@ class BudgetTransaction {
       classificationConfidence:
           classificationConfidence ?? this.classificationConfidence,
       originalCategoryId: originalCategoryId ?? this.originalCategoryId,
+      transferDirection: transferDirection ?? this.transferDirection,
       tags: tags ?? this.tags,
     );
   }

@@ -3,12 +3,13 @@ import 'package:flutter/material.dart';
 import '../core/theme/qesto_theme.dart';
 import '../core/widgets/states.dart';
 import '../data/models/qesto_models.dart';
+import '../data/repositories/local_qesto_repository.dart';
 import '../data/repositories/qesto_repository.dart';
-import '../mocks/mock_qesto_repository.dart';
 import 'qesto_app_shell.dart';
 
 class QestoApp extends StatelessWidget {
-  const QestoApp({super.key, this.repository = const MockQestoRepository()});
+  QestoApp({super.key, QestoRepository? repository})
+    : repository = repository ?? LocalQestoRepository();
 
   final QestoRepository repository;
 
@@ -68,7 +69,10 @@ class _AppDataLoaderState extends State<_AppDataLoader> {
           if (snapshot.hasError || !snapshot.hasData) {
             return ErrorState(onRetry: _retry);
           }
-          return QestoAppShell(data: snapshot.requireData);
+          return QestoAppShell(
+            data: snapshot.requireData,
+            repository: widget.repository,
+          );
         },
       ),
     );

@@ -5,18 +5,25 @@ import '../core/widgets/qesto_bottom_navigation.dart';
 import '../core/widgets/qesto_card.dart';
 import '../core/widgets/sticky_app_header.dart';
 import '../data/models/qesto_models.dart';
+import '../data/repositories/qesto_repository.dart';
 import '../features/benefits/benefits_screen.dart';
 import '../features/budget/budget_screen.dart';
 import '../features/budget/state/budget_controller.dart';
+import '../features/history/action_history_screen.dart';
 import '../features/notification_import/data/notification_capture_service.dart';
 import '../features/notification_import/presentation/notification_import_screen.dart';
 import '../features/savings/savings_screen.dart';
 import '../features/shared/placeholder_screen.dart';
 
 class QestoAppShell extends StatefulWidget {
-  const QestoAppShell({required this.data, super.key});
+  const QestoAppShell({
+    required this.data,
+    required this.repository,
+    super.key,
+  });
 
   final QestoAppData data;
+  final QestoRepository repository;
 
   @override
   State<QestoAppShell> createState() => _QestoAppShellState();
@@ -37,8 +44,13 @@ class _QestoAppShellState extends State<QestoAppShell> {
     _budgetController = BudgetController(
       configuration: widget.data.budgetConfiguration,
       financialData: widget.data.financialData,
+      onChanged: _saveFinancialData,
     );
   }
+
+  Future<void> _saveFinancialData() => widget.repository.saveUserFinancialData(
+    _budgetController.mergeInto(widget.data.financialData),
+  );
 
   @override
   void dispose() {
@@ -76,6 +88,14 @@ class _QestoAppShellState extends State<QestoAppShell> {
           controller: _budgetController,
           captureService: service,
         ),
+      ),
+    );
+  }
+
+  void _openHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ActionHistoryScreen(controller: _budgetController),
       ),
     );
   }
@@ -137,6 +157,7 @@ class _QestoAppShellState extends State<QestoAppShell> {
       appBar: StickyAppHeader(
         title: _titles[_selectedIndex],
         user: financialData.user,
+        onHistoryPressed: _openHistory,
         onNotificationsPressed: _openNotifications,
         onProfilePressed: _openProfile,
       ),

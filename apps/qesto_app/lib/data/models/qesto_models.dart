@@ -15,6 +15,8 @@ enum AccountType {
 
 enum DealKind { coupon, promotion }
 
+enum FinancialActionType { statementImport, transactionAdded }
+
 class QestoUser {
   const QestoUser({
     required this.id,
@@ -126,6 +128,45 @@ class SavingsGoal {
   double get progress => targetAmount == 0 ? 0 : savedAmount / targetAmount;
 }
 
+class FinancialAction {
+  const FinancialAction({
+    required this.id,
+    required this.occurredAt,
+    required this.title,
+    required this.type,
+    this.createdTransactionIds = const [],
+    this.createdAccountIds = const [],
+    this.createdPeriodIds = const [],
+    this.previousTransactions = const [],
+    this.previousAccounts = const [],
+    this.isUndone = false,
+  });
+
+  final String id;
+  final DateTime occurredAt;
+  final String title;
+  final FinancialActionType type;
+  final List<String> createdTransactionIds;
+  final List<String> createdAccountIds;
+  final List<String> createdPeriodIds;
+  final List<BudgetTransaction> previousTransactions;
+  final List<QestoAccount> previousAccounts;
+  final bool isUndone;
+
+  FinancialAction copyWith({bool? isUndone}) => FinancialAction(
+    id: id,
+    occurredAt: occurredAt,
+    title: title,
+    type: type,
+    createdTransactionIds: createdTransactionIds,
+    createdAccountIds: createdAccountIds,
+    createdPeriodIds: createdPeriodIds,
+    previousTransactions: previousTransactions,
+    previousAccounts: previousAccounts,
+    isUndone: isUndone ?? this.isUndone,
+  );
+}
+
 class QestoAppData {
   const QestoAppData({
     required this.budgetConfiguration,
@@ -152,6 +193,7 @@ class UserFinancialData {
     this.plannedCumulativePoints = const [],
     this.savingsGoals = const [],
     this.trackedProducts = const [],
+    this.actions = const [],
   });
 
   final QestoUser user;
@@ -164,4 +206,34 @@ class UserFinancialData {
   final List<BudgetPlanPoint> plannedCumulativePoints;
   final List<SavingsGoal> savingsGoals;
   final List<TrackedProduct> trackedProducts;
+  final List<FinancialAction> actions;
+
+  UserFinancialData copyWith({
+    QestoUser? user,
+    DateTime? referenceDate,
+    List<QestoAccount>? accounts,
+    List<BudgetPeriod>? budgetPeriods,
+    List<CategoryBudget>? categoryBudgets,
+    List<BudgetTransaction>? transactions,
+    List<UpcomingExpense>? upcomingExpenses,
+    List<BudgetPlanPoint>? plannedCumulativePoints,
+    List<SavingsGoal>? savingsGoals,
+    List<TrackedProduct>? trackedProducts,
+    List<FinancialAction>? actions,
+  }) {
+    return UserFinancialData(
+      user: user ?? this.user,
+      referenceDate: referenceDate ?? this.referenceDate,
+      accounts: accounts ?? this.accounts,
+      budgetPeriods: budgetPeriods ?? this.budgetPeriods,
+      categoryBudgets: categoryBudgets ?? this.categoryBudgets,
+      transactions: transactions ?? this.transactions,
+      upcomingExpenses: upcomingExpenses ?? this.upcomingExpenses,
+      plannedCumulativePoints:
+          plannedCumulativePoints ?? this.plannedCumulativePoints,
+      savingsGoals: savingsGoals ?? this.savingsGoals,
+      trackedProducts: trackedProducts ?? this.trackedProducts,
+      actions: actions ?? this.actions,
+    );
+  }
 }
