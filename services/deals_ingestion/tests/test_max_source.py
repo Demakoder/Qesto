@@ -108,7 +108,7 @@ class MaxSourceProviderTest(unittest.TestCase):
     def test_missing_token_has_actionable_error(self) -> None:
         provider = MaxSourceProvider(provider_config(), api_token=None)
         provider.api_token = None
-        with self.assertRaisesRegex(MaxSourceConfigurationError, "\.env"):
+        with self.assertRaisesRegex(MaxSourceConfigurationError, r"\.env"):
             provider.fetch(self.source)
 
     def test_config_enables_telegram_and_disables_max(self) -> None:

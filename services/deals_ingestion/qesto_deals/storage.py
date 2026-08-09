@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -21,8 +23,18 @@ class DealsStorage:
         connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
+    @contextmanager
+    def _connection(self) -> Iterator[sqlite3.Connection]:
+        """Commit or roll back a unit of work and always release the file."""
+        connection = self._connect()
+        try:
+            with connection:
+                yield connection
+        finally:
+            connection.close()
+
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS raw_messages (
@@ -70,7 +82,7 @@ class DealsStorage:
             )
 
     def is_message_known(self, message: RawMessage) -> bool:
-        with self._connect() as connection:
+        with self._connection() as connection:
             row = connection.execute(
                 """SELECT 1 FROM raw_messages
                    WHERE source_type = ? AND source_id = ? AND message_id = ?""",
@@ -85,7 +97,7 @@ class DealsStorage:
         status: str,
         filter_reason: str | None = None,
     ) -> None:
-        with self._connect() as connection:
+        with self._connection() as connection:
             connection.execute(
                 """
                 INSERT INTO raw_messages (
@@ -119,7 +131,7 @@ class DealsStorage:
     def prepare_message_refresh(self, message: RawMessage) -> None:
         """Detach stale offers before reprocessing an editable source post."""
         identity = (message.source_type, message.source_id, message.message_id)
-        with self._connect() as connection:
+        with self._connection() as connection:
             offer_ids = [
                 str(row["offer_id"])
                 for row in connection.execute(
@@ -144,7 +156,7 @@ class DealsStorage:
 
     def save_offer(self, offer: Offer) -> bool:
         payload = json.dumps(offer.to_dict(), ensure_ascii=False)
-        with self._connect() as connection:
+        with self._connection() as connection:
             existing = connection.execute(
                 "SELECT id, confidence FROM offers WHERE dedupe_key = ?",
                 (offer.dedupe_key,),
@@ -219,7 +231,7 @@ class DealsStorage:
             + " AND ".join(conditions)
             + " ORDER BY updated_at DESC LIMIT ?"
         )
-        with self._connect() as connection:
+        with self._connection() as connection:
             rows = connection.execute(query, values).fetchall()
             result = []
             for row in rows:
@@ -243,7 +255,7 @@ class DealsStorage:
         return result
 
     def counts(self) -> dict[str, int]:
-        with self._connect() as connection:
+        with self._connection() as connection:
             messages = connection.execute(
                 "SELECT COUNT(*) AS value FROM raw_messages"
             ).fetchone()["value"]
