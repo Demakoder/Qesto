@@ -9,6 +9,9 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
@@ -19,7 +22,9 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val notificationChannelName = "ru.qesto.qesto/notifications"
     private val statementChannelName = "ru.qesto.qesto/statements"
+    private val receiptChannelName = "ru.qesto.qesto/receipts"
     private var pendingStatementResult: MethodChannel.Result? = null
+    private var pendingReceiptResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -97,6 +102,63 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            receiptChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "scanReceiptQr" -> scanReceiptQr(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun scanReceiptQr(result: MethodChannel.Result) {
+        if (pendingReceiptResult != null) {
+            result.error(
+                "receipt_scanner_busy",
+                "Сканер чеков уже открыт",
+                null,
+            )
+            return
+        }
+
+        pendingReceiptResult = result
+        val options = GmsBarcodeScannerOptions.Builder()
+            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+            .enableAutoZoom()
+            .build()
+        GmsBarcodeScanning.getClient(this, options)
+            .startScan()
+            .addOnSuccessListener { barcode ->
+                val pending = pendingReceiptResult ?: return@addOnSuccessListener
+                pendingReceiptResult = null
+                val rawValue = barcode.rawValue
+                if (rawValue.isNullOrBlank()) {
+                    pending.error(
+                        "receipt_qr_empty",
+                        "QR-код чека не содержит данных",
+                        null,
+                    )
+                } else {
+                    pending.success(rawValue)
+                }
+            }
+            .addOnCanceledListener {
+                val pending = pendingReceiptResult ?: return@addOnCanceledListener
+                pendingReceiptResult = null
+                pending.success(null)
+            }
+            .addOnFailureListener { error ->
+                val pending = pendingReceiptResult ?: return@addOnFailureListener
+                pendingReceiptResult = null
+                pending.error(
+                    "receipt_scan_failed",
+                    "Не удалось отсканировать QR-код чека",
+                    error.javaClass.simpleName,
+                )
+            }
     }
 
     @Deprecated("Deprecated in Android SDK, kept for FlutterActivity compatibility")

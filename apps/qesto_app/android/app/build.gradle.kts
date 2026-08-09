@@ -46,4 +46,5 @@ flutter {
 
 dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
 }

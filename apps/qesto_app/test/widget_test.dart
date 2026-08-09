@@ -11,12 +11,15 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const notificationChannel = MethodChannel('ru.qesto.qesto/notifications');
   const statementChannel = MethodChannel('ru.qesto.qesto/statements');
+  const receiptChannel = MethodChannel('ru.qesto.qesto/receipts');
   late List<Map<String, Object?>> mockNotifications;
   Map<String, Object?>? mockStatement;
+  String? mockReceiptQr;
 
   setUp(() {
     mockNotifications = [];
     mockStatement = null;
+    mockReceiptQr = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(notificationChannel, (call) async {
           return switch (call.method) {
@@ -30,6 +33,10 @@ void main() {
         .setMockMethodCallHandler(statementChannel, (call) async {
           return call.method == 'pickPdf' ? mockStatement : null;
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(receiptChannel, (call) async {
+          return call.method == 'scanReceiptQr' ? mockReceiptQr : null;
+        });
   });
 
   tearDown(() {
@@ -37,6 +44,8 @@ void main() {
         .setMockMethodCallHandler(notificationChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(statementChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(receiptChannel, null);
   });
 
   Widget buildApp() {
@@ -269,6 +278,38 @@ void main() {
     await tester.tap(find.byKey(const Key('import-statement-transactions')));
     await tester.pumpAndSettle();
     expect(find.text('Добавлено операций: 2'), findsOneWidget);
+  });
+
+  testWidgets('QR-код кассового чека сканируется и добавляется', (
+    tester,
+  ) async {
+    mockReceiptQr =
+        't=20260719T1430&s=987.65&fn=9282440300999999&'
+        'i=123456&fp=987654321&n=1';
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Добавить'));
+    await tester.tap(find.text('Добавить'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Добавить чек'));
+    await tester.tap(find.text('Добавить чек'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('QR-код кассового чека'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('scan-receipt-qr')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('987,65 ₽'), findsOneWidget);
+    expect(find.text('Новая операция'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('receipt-merchant-field')),
+      'Тестовый магазин',
+    );
+    await tester.tap(find.byKey(const Key('save-receipt')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Расход из чека добавлен'), findsOneWidget);
   });
 
   testWidgets('статистика открывается и вкладки переключаются', (tester) async {

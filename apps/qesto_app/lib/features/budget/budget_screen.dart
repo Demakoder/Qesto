@@ -5,6 +5,7 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../core/widgets/states.dart';
 import '../../data/models/qesto_models.dart';
 import '../shared/placeholder_screen.dart';
+import '../receipt_import/presentation/receipt_import_screen.dart';
 import '../statistics/presentation/screens/statistics_screen.dart';
 import '../statement_import/presentation/statement_import_screen.dart';
 import 'accounts_screen.dart';
@@ -187,11 +188,7 @@ class BudgetScreenState extends State<BudgetScreen> {
               _AddMenuItem(
                 icon: Icons.receipt_long_rounded,
                 title: 'Добавить чек',
-                onTap: () => _openPlaceholder(
-                  sheetContext,
-                  'Добавить чек',
-                  Icons.qr_code_scanner_rounded,
-                ),
+                onTap: () => _openReceiptImport(sheetContext),
               ),
             ],
           ),
@@ -211,6 +208,19 @@ class BudgetScreenState extends State<BudgetScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Добавлено операций: $importedCount')),
     );
+  }
+
+  Future<void> _openReceiptImport(BuildContext sheetContext) async {
+    Navigator.of(sheetContext).pop();
+    final message = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) => ReceiptImportScreen(controller: widget.controller),
+      ),
+    );
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _openPlaceholder(
