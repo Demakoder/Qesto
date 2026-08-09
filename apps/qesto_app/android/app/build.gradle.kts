@@ -48,5 +48,5 @@ dependencies {
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
-    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
 }

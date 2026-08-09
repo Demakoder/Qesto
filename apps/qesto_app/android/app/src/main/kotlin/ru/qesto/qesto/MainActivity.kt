@@ -1,37 +1,46 @@
 package ru.qesto.qesto
 
+import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.provider.OpenableColumns
 import android.provider.Settings
-import com.google.mlkit.vision.common.InputImage
+import android.speech.RecognitionListener
+import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import com.googlecode.tesseract.android.TessBaseAPI
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
 import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
+import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val notificationChannelName = "ru.qesto.qesto/notifications"
     private val statementChannelName = "ru.qesto.qesto/statements"
     private val receiptChannelName = "ru.qesto.qesto/receipts"
+    private val voiceChannelName = "ru.qesto.qesto/voice"
     private var pendingStatementResult: MethodChannel.Result? = null
     private var pendingReceiptResult: MethodChannel.Result? = null
     private var pendingReceiptDocumentResult: MethodChannel.Result? = null
+    private var pendingVoiceResult: MethodChannel.Result? = null
+    private var speechRecognizer: SpeechRecognizer? = null
+    private var voiceRecognitionOnDevice = false
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -120,6 +129,173 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            voiceChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "recognizeTransaction" -> recognizeVoiceTransaction(result)
+                else -> result.notImplemented()
+            }
+        }
+    }
+
+    private fun recognizeVoiceTransaction(result: MethodChannel.Result) {
+        if (pendingVoiceResult != null) {
+            result.error(
+                "voice_recognizer_busy",
+                "Распознавание речи уже запущено",
+                null,
+            )
+            return
+        }
+
+        pendingVoiceResult = result
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                REQUEST_RECORD_AUDIO,
+            )
+            return
+        }
+        startVoiceRecognition()
+    }
+
+    private fun startVoiceRecognition() {
+        val pending = pendingVoiceResult ?: return
+        if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+            pendingVoiceResult = null
+            pending.error(
+                "voice_recognizer_unavailable",
+                "На телефоне не найден системный модуль распознавания речи",
+                null,
+            )
+            return
+        }
+
+        try {
+            speechRecognizer?.destroy()
+            voiceRecognitionOnDevice =
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            speechRecognizer = if (voiceRecognitionOnDevice) {
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+            } else {
+                SpeechRecognizer.createSpeechRecognizer(this)
+            }
+            speechRecognizer?.setRecognitionListener(
+                object : RecognitionListener {
+                    override fun onReadyForSpeech(params: Bundle?) = Unit
+                    override fun onBeginningOfSpeech() = Unit
+                    override fun onRmsChanged(rmsdB: Float) = Unit
+                    override fun onBufferReceived(buffer: ByteArray?) = Unit
+                    override fun onEndOfSpeech() = Unit
+                    override fun onPartialResults(partialResults: Bundle?) = Unit
+                    override fun onEvent(eventType: Int, params: Bundle?) = Unit
+
+                    override fun onError(error: Int) {
+                        finishVoiceWithError(error)
+                    }
+
+                    override fun onResults(results: Bundle?) {
+                        val text = results
+                            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                            ?.firstOrNull()
+                            ?.trim()
+                        if (text.isNullOrEmpty()) {
+                            finishVoiceWithError(SpeechRecognizer.ERROR_NO_MATCH)
+                            return
+                        }
+                        val result = pendingVoiceResult ?: return
+                        pendingVoiceResult = null
+                        result.success(
+                            mapOf(
+                                "text" to text,
+                                "onDevice" to voiceRecognitionOnDevice,
+                            ),
+                        )
+                        releaseSpeechRecognizer()
+                    }
+                },
+            )
+            speechRecognizer?.startListening(
+                Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                    putExtra(
+                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM,
+                    )
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU")
+                    putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+                    putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+                    putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+                },
+            )
+        } catch (error: Exception) {
+            pendingVoiceResult = null
+            pending.error(
+                "voice_recognizer_failed",
+                "Не удалось запустить распознавание речи",
+                error.javaClass.simpleName,
+            )
+            releaseSpeechRecognizer()
+        }
+    }
+
+    private fun finishVoiceWithError(error: Int) {
+        val result = pendingVoiceResult ?: return
+        pendingVoiceResult = null
+        val message = when (error) {
+            SpeechRecognizer.ERROR_AUDIO -> "Не удалось записать звук"
+            SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ->
+                "Нет разрешения на использование микрофона"
+            SpeechRecognizer.ERROR_NETWORK,
+            SpeechRecognizer.ERROR_NETWORK_TIMEOUT ->
+                "Системному распознавателю не удалось подключиться к сети"
+            SpeechRecognizer.ERROR_NO_MATCH ->
+                "Не удалось разобрать фразу. Произнесите её ещё раз"
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY ->
+                "Системный распознаватель сейчас занят"
+            SpeechRecognizer.ERROR_SPEECH_TIMEOUT ->
+                "Речь не услышана. Нажмите микрофон и повторите фразу"
+            else -> "Не удалось распознать речь"
+        }
+        result.error("voice_recognition_failed", message, error)
+        releaseSpeechRecognizer()
+    }
+
+    private fun releaseSpeechRecognizer() {
+        speechRecognizer?.destroy()
+        speechRecognizer = null
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray,
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_RECORD_AUDIO) return
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            startVoiceRecognition()
+        } else {
+            val result = pendingVoiceResult ?: return
+            pendingVoiceResult = null
+            result.error(
+                "microphone_permission_denied",
+                "Разрешите Qesto использовать микрофон в настройках Android",
+                null,
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        pendingVoiceResult = null
+        releaseSpeechRecognizer()
+        super.onDestroy()
     }
 
     private fun scanReceiptQr(result: MethodChannel.Result) {
@@ -258,57 +434,89 @@ class MainActivity : FlutterActivity() {
         uri: Uri,
         result: MethodChannel.Result,
     ) {
-        val recognizer = TextRecognition.getClient(
-            TextRecognizerOptions.DEFAULT_OPTIONS,
-        )
-        try {
-            val image = InputImage.fromFilePath(this, uri)
-            recognizer.process(image)
-                .addOnSuccessListener { recognizedText ->
-                    val lines = recognizedText.textBlocks
-                        .flatMap { block -> block.lines }
-                        .sortedWith(
-                            compareBy(
-                                { it.boundingBox?.top ?: Int.MAX_VALUE },
-                                { it.boundingBox?.left ?: Int.MAX_VALUE },
-                            ),
-                        )
-                        .map { line ->
-                            val bounds = line.boundingBox
-                            mapOf(
-                                "text" to line.text,
-                                "left" to bounds?.left,
-                                "top" to bounds?.top,
-                                "right" to bounds?.right,
-                                "bottom" to bounds?.bottom,
-                            )
-                        }
+        Thread {
+            var tess: TessBaseAPI? = null
+            var imageFile: File? = null
+            try {
+                val dataPath = ensureRussianOcrData()
+                imageFile = copyReceiptImageToCache(uri)
+                tess = TessBaseAPI()
+                if (!tess.init(dataPath, "rus", TessBaseAPI.OEM_LSTM_ONLY)) {
+                    throw IllegalStateException("Unable to initialize Russian OCR")
+                }
+                tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+                tess.setVariable("preserve_interword_spaces", "1")
+                tess.setVariable("user_defined_dpi", "300")
+                tess.setImage(imageFile)
+                val text = tess.getUTF8Text().orEmpty().trim()
+                if (text.isEmpty()) {
+                    throw IllegalArgumentException("No text recognized")
+                }
+                val lines = text.lineSequence()
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() }
+                    .map { line -> mapOf("text" to line) }
+                    .toList()
+
+                runOnUiThread {
+                    val pending = pendingReceiptDocumentResult
+                        ?: return@runOnUiThread
                     pendingReceiptDocumentResult = null
-                    result.success(
+                    pending.success(
                         mapOf(
-                            "text" to recognizedText.text,
+                            "text" to text,
                             "lines" to lines,
                         ),
                     )
                 }
-                .addOnFailureListener { error ->
+            } catch (error: Exception) {
+                runOnUiThread {
+                    val pending = pendingReceiptDocumentResult
+                        ?: return@runOnUiThread
                     pendingReceiptDocumentResult = null
-                    result.error(
+                    pending.error(
                         "receipt_ocr_failed",
-                        "Не удалось распознать текст бумажного чека",
+                        "Не удалось распознать русский текст бумажного чека",
                         error.javaClass.simpleName,
                     )
                 }
-                .addOnCompleteListener { recognizer.close() }
-        } catch (error: Exception) {
-            recognizer.close()
-            pendingReceiptDocumentResult = null
-            result.error(
-                "receipt_ocr_failed",
-                "Не удалось прочитать изображение бумажного чека",
-                error.javaClass.simpleName,
-            )
+            } finally {
+                tess?.recycle()
+                imageFile?.delete()
+            }
+        }.start()
+    }
+
+    private fun ensureRussianOcrData(): String {
+        val dataDirectory = File(filesDir, "tesseract")
+        val tessdataDirectory = File(dataDirectory, "tessdata")
+        if (!tessdataDirectory.exists() && !tessdataDirectory.mkdirs()) {
+            throw IllegalStateException("Unable to create OCR data directory")
         }
+
+        val model = File(tessdataDirectory, RUSSIAN_OCR_MODEL)
+        if (!model.exists() || model.length() != RUSSIAN_OCR_MODEL_BYTES) {
+            val temporary = File(tessdataDirectory, "$RUSSIAN_OCR_MODEL.tmp")
+            assets.open("tessdata/$RUSSIAN_OCR_MODEL").use { input ->
+                temporary.outputStream().use { output -> input.copyTo(output) }
+            }
+            if (model.exists() && !model.delete()) {
+                throw IllegalStateException("Unable to replace OCR model")
+            }
+            if (!temporary.renameTo(model)) {
+                temporary.copyTo(model, overwrite = true)
+                temporary.delete()
+            }
+        }
+        return dataDirectory.absolutePath
+    }
+
+    private fun copyReceiptImageToCache(uri: Uri): File {
+        val target = File(cacheDir, "receipt-ocr-${System.nanoTime()}.jpg")
+        contentResolver.openInputStream(uri)?.use { input ->
+            target.outputStream().use { output -> input.copyTo(output) }
+        } ?: throw IllegalArgumentException("Unable to open receipt image")
+        return target
     }
 
     private fun extractStatement(uri: Uri, result: MethodChannel.Result) {
@@ -405,5 +613,8 @@ class MainActivity : FlutterActivity() {
         const val MAX_STATEMENT_BYTES = 20L * 1024L * 1024L
         const val REQUEST_STATEMENT_PDF = 4102
         const val REQUEST_RECEIPT_DOCUMENT = 4103
+        const val REQUEST_RECORD_AUDIO = 4104
+        const val RUSSIAN_OCR_MODEL = "rus.traineddata"
+        const val RUSSIAN_OCR_MODEL_BYTES = 3_861_738L
     }
 }

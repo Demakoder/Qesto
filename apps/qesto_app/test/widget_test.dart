@@ -12,16 +12,19 @@ void main() {
   const notificationChannel = MethodChannel('ru.qesto.qesto/notifications');
   const statementChannel = MethodChannel('ru.qesto.qesto/statements');
   const receiptChannel = MethodChannel('ru.qesto.qesto/receipts');
+  const voiceChannel = MethodChannel('ru.qesto.qesto/voice');
   late List<Map<String, Object?>> mockNotifications;
   Map<String, Object?>? mockStatement;
   String? mockReceiptQr;
   Map<String, Object?>? mockReceiptDocument;
+  Map<String, Object?>? mockVoiceRecognition;
 
   setUp(() {
     mockNotifications = [];
     mockStatement = null;
     mockReceiptQr = null;
     mockReceiptDocument = null;
+    mockVoiceRecognition = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(notificationChannel, (call) async {
           return switch (call.method) {
@@ -43,6 +46,12 @@ void main() {
             _ => null,
           };
         });
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(voiceChannel, (call) async {
+          return call.method == 'recognizeTransaction'
+              ? mockVoiceRecognition
+              : null;
+        });
   });
 
   tearDown(() {
@@ -52,6 +61,8 @@ void main() {
         .setMockMethodCallHandler(statementChannel, null);
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(receiptChannel, null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(voiceChannel, null);
   });
 
   Widget buildApp() {
@@ -81,6 +92,34 @@ void main() {
     await tester.tap(find.text('Накопления').last);
     await tester.pumpAndSettle();
     expect(find.text('Накоплено'), findsOneWidget);
+  });
+
+  testWidgets('голосовая фраза открывает подтверждение расхода', (
+    tester,
+  ) async {
+    mockVoiceRecognition = {
+      'text': 'Потратил 850 рублей на продукты',
+      'onDevice': true,
+    };
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    final voiceButton = find.byKey(const Key('voice-transaction-button'));
+    await tester.ensureVisible(voiceButton);
+    await tester.tap(voiceButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Проверьте операцию'), findsOneWidget);
+    expect(find.text('«Потратил 850 рублей на продукты»'), findsOneWidget);
+    expect(find.byKey(const Key('voice-amount-field')), findsOneWidget);
+    expect(find.text('Продукты'), findsWidgets);
+
+    final saveButton = find.byKey(const Key('save-voice-transaction'));
+    await tester.ensureVisible(saveButton);
+    await tester.tap(saveButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Операция добавлена'), findsOneWidget);
   });
 
   testWidgets('уведомления открываются и кнопка назад работает', (
@@ -218,6 +257,21 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Операции'), findsOneWidget);
     expect(find.text('Перекрёсток'), findsWidgets);
+  });
+
+  testWidgets('категория на диаграмме открывает список операций', (
+    tester,
+  ) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    final products = find.text('Продукты').first;
+    await tester.ensureVisible(products);
+    await tester.tap(products);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Операции'), findsOneWidget);
+    expect(find.byTooltip('Назад'), findsOneWidget);
   });
 
   testWidgets('показывает полный список предстоящих трат', (tester) async {
@@ -403,6 +457,18 @@ void main() {
     await tester.tap(find.byKey(const Key('save-receipt')));
     await tester.pumpAndSettle();
     expect(find.text('Расход из чека добавлен'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Добавить'));
+    await tester.tap(find.text('Добавить'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Добавить чек'));
+    await tester.tap(find.text('Добавить чек'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('scan-receipt-qr')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Чек уже добавлен'), findsOneWidget);
+    expect(find.text('Обновить состав чека'), findsOneWidget);
   });
 
   testWidgets('статистика открывается и вкладки переключаются', (tester) async {

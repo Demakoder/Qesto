@@ -154,7 +154,8 @@ class ReceiptOcrParser {
       r'инн|кпп|сн\s*кассы|смена|чек\s*№|фн|фд|фп|фискальн|'
       r'наличн|безналичн|банковск|карта|ндс|налог|сайт\s+фнс|'
       r'www\.|https?://|адрес|место\s+расчет|телефон|спасибо|'
-      r'дата|время|скидка|бонус)',
+      r'дата|время|скидка|бонус|наименован|кол-?во|количеств|'
+      r'цена|стоимость|полный\s+расчет)',
       caseSensitive: false,
     ).hasMatch(lower);
   }
@@ -173,13 +174,15 @@ class ReceiptOcrParser {
       _amountAtEnd.hasMatch(value) && !_validItemName(value);
 
   static final _formulaPattern = RegExp(
-    r'(\d+(?:[.,]\d{1,3})?)\s*[xх×*]\s*(\d+[.,]\d{2})'
-    r'(?:\s*(?:=)?\s*(\d+[.,]\d{2}))?\s*(?:₽|р(?:уб)?\.?)?$',
+    r'(\d+(?:[.,]\d{1,3})?)\s*[xх×*]\s*(\d+[,.:\-]\d{2})'
+    r'(?:\s*(?:=)?\s*(\d+[,.:\-]\d{2}))?'
+    r'\s*(?:₽|р(?:уб)?\.?)?\s*[A-ZА-Я]?[.,]?$',
     caseSensitive: false,
   );
 
   static final _amountAtEnd = RegExp(
-    r'(\d{1,7}[.,]\d{2})\s*(?:₽|р(?:уб)?\.?)?$',
+    r'(\d{1,7}[,.:\-]\d{2})\s*(?:₽|р(?:уб)?\.?)?'
+    r'\s*[A-ZА-Я]?[.,]?$',
     caseSensitive: false,
   );
 }
@@ -194,6 +197,7 @@ String _cleanMerchant(String value) => value
 
 String _cleanItemName(String value) => value
     .replaceAll(RegExp(r'\s+'), ' ')
+    .replaceAll(RegExp(r'[._]{3,}'), ' ')
     .replaceAll(RegExp(r'[-=:]+$'), '')
     .trim();
 
@@ -203,6 +207,7 @@ String _normalize(String value) => value
     .replaceAll(RegExp(r'[^a-zа-я0-9]+'), ' ')
     .trim();
 
-double _parseDecimal(String value) => double.parse(value.replaceAll(',', '.'));
+double _parseDecimal(String value) =>
+    double.parse(value.replaceAll(RegExp(r'[,:\-]'), '.'));
 
 int _parseMinor(String value) => (_parseDecimal(value) * 100).round();

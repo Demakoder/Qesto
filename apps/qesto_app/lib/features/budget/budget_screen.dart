@@ -8,18 +8,28 @@ import '../shared/placeholder_screen.dart';
 import '../receipt_import/presentation/receipt_import_screen.dart';
 import '../statistics/presentation/screens/statistics_screen.dart';
 import '../statement_import/presentation/statement_import_screen.dart';
+import '../voice_transaction/data/voice_speech_recognizer.dart';
+import '../voice_transaction/domain/voice_transaction_models.dart';
+import '../voice_transaction/presentation/voice_transaction_confirmation_sheet.dart';
+import '../voice_transaction/services/voice_transaction_parser.dart';
 import 'accounts_screen.dart';
 import 'add_expense_screen.dart';
 import 'budget_details_screen.dart';
+import 'category_details_screen.dart';
 import 'state/budget_controller.dart';
 import 'widgets/budget_limit_card.dart';
 import 'widgets/budget_period_selector.dart';
 import 'widgets/spending_donut_card.dart';
 
 class BudgetScreen extends StatefulWidget {
-  const BudgetScreen({required this.controller, super.key});
+  const BudgetScreen({
+    required this.controller,
+    this.voiceRecognizer = const AndroidVoiceSpeechRecognizer(),
+    super.key,
+  });
 
   final BudgetController controller;
+  final VoiceSpeechRecognizer voiceRecognizer;
 
   @override
   State<BudgetScreen> createState() => BudgetScreenState();
@@ -30,6 +40,7 @@ class BudgetScreenState extends State<BudgetScreen> {
   late final Map<String, ScrollController> _scrollControllers;
   late int _currentIndex;
   late String _currentPeriodId;
+  bool _voiceListening = false;
 
   List<BudgetPeriod> get _periods => widget.controller.periods;
 
@@ -119,6 +130,69 @@ class BudgetScreenState extends State<BudgetScreen> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => StatisticsScreen(budgetController: widget.controller),
+      ),
+    );
+  }
+
+  Future<void> _addByVoice(BudgetPeriod period) async {
+    if (_voiceListening) return;
+    if (!widget.voiceRecognizer.isSupported) {
+      _showMessage('Голосовое добавление пока доступно только на Android');
+      return;
+    }
+
+    setState(() => _voiceListening = true);
+    VoiceRecognitionResult? recognition;
+    try {
+      recognition = await widget.voiceRecognizer.recognize();
+    } on VoiceSpeechException catch (error) {
+      _showMessage(error.message);
+    } catch (_) {
+      _showMessage('Не удалось распознать речь. Попробуйте ещё раз.');
+    } finally {
+      if (mounted) setState(() => _voiceListening = false);
+    }
+    if (!mounted || recognition == null) return;
+
+    VoiceTransactionDraft draft;
+    try {
+      draft = const VoiceTransactionParser().parse(
+        text: recognition.text,
+        categories: widget.controller.categories,
+        accounts: widget.controller.accounts,
+      );
+    } on VoiceTransactionParseException catch (error) {
+      _showMessage(error.message);
+      return;
+    }
+
+    final added = await showVoiceTransactionConfirmation(
+      context: context,
+      controller: widget.controller,
+      period: period,
+      draft: draft,
+      recognizedOnDevice: recognition.onDevice,
+    );
+    if (mounted && added == true) {
+      _showMessage('Операция добавлена');
+    }
+  }
+
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _openCategory(BudgetPeriod period, SpendingCategory category) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CategoryDetailsScreen(
+          controller: widget.controller,
+          period: period,
+          categoryId: category.id,
+        ),
       ),
     );
   }
@@ -286,7 +360,11 @@ class BudgetScreenState extends State<BudgetScreen> {
                     icon: Icons.calendar_month_outlined,
                   )
                 else
-                  SpendingDonutCard(summary: summary),
+                  SpendingDonutCard(
+                    summary: summary,
+                    onCategoryPress: (category) =>
+                        _openCategory(period, category),
+                  ),
                 const SizedBox(height: 14),
                 Row(
                   children: [
@@ -316,6 +394,18 @@ class BudgetScreenState extends State<BudgetScreen> {
                     icon: Icons.query_stats_rounded,
                     style: QestoButtonStyle.secondary,
                     onPressed: _openStatistics,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: QestoButton(
+                    key: const Key('voice-transaction-button'),
+                    label: _voiceListening ? 'Слушаю…' : 'Добавить голосом',
+                    icon: _voiceListening
+                        ? Icons.hearing_rounded
+                        : Icons.mic_rounded,
+                    onPressed: () => _addByVoice(period),
                   ),
                 ),
               ],

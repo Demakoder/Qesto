@@ -39,6 +39,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   var _loading = false;
   var _documentLoading = false;
   var _createNew = true;
+  var _updatingExistingReceipt = false;
   String? _error;
   String? _selectedTransactionId;
   BudgetCategory? _selectedCategory;
@@ -73,16 +74,15 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
       }
 
       final receipt = widget.parser.parse(rawValue);
-      if (widget.matcher.isImported(
-        transactions: widget.controller.transactions,
-        receipt: receipt,
-      )) {
-        throw const FormatException('Этот чек уже добавлен в Qesto');
-      }
-      final matches = widget.matcher.findMatches(
-        transactions: widget.controller.transactions,
-        receipt: receipt,
-      );
+      final importedTransaction = widget.controller.transactions
+          .where((item) => item.tags.contains(receipt.transactionTag))
+          .firstOrNull;
+      final matches = importedTransaction == null
+          ? widget.matcher.findMatches(
+              transactions: widget.controller.transactions,
+              receipt: receipt,
+            )
+          : [importedTransaction];
       final category = widget.controller.categories.firstWhere(
         (item) => item.id == 'groceries',
         orElse: () => widget.controller.categories.last,
@@ -94,6 +94,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         _matches = matches;
         _selectedTransactionId = matches.firstOrNull?.id;
         _createNew = matches.isEmpty;
+        _updatingExistingReceipt = importedTransaction != null;
         _selectedCategory = category;
         _document = null;
       });
@@ -180,10 +181,14 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   void _saveReceipt() {
     final receipt = _receipt;
     if (receipt == null) return;
+    final importedTransaction = widget.controller.transactions
+        .where((item) => item.tags.contains(receipt.transactionTag))
+        .firstOrNull;
     if (widget.matcher.isImported(
-      transactions: widget.controller.transactions,
-      receipt: receipt,
-    )) {
+          transactions: widget.controller.transactions,
+          receipt: receipt,
+        ) &&
+        (_createNew || _selectedTransactionId != importedTransaction?.id)) {
       _showError('Этот чек уже добавлен в Qesto');
       return;
     }
@@ -195,7 +200,8 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
       );
       final comment = [
         transaction.comment,
-        _receiptComment(receipt),
+        if (!transaction.tags.contains(receipt.transactionTag))
+          _receiptComment(receipt),
       ].whereType<String>().where((item) => item.trim().isNotEmpty).join('\n');
       widget.controller.updateTransaction(
         transaction.copyWith(
@@ -208,7 +214,11 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           receipt: receiptDetails,
         ),
       );
-      Navigator.of(context).pop('Чек привязан к существующей операции');
+      Navigator.of(context).pop(
+        _updatingExistingReceipt
+            ? 'Состав чека обновлён'
+            : 'Чек привязан к существующей операции',
+      );
       return;
     }
 
@@ -306,10 +316,18 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                   key: const Key('save-receipt'),
                   onPressed: _saveReceipt,
                   icon: Icon(
-                    _createNew ? Icons.add_circle_rounded : Icons.link_rounded,
+                    _createNew
+                        ? Icons.add_circle_rounded
+                        : _updatingExistingReceipt
+                        ? Icons.refresh_rounded
+                        : Icons.link_rounded,
                   ),
                   label: Text(
-                    _createNew ? 'Добавить операцию' : 'Привязать чек',
+                    _createNew
+                        ? 'Добавить операцию'
+                        : _updatingExistingReceipt
+                        ? 'Обновить состав чека'
+                        : 'Привязать чек',
                   ),
                 ),
               ),
@@ -423,12 +441,16 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         const SizedBox(height: 14),
         if (_matches.isNotEmpty) ...[
           Text(
-            'Похожая банковская операция',
+            _updatingExistingReceipt
+                ? 'Чек уже добавлен'
+                : 'Похожая банковская операция',
             style: Theme.of(context).textTheme.titleMedium,
           ),
           const SizedBox(height: 6),
           Text(
-            'Привяжите чек, чтобы расход не учитывался дважды.',
+            _updatingExistingReceipt
+                ? 'Сфотографируйте его заново, чтобы обновить магазин и товары.'
+                : 'Привяжите чек, чтобы расход не учитывался дважды.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 10),
