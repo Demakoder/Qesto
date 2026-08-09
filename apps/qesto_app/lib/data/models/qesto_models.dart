@@ -59,6 +59,17 @@ class Deal {
     required this.description,
     required this.visualKey,
     this.badge,
+    this.promoCode,
+    this.merchantName,
+    this.targetUrl,
+    this.sourceUrl,
+    this.discountType,
+    this.discountValue,
+    this.minimumOrder,
+    this.maximumDiscount,
+    this.customerType,
+    this.validUntil,
+    this.confidence,
   });
 
   final String id;
@@ -69,6 +80,17 @@ class Deal {
   final String description;
   final String visualKey;
   final String? badge;
+  final String? promoCode;
+  final String? merchantName;
+  final String? targetUrl;
+  final String? sourceUrl;
+  final String? discountType;
+  final int? discountValue;
+  final int? minimumOrder;
+  final int? maximumDiscount;
+  final String? customerType;
+  final DateTime? validUntil;
+  final int? confidence;
 }
 
 class TrackedProduct {

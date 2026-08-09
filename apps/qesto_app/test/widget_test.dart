@@ -158,6 +158,29 @@ void main() {
     expect(find.text('Беспроводные наушники'), findsOneWidget);
   });
 
+  testWidgets('поиск фильтрует купоны и акции', (tester) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Выгода').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const Key('benefits-search')),
+      'Перекрестке',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Скидка 15% в Перекрёстке'), findsOneWidget);
+    expect(find.text('Кешбэк 20% в ресторанах'), findsNothing);
+
+    await tester.tap(find.text('Акции'));
+    await tester.pumpAndSettle();
+    expect(find.text('Акции не найдены'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('clear-benefits-search')));
+    await tester.pumpAndSettle();
+    expect(find.text('Три поездки со скидкой 25%'), findsOneWidget);
+  });
+
   testWidgets('сумма и серия накоплений ведут на разные экраны', (
     tester,
   ) async {

@@ -1,0 +1,25 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Qesto: запустить сервис",
+      "type": "process",
+      "command": "python",
+      "args": [
+        "${workspaceFolder}/scripts/run_qesto.py",
+        "--service-only"
+      ],
+      "options": {
+        "env": {
+          "PYTHONUTF8": "1"
+        }
+      },
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "silent",
+        "panel": "dedicated",
+        "close": true
+      }
+    }
+  ]
+}

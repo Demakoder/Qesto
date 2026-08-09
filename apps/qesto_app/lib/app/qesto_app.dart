@@ -44,13 +44,36 @@ class _AppDataLoader extends StatefulWidget {
   State<_AppDataLoader> createState() => _AppDataLoaderState();
 }
 
-class _AppDataLoaderState extends State<_AppDataLoader> {
+class _AppDataLoaderState extends State<_AppDataLoader>
+    with WidgetsBindingObserver {
   late Future<QestoAppData> _future;
+  var _refreshOnResume = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _future = widget.repository.loadAppData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden) {
+      _refreshOnResume = true;
+      return;
+    }
+    if (state == AppLifecycleState.resumed && _refreshOnResume) {
+      _refreshOnResume = false;
+      widget.repository.resetPublicDeals();
+      _retry();
+    }
   }
 
   void _retry() {

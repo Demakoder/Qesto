@@ -1,0 +1,22 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Qesto (Edge + сервис)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/apps/qesto_app",
+      "program": "${workspaceFolder}/apps/qesto_app/lib/main.dart",
+      "deviceId": "edge",
+      "preLaunchTask": "Qesto: запустить сервис"
+    },
+    {
+      "name": "Qesto (Android USB + сервис)",
+      "request": "launch",
+      "type": "dart",
+      "cwd": "${workspaceFolder}/apps/qesto_app",
+      "program": "${workspaceFolder}/apps/qesto_app/lib/main.dart",
+      "preLaunchTask": "Qesto: запустить сервис"
+    }
+  ]
+}

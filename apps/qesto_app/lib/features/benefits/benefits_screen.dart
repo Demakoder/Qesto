@@ -7,6 +7,7 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../core/widgets/states.dart';
 import '../../data/models/qesto_models.dart';
 import '../shared/placeholder_screen.dart';
+import 'deal_details_screen.dart';
 import 'widgets/benefits_segmented_control.dart';
 import 'widgets/deal_card.dart';
 
@@ -28,7 +29,9 @@ class BenefitsScreen extends StatefulWidget {
 
 class BenefitsScreenState extends State<BenefitsScreen> {
   final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
   var _section = BenefitSection.coupons;
+  var _query = '';
 
   void scrollToTop() {
     if (_scrollController.hasClients) {
@@ -43,51 +46,18 @@ class BenefitsScreenState extends State<BenefitsScreen> {
   @override
   void dispose() {
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
+  }
+
   void _openDeal(Deal deal) {
-    final visual = visualForKey(deal.visualKey);
     Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => PlaceholderScreen(
-          title: 'Детали предложения',
-          description: 'Подробные условия предложения будут добавлены позднее',
-          icon: Icons.info_outline_rounded,
-          child: QestoCard(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 70,
-                  height: 70,
-                  decoration: BoxDecoration(
-                    color: visual.color.withValues(alpha: 0.13),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Icon(visual.icon, color: visual.color, size: 39),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  deal.category.toUpperCase(),
-                  style: TextStyle(
-                    color: visual.color,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(deal.title, style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 8),
-                Text(
-                  deal.description,
-                  style: Theme.of(context).textTheme.bodyLarge,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+      MaterialPageRoute<void>(builder: (_) => DealDetailsScreen(deal: deal)),
     );
   }
 
@@ -156,6 +126,27 @@ class BenefitsScreenState extends State<BenefitsScreen> {
           value: _section,
           onChanged: (value) => setState(() => _section = value),
         ),
+        if (_section != BenefitSection.tracked) ...[
+          const SizedBox(height: 12),
+          TextField(
+            key: const Key('benefits-search'),
+            controller: _searchController,
+            textInputAction: TextInputAction.search,
+            onChanged: (value) => setState(() => _query = value),
+            decoration: InputDecoration(
+              hintText: 'Поиск купонов и акций',
+              prefixIcon: const Icon(Icons.search_rounded),
+              suffixIcon: _query.isEmpty
+                  ? null
+                  : IconButton(
+                      key: const Key('clear-benefits-search'),
+                      tooltip: 'Очистить поиск',
+                      onPressed: _clearSearch,
+                      icon: const Icon(Icons.close_rounded),
+                    ),
+            ),
+          ),
+        ],
         const SizedBox(height: 14),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 220),
@@ -169,14 +160,18 @@ class BenefitsScreenState extends State<BenefitsScreen> {
     return switch (_section) {
       BenefitSection.coupons => _DealsList(
         key: const ValueKey('coupons'),
-        deals: widget.coupons,
-        emptyMessage: 'Купонов пока нет',
+        deals: _filterDeals(widget.coupons),
+        emptyMessage: _query.trim().isEmpty
+            ? 'Купонов пока нет'
+            : 'Купоны не найдены',
         onTap: _openDeal,
       ),
       BenefitSection.promotions => _DealsList(
         key: const ValueKey('promotions'),
-        deals: widget.promotions,
-        emptyMessage: 'Акций пока нет',
+        deals: _filterDeals(widget.promotions),
+        emptyMessage: _query.trim().isEmpty
+            ? 'Акций пока нет'
+            : 'Акции не найдены',
         onTap: _openDeal,
       ),
       BenefitSection.tracked => _TrackedList(
@@ -186,7 +181,28 @@ class BenefitsScreenState extends State<BenefitsScreen> {
       ),
     };
   }
+
+  List<Deal> _filterDeals(List<Deal> deals) {
+    final query = _normalizeSearch(_query);
+    if (query.isEmpty) return deals;
+    return deals
+        .where((deal) {
+          final searchable = <String?>[
+            deal.title,
+            deal.category,
+            deal.description,
+            deal.promoCode,
+            deal.merchantName,
+            deal.badge,
+          ].whereType<String>().map(_normalizeSearch).join('\n');
+          return searchable.contains(query);
+        })
+        .toList(growable: false);
+  }
 }
+
+String _normalizeSearch(String value) =>
+    value.trim().toLowerCase().replaceAll('ё', 'е');
 
 class _DealsList extends StatelessWidget {
   const _DealsList({

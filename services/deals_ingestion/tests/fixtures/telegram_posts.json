@@ -1,0 +1,27 @@
+[
+  {"channel":"skidki","message_id":1001,"text":"Самокат: скидка 50% на первый заказ по промокоду SALE50","codes":[],"accepted":true},
+  {"channel":"skidki","message_id":1002,"text":"Ozon — товар за 1990 ₽ вместо 3490 ₽","codes":[],"accepted":true},
+  {"channel":"kuponych","message_id":1003,"text":"Яндекс Еда: промокод FOOD450, скидка 450 ₽ при заказе от 1200 ₽","codes":[],"accepted":true},
+  {"channel":"kuponych","message_id":1004,"text":"Пятёрочка: бесплатная доставка для всех до 15 августа","codes":[],"accepted":true},
+  {"channel":"mm_promokods","message_id":1005,"text":"Lamoda — скидка 20% по коду STYLE20","codes":["STYLE20"],"accepted":true},
+  {"channel":"mm_promokods","message_id":1006,"text":"Купер дарит подарок при покупке от 1500 ₽","codes":[],"accepted":true},
+  {"channel":"pepperru","message_id":1007,"text":"Wildberries: распродажа, специальная цена 799 ₽","codes":[],"accepted":true},
+  {"channel":"pepperru","message_id":1008,"text":"М.Видео: скидка 5000 рублей, максимум 1000 ₽ по промокоду TV2026","codes":[],"accepted":true},
+  {"channel":"aktsiya_telegram","message_id":1009,"text":"Перекрёсток: кэшбэк 20% только сегодня","codes":[],"accepted":true},
+  {"channel":"aktsiya_telegram","message_id":1010,"text":"Додо Пицца: код DODO25 — скидка 25% на повторный заказ","codes":[],"accepted":true},
+  {"channel":"skidki","message_id":1011,"text":"Золотое Яблоко: купон BEAUTY10 на скидку 10%","codes":[],"accepted":true},
+  {"channel":"kuponych","message_id":1012,"text":"Яндекс Маркет: промокод MARKET700, скидка 700 ₽ от 5000 ₽","codes":[],"accepted":true},
+  {"channel":"mm_promokods","message_id":1013,"text":"Burger King: акция 2 по цене 1","codes":[],"accepted":true},
+  {"channel":"pepperru","message_id":1014,"text":"Спортмастер: скидка 15% для всех по промокоду SPORT15","codes":[],"accepted":true},
+  {"channel":"aktsiya_telegram","message_id":1015,"text":"ВкусВилл: скидка 300 ₽ на заказ от 1800 ₽ до 15.08.2026","codes":[],"accepted":true},
+  {"channel":"skidki","message_id":1016,"text":"AliExpress: коды A3SALE и A5SALE","codes":["A3SALE","A5SALE"],"accepted":true},
+  {"channel":"kuponych","message_id":1017,"text":"РИВ ГОШ: промо RIVE20, скидка 20% новым пользователям","codes":[],"accepted":true},
+  {"channel":"mm_promokods","message_id":1018,"text":"Ситидрайв: промокод DRIVE500 на 500 ₽ для всех","codes":[],"accepted":true},
+  {"channel":"pepperru","message_id":1019,"text":"Яндекс Путешествия: скидка 10% по коду TRAVEL10","codes":[],"accepted":true},
+  {"channel":"aktsiya_telegram","message_id":1020,"text":"Лента: скидка 12% на повторный заказ, код LENTA12","codes":[],"accepted":true},
+  {"channel":"skidki","message_id":1021,"text":"Реклама. ООО Пример, ИНН 7700000000, erid ABC123","codes":[],"accepted":false},
+  {"channel":"kuponych","message_id":1022,"text":"Скидка 30% на алкоголь и вино","codes":[],"accepted":false},
+  {"channel":"pepperru","message_id":1023,"text":"Оформите кредитную карту и получите кэшбэк","codes":[],"accepted":false},
+  {"channel":"aktsiya_telegram","message_id":1024,"text":"Подпишитесь на наш канал, сегодня новый пост","codes":[],"accepted":false}
+]
+
