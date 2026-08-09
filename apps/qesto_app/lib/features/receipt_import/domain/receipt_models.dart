@@ -27,3 +27,29 @@ class ParsedFiscalReceipt {
   String get transactionId => 'receipt-$fingerprint';
   String get transactionTag => 'receipt:$fingerprint';
 }
+
+class ParsedReceiptItem {
+  const ParsedReceiptItem({
+    required this.name,
+    required this.totalMinor,
+    this.quantity = 1,
+    this.unitPriceMinor,
+  });
+
+  final String name;
+  final double quantity;
+  final int? unitPriceMinor;
+  final int totalMinor;
+}
+
+class ParsedReceiptDocument {
+  const ParsedReceiptDocument({
+    required this.rawText,
+    this.merchant,
+    this.items = const [],
+  });
+
+  final String rawText;
+  final String? merchant;
+  final List<ParsedReceiptItem> items;
+}

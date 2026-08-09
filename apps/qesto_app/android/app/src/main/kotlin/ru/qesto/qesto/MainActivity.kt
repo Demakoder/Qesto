@@ -9,9 +9,15 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
+import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanning
+import com.google.mlkit.vision.documentscanner.GmsDocumentScanningResult
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
@@ -25,6 +31,7 @@ class MainActivity : FlutterActivity() {
     private val receiptChannelName = "ru.qesto.qesto/receipts"
     private var pendingStatementResult: MethodChannel.Result? = null
     private var pendingReceiptResult: MethodChannel.Result? = null
+    private var pendingReceiptDocumentResult: MethodChannel.Result? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
@@ -109,6 +116,7 @@ class MainActivity : FlutterActivity() {
         ).setMethodCallHandler { call, result ->
             when (call.method) {
                 "scanReceiptQr" -> scanReceiptQr(result)
+                "scanReceiptDocument" -> scanReceiptDocument(result)
                 else -> result.notImplemented()
             }
         }
@@ -161,6 +169,48 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    private fun scanReceiptDocument(result: MethodChannel.Result) {
+        if (pendingReceiptDocumentResult != null) {
+            result.error(
+                "receipt_document_scanner_busy",
+                "Сканер бумажного чека уже открыт",
+                null,
+            )
+            return
+        }
+
+        pendingReceiptDocumentResult = result
+        val options = GmsDocumentScannerOptions.Builder()
+            .setGalleryImportAllowed(true)
+            .setPageLimit(1)
+            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+            .build()
+
+        GmsDocumentScanning.getClient(options)
+            .getStartScanIntent(this)
+            .addOnSuccessListener { intentSender ->
+                startIntentSenderForResult(
+                    intentSender,
+                    REQUEST_RECEIPT_DOCUMENT,
+                    null,
+                    0,
+                    0,
+                    0,
+                )
+            }
+            .addOnFailureListener { error ->
+                val pending = pendingReceiptDocumentResult
+                    ?: return@addOnFailureListener
+                pendingReceiptDocumentResult = null
+                pending.error(
+                    "receipt_document_scan_failed",
+                    "Не удалось открыть сканер бумажного чека",
+                    error.javaClass.simpleName,
+                )
+            }
+    }
+
     @Deprecated("Deprecated in Android SDK, kept for FlutterActivity compatibility")
     override fun onActivityResult(
         requestCode: Int,
@@ -168,16 +218,97 @@ class MainActivity : FlutterActivity() {
         data: Intent?,
     ) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_STATEMENT_PDF) return
+        when (requestCode) {
+            REQUEST_STATEMENT_PDF -> {
+                val result = pendingStatementResult ?: return
+                val uri = data?.data
+                if (resultCode != Activity.RESULT_OK || uri == null) {
+                    pendingStatementResult = null
+                    result.success(null)
+                    return
+                }
+                extractStatement(uri, result)
+            }
 
-        val result = pendingStatementResult ?: return
-        val uri = data?.data
-        if (resultCode != Activity.RESULT_OK || uri == null) {
-            pendingStatementResult = null
-            result.success(null)
-            return
+            REQUEST_RECEIPT_DOCUMENT -> {
+                val result = pendingReceiptDocumentResult ?: return
+                if (resultCode != Activity.RESULT_OK) {
+                    pendingReceiptDocumentResult = null
+                    result.success(null)
+                    return
+                }
+                val scan = GmsDocumentScanningResult
+                    .fromActivityResultIntent(data)
+                val uri = scan?.pages?.firstOrNull()?.imageUri
+                if (uri == null) {
+                    pendingReceiptDocumentResult = null
+                    result.error(
+                        "receipt_document_empty",
+                        "Сканер не вернул изображение чека",
+                        null,
+                    )
+                    return
+                }
+                recognizeReceiptDocument(uri, result)
+            }
         }
-        extractStatement(uri, result)
+    }
+
+    private fun recognizeReceiptDocument(
+        uri: Uri,
+        result: MethodChannel.Result,
+    ) {
+        val recognizer = TextRecognition.getClient(
+            TextRecognizerOptions.DEFAULT_OPTIONS,
+        )
+        try {
+            val image = InputImage.fromFilePath(this, uri)
+            recognizer.process(image)
+                .addOnSuccessListener { recognizedText ->
+                    val lines = recognizedText.textBlocks
+                        .flatMap { block -> block.lines }
+                        .sortedWith(
+                            compareBy(
+                                { it.boundingBox?.top ?: Int.MAX_VALUE },
+                                { it.boundingBox?.left ?: Int.MAX_VALUE },
+                            ),
+                        )
+                        .map { line ->
+                            val bounds = line.boundingBox
+                            mapOf(
+                                "text" to line.text,
+                                "left" to bounds?.left,
+                                "top" to bounds?.top,
+                                "right" to bounds?.right,
+                                "bottom" to bounds?.bottom,
+                            )
+                        }
+                    pendingReceiptDocumentResult = null
+                    result.success(
+                        mapOf(
+                            "text" to recognizedText.text,
+                            "lines" to lines,
+                        ),
+                    )
+                }
+                .addOnFailureListener { error ->
+                    pendingReceiptDocumentResult = null
+                    result.error(
+                        "receipt_ocr_failed",
+                        "Не удалось распознать текст бумажного чека",
+                        error.javaClass.simpleName,
+                    )
+                }
+                .addOnCompleteListener { recognizer.close() }
+        } catch (error: Exception) {
+            recognizer.close()
+            pendingReceiptDocumentResult = null
+            result.error(
+                "receipt_ocr_failed",
+                "Не удалось прочитать изображение бумажного чека",
+                error.javaClass.simpleName,
+            )
+        }
     }
 
     private fun extractStatement(uri: Uri, result: MethodChannel.Result) {
@@ -273,5 +404,6 @@ class MainActivity : FlutterActivity() {
     private companion object {
         const val MAX_STATEMENT_BYTES = 20L * 1024L * 1024L
         const val REQUEST_STATEMENT_PDF = 4102
+        const val REQUEST_RECEIPT_DOCUMENT = 4103
     }
 }

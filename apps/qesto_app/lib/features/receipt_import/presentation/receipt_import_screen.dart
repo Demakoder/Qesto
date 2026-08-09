@@ -10,6 +10,7 @@ import '../../budget/category_picker.dart';
 import '../../budget/state/budget_controller.dart';
 import '../data/receipt_scanner_service.dart';
 import '../domain/receipt_models.dart';
+import '../services/receipt_ocr_parser.dart';
 import '../services/receipt_qr_parser.dart';
 import '../services/receipt_transaction_matcher.dart';
 
@@ -18,6 +19,7 @@ class ReceiptImportScreen extends StatefulWidget {
     required this.controller,
     this.scanner = const ReceiptScannerService(),
     this.parser = const ReceiptQrParser(),
+    this.ocrParser = const ReceiptOcrParser(),
     this.matcher = const ReceiptTransactionMatcher(),
     super.key,
   });
@@ -25,6 +27,7 @@ class ReceiptImportScreen extends StatefulWidget {
   final BudgetController controller;
   final ReceiptScannerService scanner;
   final ReceiptQrParser parser;
+  final ReceiptOcrParser ocrParser;
   final ReceiptTransactionMatcher matcher;
 
   @override
@@ -34,11 +37,13 @@ class ReceiptImportScreen extends StatefulWidget {
 class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   final _merchantController = TextEditingController();
   var _loading = false;
+  var _documentLoading = false;
   var _createNew = true;
   String? _error;
   String? _selectedTransactionId;
   BudgetCategory? _selectedCategory;
   ParsedFiscalReceipt? _receipt;
+  ParsedReceiptDocument? _document;
   List<BudgetTransaction> _matches = const [];
 
   @override
@@ -90,6 +95,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         _selectedTransactionId = matches.firstOrNull?.id;
         _createNew = matches.isEmpty;
         _selectedCategory = category;
+        _document = null;
       });
     } on PlatformException catch (error) {
       _showError(error.message ?? 'Не удалось открыть сканер QR-кода');
@@ -100,6 +106,52 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
     } on Object {
       _showError('Не удалось обработать QR-код чека');
     }
+  }
+
+  Future<void> _scanDocument() async {
+    final receipt = _receipt;
+    if (receipt == null || _documentLoading) return;
+    setState(() {
+      _documentLoading = true;
+      _error = null;
+    });
+    try {
+      final extracted = await widget.scanner.scanDocument();
+      if (extracted == null || !mounted) {
+        if (mounted) setState(() => _documentLoading = false);
+        return;
+      }
+      final document = widget.ocrParser.parse(
+        extracted,
+        expectedTotalMinor: receipt.amountMinor,
+      );
+      final merchant = document.merchant?.trim();
+      if (_merchantController.text.trim().isEmpty &&
+          merchant != null &&
+          merchant.isNotEmpty) {
+        _merchantController.text = merchant;
+      }
+      setState(() {
+        _documentLoading = false;
+        _document = document;
+      });
+    } on PlatformException catch (error) {
+      _showDocumentError(error.message ?? 'Не удалось распознать бумажный чек');
+    } on UnsupportedError catch (error) {
+      _showDocumentError(
+        error.message?.toString() ?? 'Распознавание не поддерживается',
+      );
+    } on Object {
+      _showDocumentError('Не удалось обработать фотографию чека');
+    }
+  }
+
+  void _showDocumentError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _documentLoading = false;
+      _error = message;
+    });
   }
 
   void _showError(String message) {
@@ -136,6 +188,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
       return;
     }
 
+    final receiptDetails = _buildReceiptDetails(receipt);
     if (!_createNew && _selectedTransactionId != null) {
       final transaction = widget.controller.transactions.firstWhere(
         (item) => item.id == _selectedTransactionId,
@@ -152,6 +205,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
             'receipt-import',
             receipt.transactionTag,
           }.toList(),
+          receipt: receiptDetails,
         ),
       );
       Navigator.of(context).pop('Чек привязан к существующей операции');
@@ -188,12 +242,41 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         comment: _receiptComment(receipt),
         normalizedMerchant: _normalizeMerchant(title),
         tags: ['receipt-import', receipt.transactionTag],
+        receipt: receiptDetails,
       ),
     ]);
     Navigator.of(context).pop(
       receipt.kind == FiscalReceiptKind.refund
           ? 'Возврат из чека добавлен'
           : 'Расход из чека добавлен',
+    );
+  }
+
+  TransactionReceiptDetails _buildReceiptDetails(ParsedFiscalReceipt receipt) {
+    final enteredMerchant = _merchantController.text.trim();
+    final recognizedMerchant = _document?.merchant?.trim();
+    final merchant = enteredMerchant.isNotEmpty
+        ? enteredMerchant
+        : recognizedMerchant?.isNotEmpty == true
+        ? recognizedMerchant
+        : null;
+    return TransactionReceiptDetails(
+      id: receipt.fingerprint,
+      merchant: merchant,
+      purchasedAt: receipt.purchasedAt,
+      totalMinor: receipt.amountMinor,
+      fiscalDriveNumber: receipt.fiscalDriveNumber,
+      fiscalDocumentNumber: receipt.fiscalDocumentNumber,
+      fiscalSign: receipt.fiscalSign,
+      items: [
+        for (final item in _document?.items ?? const <ParsedReceiptItem>[])
+          TransactionReceiptItem(
+            name: item.name,
+            quantity: item.quantity,
+            unitPriceMinor: item.unitPriceMinor,
+            totalMinor: item.totalMinor,
+          ),
+      ],
     );
   }
 
@@ -336,6 +419,8 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           ),
         ),
         const SizedBox(height: 14),
+        _buildDocumentScanner(context),
+        const SizedBox(height: 14),
         if (_matches.isNotEmpty) ...[
           Text(
             'Похожая банковская операция',
@@ -392,6 +477,97 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildDocumentScanner(BuildContext context) {
+    final document = _document;
+    return QestoCard(
+      key: const Key('receipt-document-card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.document_scanner_rounded,
+                color: QestoColors.primary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Магазин и товары',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Необязательно: сфотографируйте печатную часть чека. '
+            'Android распознает текст локально, без отправки на сервер.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            key: const Key('scan-receipt-document'),
+            onPressed: _documentLoading ? null : _scanDocument,
+            icon: const Icon(Icons.camera_alt_rounded),
+            label: Text(
+              _documentLoading
+                  ? 'Распознаём чек…'
+                  : document == null
+                  ? 'Сфотографировать чек'
+                  : 'Переснять чек',
+            ),
+          ),
+          if (_documentLoading) ...[
+            const SizedBox(height: 12),
+            const LinearProgressIndicator(),
+          ],
+          if (document != null) ...[
+            const SizedBox(height: 14),
+            if (document.merchant?.isNotEmpty == true)
+              _RecognizedValue(label: 'Магазин', value: document.merchant!),
+            if (document.items.isEmpty)
+              Text(
+                'Текст прочитан, но надёжно выделить товары не удалось. '
+                'Название магазина можно указать вручную.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
+              )
+            else ...[
+              Text(
+                'Распознано позиций: ${document.items.length}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 6),
+              for (final item in document.items)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 5),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.quantity == 1
+                              ? item.name
+                              : '${item.name} · ${_formatQuantity(item.quantity)} шт.',
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${_formatMinorMoney(item.totalMinor)} ₽',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ],
+        ],
+      ),
     );
   }
 
@@ -498,6 +674,32 @@ class _ReceiptChoice extends StatelessWidget {
   }
 }
 
+class _RecognizedValue extends StatelessWidget {
+  const _RecognizedValue({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('$label: ', style: Theme.of(context).textTheme.bodySmall),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 String _receiptComment(ParsedFiscalReceipt receipt) =>
     'Кассовый чек · ФН ${receipt.fiscalDriveNumber} · '
     'ФД ${receipt.fiscalDocumentNumber} · ФП ${receipt.fiscalSign}\n'
@@ -513,6 +715,10 @@ String _formatMinorMoney(int amountMinor) {
 }
 
 String _twoDigits(int value) => value.toString().padLeft(2, '0');
+
+String _formatQuantity(double value) => value == value.roundToDouble()
+    ? value.toInt().toString()
+    : value.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '');
 
 String _normalizeMerchant(String value) => value
     .toLowerCase()

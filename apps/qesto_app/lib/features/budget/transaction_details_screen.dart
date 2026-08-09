@@ -139,6 +139,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               ],
             ),
           ),
+          if (transaction.receipt != null) ...[
+            const SizedBox(height: 16),
+            _ReceiptDetailsCard(receipt: transaction.receipt!),
+          ],
           const SizedBox(height: 16),
           QestoButton(
             label: 'Редактировать',
@@ -154,6 +158,86 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
               foregroundColor: QestoColors.danger,
               minimumSize: const Size.fromHeight(54),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptDetailsCard extends StatelessWidget {
+  const _ReceiptDetailsCard({required this.receipt});
+
+  final TransactionReceiptDetails receipt;
+
+  @override
+  Widget build(BuildContext context) {
+    return QestoCard(
+      key: const Key('receipt-items-card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Состав чека', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 10),
+          if (receipt.merchant?.isNotEmpty == true)
+            _DetailRow(label: 'Магазин', value: receipt.merchant!),
+          if (receipt.items.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Text(
+                'Товары не распознаны',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: QestoColors.secondaryText,
+                ),
+              ),
+            )
+          else
+            for (final item in receipt.items) _ReceiptItemRow(item: item),
+          const Divider(height: 22),
+          _DetailRow(
+            label: 'Итого по чеку',
+            value: '${_formatMinorMoney(receipt.totalMinor)} ₽',
+          ),
+          Text(
+            'ФН ${receipt.fiscalDriveNumber} · '
+            'ФД ${receipt.fiscalDocumentNumber}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReceiptItemRow extends StatelessWidget {
+  const _ReceiptItemRow({required this.item});
+
+  final TransactionReceiptItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    final quantity = item.quantity == 1
+        ? null
+        : '${_formatQuantity(item.quantity)} шт.';
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.name),
+                if (quantity != null)
+                  Text(quantity, style: Theme.of(context).textTheme.bodySmall),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '${_formatMinorMoney(item.totalMinor)} ₽',
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
         ],
       ),
@@ -190,3 +274,16 @@ class _DetailRow extends StatelessWidget {
     );
   }
 }
+
+String _formatMinorMoney(int amountMinor) {
+  final whole = amountMinor.abs() ~/ 100;
+  final fraction = amountMinor.abs() % 100;
+  final formattedWhole = formatMoney(whole, 'RUB').replaceFirst(' ₽', '');
+  return fraction == 0
+      ? formattedWhole
+      : '$formattedWhole,${fraction.toString().padLeft(2, '0')}';
+}
+
+String _formatQuantity(double value) => value == value.roundToDouble()
+    ? value.toInt().toString()
+    : value.toStringAsFixed(3).replaceFirst(RegExp(r'0+$'), '');

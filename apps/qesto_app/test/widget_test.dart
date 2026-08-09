@@ -15,11 +15,13 @@ void main() {
   late List<Map<String, Object?>> mockNotifications;
   Map<String, Object?>? mockStatement;
   String? mockReceiptQr;
+  Map<String, Object?>? mockReceiptDocument;
 
   setUp(() {
     mockNotifications = [];
     mockStatement = null;
     mockReceiptQr = null;
+    mockReceiptDocument = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(notificationChannel, (call) async {
           return switch (call.method) {
@@ -35,7 +37,11 @@ void main() {
         });
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(receiptChannel, (call) async {
-          return call.method == 'scanReceiptQr' ? mockReceiptQr : null;
+          return switch (call.method) {
+            'scanReceiptQr' => mockReceiptQr,
+            'scanReceiptDocument' => mockReceiptDocument,
+            _ => null,
+          };
         });
   });
 
@@ -309,6 +315,52 @@ void main() {
     await tester.tap(find.byKey(const Key('save-receipt')));
     await tester.pumpAndSettle();
 
+    expect(find.text('Расход из чека добавлен'), findsOneWidget);
+  });
+
+  testWidgets('фотография чека распознаёт магазин и товары', (tester) async {
+    mockReceiptQr =
+        't=20260719T1430&s=144.89&fn=9282440300999999&'
+        'i=654321&fp=123456789&n=1';
+    final lines = [
+      'ООО "АГРОТОРГ"',
+      'КАССОВЫЙ ЧЕК',
+      'МОЛОКО 3,2%',
+      '1 X 89,99',
+      'ХЛЕБ БОРОДИНСКИЙ 54,90',
+      'ИТОГ 144,89',
+    ];
+    mockReceiptDocument = {
+      'text': lines.join('\n'),
+      'lines': [
+        for (final line in lines) {'text': line},
+      ],
+    };
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Добавить'));
+    await tester.tap(find.text('Добавить'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Добавить чек'));
+    await tester.tap(find.text('Добавить чек'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('scan-receipt-qr')));
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.byKey(const Key('scan-receipt-document')));
+    await tester.tap(find.byKey(const Key('scan-receipt-document')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('МОЛОКО 3,2%'), findsOneWidget);
+    expect(find.text('ХЛЕБ БОРОДИНСКИЙ'), findsOneWidget);
+    final merchantField = tester.widget<TextField>(
+      find.byKey(const Key('receipt-merchant-field')),
+    );
+    expect(merchantField.controller?.text, 'АГРОТОРГ');
+
+    await tester.tap(find.byKey(const Key('save-receipt')));
+    await tester.pumpAndSettle();
     expect(find.text('Расход из чека добавлен'), findsOneWidget);
   });
 

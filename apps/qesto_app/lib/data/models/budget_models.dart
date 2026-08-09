@@ -11,6 +11,42 @@ enum TransactionType {
 
 enum UpcomingExpenseSource { manual, detectedRecurring, subscription }
 
+class TransactionReceiptItem {
+  const TransactionReceiptItem({
+    required this.name,
+    required this.totalMinor,
+    this.quantity = 1,
+    this.unitPriceMinor,
+  });
+
+  final String name;
+  final double quantity;
+  final int? unitPriceMinor;
+  final int totalMinor;
+}
+
+class TransactionReceiptDetails {
+  const TransactionReceiptDetails({
+    required this.id,
+    required this.purchasedAt,
+    required this.totalMinor,
+    required this.fiscalDriveNumber,
+    required this.fiscalDocumentNumber,
+    required this.fiscalSign,
+    this.merchant,
+    this.items = const [],
+  });
+
+  final String id;
+  final DateTime purchasedAt;
+  final int totalMinor;
+  final String fiscalDriveNumber;
+  final String fiscalDocumentNumber;
+  final String fiscalSign;
+  final String? merchant;
+  final List<TransactionReceiptItem> items;
+}
+
 class BudgetPeriod {
   const BudgetPeriod({
     required this.id,
@@ -63,6 +99,7 @@ class BudgetTransaction {
     this.classificationConfidence = 1,
     this.originalCategoryId,
     this.tags = const [],
+    this.receipt,
   });
 
   final String id;
@@ -86,6 +123,7 @@ class BudgetTransaction {
   final double classificationConfidence;
   final String? originalCategoryId;
   final List<String> tags;
+  final TransactionReceiptDetails? receipt;
 
   BudgetTransaction copyWith({
     String? accountId,
@@ -106,6 +144,7 @@ class BudgetTransaction {
     double? classificationConfidence,
     String? originalCategoryId,
     List<String>? tags,
+    TransactionReceiptDetails? receipt,
   }) {
     return BudgetTransaction(
       id: id,
@@ -130,6 +169,7 @@ class BudgetTransaction {
           classificationConfidence ?? this.classificationConfidence,
       originalCategoryId: originalCategoryId ?? this.originalCategoryId,
       tags: tags ?? this.tags,
+      receipt: receipt ?? this.receipt,
     );
   }
 }
