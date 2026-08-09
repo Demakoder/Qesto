@@ -68,7 +68,8 @@ class DataQualityService {
           ),
         );
       }
-      if (transaction.classificationConfidence < 0.6) {
+      if (transaction.type != TransactionType.transfer &&
+          transaction.classificationConfidence < 0.6) {
         issues.add(
           DataQualityIssue(
             id: 'confidence-${transaction.id}',

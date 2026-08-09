@@ -5,6 +5,7 @@ import '../../../../core/theme/qesto_theme.dart';
 import '../../../../core/widgets/nested_screen_header.dart';
 import '../../../../core/widgets/qesto_card.dart';
 import '../../../../core/widgets/states.dart';
+import '../../../../data/models/qesto_models.dart';
 import '../../../budget/transaction_details_screen.dart';
 import '../../domain/models/statistics_models.dart';
 import '../state/statistics_controller.dart';
@@ -281,6 +282,20 @@ class DataQualityScreen extends StatelessWidget {
       listenable: controller,
       builder: (context, _) {
         final report = controller.snapshot.dataQuality;
+        final transfers = controller.snapshot.transactions
+            .where((item) => item.type == TransactionType.transfer)
+            .toList();
+        final incomingTransfers = transfers
+            .where(
+              (item) => item.transferDirection == TransferDirection.incoming,
+            )
+            .fold<int>(0, (sum, item) => sum + item.amount);
+        final outgoingTransfers = transfers
+            .where(
+              (item) => item.transferDirection != TransferDirection.incoming,
+            )
+            .fold<int>(0, (sum, item) => sum + item.amount);
+        final currency = transfers.firstOrNull?.currency ?? 'RUB';
         return Scaffold(
           appBar: NestedScreenHeader(
             title: Text(
@@ -332,6 +347,69 @@ class DataQualityScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 14),
+              if (transfers.isNotEmpty) ...[
+                QestoCard(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 42,
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: QestoColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            child: const Icon(
+                              Icons.swap_horiz_rounded,
+                              color: QestoColors.primary,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Переводы',
+                                  style: Theme.of(
+                                    context,
+                                  ).textTheme.titleMedium,
+                                ),
+                                Text('${transfers.length} операций'),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Входящие\n+${formatMoney(incomingTransfers, currency)}',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            child: Text(
+                              'Исходящие\n−${formatMoney(outgoingTransfers, currency)}',
+                              textAlign: TextAlign.end,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+              ],
               if (report.issues.isEmpty)
                 const EmptyState(
                   message: 'Все операции выбранного периода проверены',

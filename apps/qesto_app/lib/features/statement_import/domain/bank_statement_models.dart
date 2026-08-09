@@ -17,13 +17,13 @@ class ParsedBankStatement {
   final String? accountLastFour;
   final List<ParsedStatementTransaction> transactions;
 
-  List<ParsedStatementTransaction> get consumerTransactions => transactions
-      .where(
-        (transaction) =>
-            transaction.kind == StatementTransactionKind.expense ||
-            transaction.kind == StatementTransactionKind.refund,
-      )
-      .toList(growable: false);
+  ParsedStatementTransaction get latestTransaction => transactions.reduce(
+    (latest, item) =>
+        item.operationDate.isAfter(latest.operationDate) ? item : latest,
+  );
+
+  int get closingBalanceRubles =>
+      (latestTransaction.balanceMinor / 100).round();
 }
 
 class ParsedStatementTransaction {
@@ -38,6 +38,7 @@ class ParsedStatementTransaction {
     required this.amountMinor,
     required this.balanceMinor,
     required this.kind,
+    required this.isIncoming,
     required this.category,
     required this.confidence,
     this.cardLastFour,
@@ -53,6 +54,7 @@ class ParsedStatementTransaction {
   final int amountMinor;
   final int balanceMinor;
   final StatementTransactionKind kind;
+  final bool isIncoming;
   final CategorySuggestion category;
   final double confidence;
   final String? cardLastFour;
