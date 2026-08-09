@@ -35,6 +35,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(MaterialApp), findsOneWidget);
-    expect(find.byType(QestoButton), findsNWidgets(3));
+    expect(find.byType(QestoButton), findsNWidgets(4));
+    expect(find.byKey(const Key('voice-transaction-button')), findsOneWidget);
   });
 }

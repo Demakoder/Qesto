@@ -153,6 +153,7 @@ Map<String, dynamic> _transactionToJson(BudgetTransaction value) => {
   'originalCategoryId': value.originalCategoryId,
   'transferDirection': value.transferDirection?.name,
   'tags': value.tags,
+  'receipt': value.receipt == null ? null : _receiptToJson(value.receipt!),
 };
 
 BudgetTransaction _transactionFromJson(Map<String, dynamic> json) =>
@@ -184,6 +185,49 @@ BudgetTransaction _transactionFromJson(Map<String, dynamic> json) =>
               json['transferDirection'] as String,
             ),
       tags: _list(json['tags']).cast<String>(),
+      receipt: json['receipt'] == null
+          ? null
+          : _receiptFromJson(_map(json['receipt'])),
+    );
+
+Map<String, dynamic> _receiptToJson(TransactionReceiptDetails value) => {
+  'id': value.id,
+  'purchasedAt': value.purchasedAt.toIso8601String(),
+  'totalMinor': value.totalMinor,
+  'fiscalDriveNumber': value.fiscalDriveNumber,
+  'fiscalDocumentNumber': value.fiscalDocumentNumber,
+  'fiscalSign': value.fiscalSign,
+  'merchant': value.merchant,
+  'items': value.items
+      .map(
+        (item) => {
+          'name': item.name,
+          'quantity': item.quantity,
+          'unitPriceMinor': item.unitPriceMinor,
+          'totalMinor': item.totalMinor,
+        },
+      )
+      .toList(),
+};
+
+TransactionReceiptDetails _receiptFromJson(Map<String, dynamic> json) =>
+    TransactionReceiptDetails(
+      id: json['id'] as String,
+      purchasedAt: DateTime.parse(json['purchasedAt'] as String),
+      totalMinor: json['totalMinor'] as int,
+      fiscalDriveNumber: json['fiscalDriveNumber'] as String,
+      fiscalDocumentNumber: json['fiscalDocumentNumber'] as String,
+      fiscalSign: json['fiscalSign'] as String,
+      merchant: json['merchant'] as String?,
+      items: _list(json['items']).map((value) {
+        final item = _map(value);
+        return TransactionReceiptItem(
+          name: item['name'] as String,
+          quantity: (item['quantity'] as num?)?.toDouble() ?? 1,
+          unitPriceMinor: item['unitPriceMinor'] as int?,
+          totalMinor: item['totalMinor'] as int,
+        );
+      }).toList(),
     );
 
 Map<String, dynamic> _upcomingToJson(UpcomingExpense value) => {

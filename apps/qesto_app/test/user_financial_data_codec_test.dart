@@ -30,6 +30,23 @@ void main() {
           type: TransactionType.transfer,
           transferDirection: TransferDirection.incoming,
           tags: const ['statement-import', 'transfer-incoming'],
+          receipt: TransactionReceiptDetails(
+            id: 'fn:fd:fp',
+            purchasedAt: DateTime(2026, 8, 8, 14, 30),
+            totalMinor: 50000,
+            fiscalDriveNumber: '9282440300999999',
+            fiscalDocumentNumber: '12345',
+            fiscalSign: '987654321',
+            merchant: 'Тестовый магазин',
+            items: const [
+              TransactionReceiptItem(
+                name: 'Тестовый товар',
+                quantity: 2,
+                unitPriceMinor: 25000,
+                totalMinor: 50000,
+              ),
+            ],
+          ),
         ),
       ],
       savingsGoals: [
@@ -84,6 +101,12 @@ void main() {
     expect(restored.savingsGoals.single.savedAmount, 2000);
     expect(restored.trackedProducts.single.changePercent, -2.5);
     expect(restored.actions.single.title, 'Statement import');
+    expect(restored.transactions.single.receipt?.merchant, 'Тестовый магазин');
+    expect(
+      restored.transactions.single.receipt?.items.single.name,
+      'Тестовый товар',
+    );
+    expect(restored.transactions.single.receipt?.items.single.quantity, 2);
   });
 
   test('local repository restores data after an app restart', () async {

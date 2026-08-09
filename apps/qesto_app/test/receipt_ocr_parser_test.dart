@@ -65,6 +65,28 @@ void main() {
     expect(result.items, hasLength(1));
     expect(result.items.single.name, 'СОК ЯБЛОЧНЫЙ');
   });
+
+  test('разбирает типичный русский вывод Tesseract', () {
+    final result = parser.parse(
+      _document([
+        'ООО РОМАШКА',
+        'КАССОВЫЙ ЧЕК',
+        'НАИМЕНОВАНИЕ КОЛ-ВО ЦЕНА СТОИМОСТЬ',
+        'МОЛОКО 3,2% ........ 89:99 А',
+        'ХЛЕБ БОРОДИНСКИЙ',
+        '1,000 х 54,90',
+        '=54,90 Б',
+        'ИТОГ: 144,89',
+      ]),
+      expectedTotalMinor: 14489,
+    );
+
+    expect(result.items, hasLength(2));
+    expect(result.items[0].name, 'МОЛОКО 3,2%');
+    expect(result.items[0].totalMinor, 8999);
+    expect(result.items[1].name, 'ХЛЕБ БОРОДИНСКИЙ');
+    expect(result.items[1].totalMinor, 5490);
+  });
 }
 
 ExtractedReceiptDocument _document(List<String> values) {
