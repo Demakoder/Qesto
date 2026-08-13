@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+version: 1.0.10+11
 
 environment:
   sdk: ^3.12.2
@@ -34,10 +34,12 @@ dependencies:
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
+  excel_community: ^2.2.1
   html: ^0.15.6
   http: ^1.6.0
-  shared_preferences: ^2.5.5
-  url_launcher: ^6.3.2
+  pdf_document: ^3.5.0
+  pdf_graphics: ^3.5.0
+  web: ^1.1.1
 
 dev_dependencies:
   flutter_test:
@@ -61,6 +63,27 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  assets:
+    - licenses/fonts/README.md
+    - licenses/fonts/Manrope-OFL.txt
+    - licenses/fonts/IBMPlexSans-OFL.txt
+    - licenses/fonts/IBMPlexMono-OFL.txt
+
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/manrope/Manrope-Variable.ttf
+    - family: IBM Plex Sans
+      fonts:
+        - asset: assets/fonts/ibm_plex/IBMPlexSans-Variable.ttf
+    - family: IBM Plex Mono
+      fonts:
+        - asset: assets/fonts/ibm_plex/IBMPlexMono-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/ibm_plex/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/ibm_plex/IBMPlexMono-SemiBold.ttf
+          weight: 600
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg

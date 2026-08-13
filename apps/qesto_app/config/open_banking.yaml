@@ -1,0 +1,5 @@
+# Documentation-only configuration. This file is intentionally not loaded by
+# the Flutter application. Changing it cannot enable external bank access.
+openBanking:
+  enabled: false
+  mode: disabled

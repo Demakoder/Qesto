@@ -4,6 +4,7 @@ import 'package:qesto/features/budget/state/budget_controller.dart';
 import 'package:qesto/features/statement_import/domain/bank_statement_models.dart';
 import 'package:qesto/features/statement_import/services/sberbank_statement_parser.dart';
 import 'package:qesto/mocks/fixtures/budget_categories.dart';
+import 'package:qesto/synoball/synoball.dart';
 
 const redactedSberStatementText = '''
 СБЕР 900 www.sberbank.ru
@@ -20,6 +21,43 @@ const redactedSberStatementText = '''
 05.07.2026 468119 Перевод в другой банк. Операция по счету ****2345
 04.07.2026 13:00 Возврат, отмена операции +540,00 6 247,60
 04.07.2026 659298 CAFE TEST MOSCOW RUS. Операция по карте ****8505
+''';
+
+const redactedColumnarSberStatementText = '''
+900 www.sberbank.ru
+Выписка по платёжному счёту
+За период 01.07.2026 — 31.07.2026
+Номер счёта
+40817 810 0 0000 0012345
+Расшифровка операций
+ДАТА ОПЕРАЦИИ (МСК) КАТЕГОРИЯ
+Дата обработки
+Описание операции
+и код авторизации
+07.07.2026 10:30 Супермаркеты 07.07.2026 737816 MAGNIT TEST MOSCOW RUS. Операция по карте ****8505
+06.07.2026 13:00 Перевод на карту 06.07.2026 123456 Перевод от И. Имя. Операция по счету
+****2345
+СУММА В ВАЛЮТЕ СЧЁТА ОСТАТОК СРЕДСТВ
+Сумма в валюте
+В валюте счёта
+операции
+84,99
+6 010,12
++500,00
+6 095,11
+\f
+Выписка по платёжному счёту Страница 2 из 2
+ДАТА ОПЕРАЦИИ (МСК) КАТЕГОРИЯ
+Дата обработки
+Описание операции
+и код авторизации
+05.07.2026 19:32 Перевод СБП 05.07.2026 468119 Перевод в другой банк. Операция по счету ****2345
+04.07.2026 13:00 Возврат, отмена операции 04.07.2026 659298 CAFE TEST MOSCOW RUS. Операция по карте ****8505
+СУММА В ВАЛЮТЕ СЧЁТА ОСТАТОК СРЕДСТВ
+652,49
+5 595,11
++540,00
+6 247,60
 ''';
 
 void main() {
@@ -53,6 +91,94 @@ void main() {
     expect(transactions[2].isIncoming, isFalse);
     expect(transactions[3].kind, StatementTransactionKind.refund);
     expect(transactions[3].isIncoming, isTrue);
+  });
+
+  test('разбирает новый двухколоночный PDF-шаблон Сбербанка', () {
+    final statement = parser.parse(redactedColumnarSberStatementText);
+
+    expect(statement.transactions, hasLength(4));
+    expect(statement.accountLastFour, '2345');
+    expect(statement.transactions.map((item) => item.authorizationCode), [
+      '737816',
+      '123456',
+      '468119',
+      '659298',
+    ]);
+    expect(statement.transactions.map((item) => item.amountMinor), [
+      8499,
+      50000,
+      65249,
+      54000,
+    ]);
+    expect(statement.transactions[0].kind, StatementTransactionKind.expense);
+    expect(statement.transactions[1].kind, StatementTransactionKind.transfer);
+    expect(statement.transactions[1].isIncoming, isTrue);
+    expect(statement.transactions[3].kind, StatementTransactionKind.refund);
+    expect(statement.transactions[3].isIncoming, isTrue);
+    expect(statement.transactions[1].cardLastFour, '2345');
+  });
+
+  test('двухколоночная выписка входит в Synoball через StatementAdapter', () {
+    final statement = parser.parse(redactedColumnarSberStatementText);
+    const entityId = 'entity-sber-regression';
+    const accountId = 'account-sber-regression';
+    final synoball = SynoballCore()
+      ..upsertEntity(
+        const SynoballEntity(
+          id: entityId,
+          type: SynoballEntityType.person,
+          displayName: 'Тестовый пользователь',
+        ),
+      );
+
+    final outcome = synoball.ingest(
+      StatementAdapter(),
+      StatementInput(
+        entityId: entityId,
+        receivedAt: DateTime(2026, 8, 13),
+        rawPayload: redactedColumnarSberStatementText,
+        batchName: 'Обезличенная выписка Сбербанка',
+        account: const SynoballAccount(
+          id: accountId,
+          entityId: entityId,
+          name: 'Сбер • 2345',
+          type: SynoballAccountType.card,
+          currency: 'RUB',
+          balance: Money(minorUnits: 624760, currency: 'RUB'),
+        ),
+        transactions: statement.transactions
+            .map(
+              (item) => TransactionSeed(
+                canonicalId: item.id,
+                accountId: accountId,
+                amount: Money(minorUnits: item.amountMinor, currency: 'RUB'),
+                direction: item.isIncoming
+                    ? FinancialDirection.inflow
+                    : FinancialDirection.outflow,
+                occurredAt: item.operationDate,
+                description: item.description,
+                merchant: item.merchant,
+                category: item.category.categoryId,
+                subcategoryId: item.category.subcategoryId,
+                providerTransactionId: item.id,
+                confidence: item.confidence,
+              ),
+            )
+            .toList(growable: false),
+      ),
+    );
+
+    expect(outcome.createdTransactionIds, hasLength(4));
+    expect(synoball.transactions, hasLength(4));
+    expect(synoball.state.importBatches.single.totalRecords, 4);
+    expect(
+      synoball.state.evidence.every(
+        (item) =>
+            item.sourceType == SynoballSourceType.statement &&
+            item.trust == SourceTrustLevel.bankStatement,
+      ),
+      isTrue,
+    );
   });
 
   test('в список потребительских операций входят расход и возврат', () {

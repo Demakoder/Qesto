@@ -30,6 +30,12 @@ IconData budgetCategoryIcon(String key) => switch (key) {
   'charity' => Icons.volunteer_activism_rounded,
   'business' => Icons.business_center_rounded,
   'warning' => Icons.warning_amber_rounded,
+  'savings' => Icons.savings_rounded,
+  'investment' => Icons.trending_up_rounded,
+  'fitness' => Icons.fitness_center_rounded,
+  'music' => Icons.music_note_rounded,
+  'book' => Icons.menu_book_rounded,
+  'camera' => Icons.photo_camera_rounded,
   _ => Icons.category_rounded,
 };
 

@@ -6,7 +6,12 @@ import 'bank_statement_file_models.dart';
 @JS('qestoPickAndExtractPdf')
 external JSPromise<JSString?> _pickAndExtractPdf();
 
-Future<ExtractedStatementFile?> pickStatementPdf() async {
+Future<ExtractedStatementFile?> pickStatementFile(
+  StatementPickerMode mode,
+) async {
+  if (mode == StatementPickerMode.excel) {
+    throw UnsupportedError('Импорт Excel пока доступен в Android и Windows');
+  }
   final encoded = await _pickAndExtractPdf().toDart;
   if (encoded == null) return null;
 
@@ -20,5 +25,9 @@ Future<ExtractedStatementFile?> pickStatementPdf() async {
   if (fileName is! String || text is! String || text.trim().isEmpty) {
     throw const FormatException('PDF не содержит доступного текста');
   }
-  return ExtractedStatementFile(fileName: fileName, text: text);
+  return ExtractedStatementFile(
+    fileName: fileName,
+    kind: StatementFileKind.pdf,
+    text: text,
+  );
 }

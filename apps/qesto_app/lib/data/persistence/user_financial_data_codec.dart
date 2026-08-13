@@ -1,11 +1,12 @@
 import 'dart:convert';
 
 import '../models/qesto_models.dart';
+import '../../synoball/core/models.dart';
 
 class UserFinancialDataCodec {
   const UserFinancialDataCodec();
 
-  static const schemaVersion = 1;
+  static const schemaVersion = 3;
 
   String encode(UserFinancialData data) => jsonEncode({
     'schemaVersion': schemaVersion,
@@ -14,6 +15,9 @@ class UserFinancialDataCodec {
     'accounts': data.accounts.map(_accountToJson).toList(),
     'budgetPeriods': data.budgetPeriods.map(_periodToJson).toList(),
     'categoryBudgets': data.categoryBudgets.map(_categoryBudgetToJson).toList(),
+    'categoryCustomizations': data.categoryCustomizations
+        .map(_categoryCustomizationToJson)
+        .toList(),
     'transactions': data.transactions.map(_transactionToJson).toList(),
     'upcomingExpenses': data.upcomingExpenses.map(_upcomingToJson).toList(),
     'plannedCumulativePoints': data.plannedCumulativePoints
@@ -22,11 +26,13 @@ class UserFinancialDataCodec {
     'savingsGoals': data.savingsGoals.map(_savingsGoalToJson).toList(),
     'trackedProducts': data.trackedProducts.map(_trackedProductToJson).toList(),
     'actions': data.actions.map(_actionToJson).toList(),
+    'synoball': data.synoballState?.toJson(),
   });
 
   UserFinancialData decode(String source) {
     final root = jsonDecode(source) as Map<String, dynamic>;
-    if (root['schemaVersion'] != schemaVersion) {
+    final version = root['schemaVersion'] as int? ?? 1;
+    if (version < 1 || version > schemaVersion) {
       throw const FormatException('Unsupported user data schema');
     }
     return UserFinancialData(
@@ -41,6 +47,9 @@ class UserFinancialDataCodec {
       categoryBudgets: _list(
         root['categoryBudgets'],
       ).map((item) => _categoryBudgetFromJson(_map(item))).toList(),
+      categoryCustomizations: _list(
+        root['categoryCustomizations'],
+      ).map((item) => _categoryCustomizationFromJson(_map(item))).toList(),
       transactions: _list(
         root['transactions'],
       ).map((item) => _transactionFromJson(_map(item))).toList(),
@@ -59,6 +68,9 @@ class UserFinancialDataCodec {
       actions: _list(
         root['actions'],
       ).map((item) => _actionFromJson(_map(item))).toList(),
+      synoballState: root['synoball'] == null
+          ? null
+          : SynoballState.fromJson(_map(root['synoball'])),
     );
   }
 }
@@ -129,6 +141,24 @@ CategoryBudget _categoryBudgetFromJson(Map<String, dynamic> json) =>
       categoryId: json['categoryId'] as String,
       plannedAmount: json['plannedAmount'] as int,
     );
+
+Map<String, dynamic> _categoryCustomizationToJson(
+  BudgetCategoryCustomization value,
+) => {
+  'categoryId': value.categoryId,
+  'name': value.name,
+  'iconKey': value.iconKey,
+  'colorValue': value.colorValue,
+};
+
+BudgetCategoryCustomization _categoryCustomizationFromJson(
+  Map<String, dynamic> json,
+) => BudgetCategoryCustomization(
+  categoryId: json['categoryId'] as String,
+  name: json['name'] as String,
+  iconKey: json['iconKey'] as String,
+  colorValue: json['colorValue'] as int,
+);
 
 Map<String, dynamic> _transactionToJson(BudgetTransaction value) => {
   'id': value.id,

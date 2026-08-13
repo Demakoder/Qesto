@@ -7,6 +7,7 @@ import '../../data/models/qesto_models.dart';
 import '../shared/placeholder_screen.dart';
 import '../receipt_import/presentation/receipt_import_screen.dart';
 import '../statistics/presentation/screens/statistics_screen.dart';
+import '../statement_import/data/bank_statement_file_models.dart';
 import '../statement_import/presentation/statement_import_screen.dart';
 import '../voice_transaction/data/voice_speech_recognizer.dart';
 import '../voice_transaction/domain/voice_transaction_models.dart';
@@ -257,7 +258,18 @@ class BudgetScreenState extends State<BudgetScreen> {
               _AddMenuItem(
                 icon: Icons.upload_file_rounded,
                 title: 'Загрузить выписку',
-                onTap: () => _openStatementImport(sheetContext),
+                onTap: () => _openStatementImport(
+                  sheetContext,
+                  mode: StatementPickerMode.statement,
+                ),
+              ),
+              _AddMenuItem(
+                icon: Icons.table_view_rounded,
+                title: 'Добавить Excel-таблицу',
+                onTap: () => _openStatementImport(
+                  sheetContext,
+                  mode: StatementPickerMode.excel,
+                ),
               ),
               _AddMenuItem(
                 icon: Icons.receipt_long_rounded,
@@ -271,11 +283,17 @@ class BudgetScreenState extends State<BudgetScreen> {
     );
   }
 
-  Future<void> _openStatementImport(BuildContext sheetContext) async {
+  Future<void> _openStatementImport(
+    BuildContext sheetContext, {
+    required StatementPickerMode mode,
+  }) async {
     Navigator.of(sheetContext).pop();
     final importedCount = await Navigator.of(context).push<int>(
       MaterialPageRoute<int>(
-        builder: (_) => StatementImportScreen(controller: widget.controller),
+        builder: (_) => StatementImportScreen(
+          controller: widget.controller,
+          pickerMode: mode,
+        ),
       ),
     );
     if (!mounted || importedCount == null || importedCount == 0) return;

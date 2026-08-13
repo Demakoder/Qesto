@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/data/models/qesto_models.dart';
 import 'package:qesto/features/budget/state/budget_controller.dart';
 import 'package:qesto/features/statistics/domain/services/data_quality_service.dart';
+import 'package:qesto/features/statistics/domain/services/statistics_calculation_service.dart';
 import 'package:qesto/mocks/fixtures/budget_categories.dart';
 
 void main() {
@@ -138,6 +139,129 @@ void main() {
       await controller.undoAction(controller.actions.single.id);
       expect(controller.transactions.single.accountId, 'local-default-account');
       expect(controller.accounts.single.id, 'local-default-account');
+    },
+  );
+
+  test(
+    'Excel capital allocations create assets without becoming expenses',
+    () async {
+      final controller = buildController();
+      const sourceAccount = QestoAccount(
+        id: 'excel-account',
+        userId: 'user-1',
+        title: 'Импорт из Excel',
+        balance: 0,
+        currency: 'RUB',
+        type: AccountType.other,
+      );
+      const cryptoAccount = QestoAccount(
+        id: 'excel-capital-crypto',
+        userId: 'user-1',
+        title: 'Крипта',
+        balance: 198591,
+        currency: 'RUB',
+        type: AccountType.investment,
+      );
+      final allocation = BudgetTransaction(
+        id: 'excel-crypto-allocation',
+        userId: 'user-1',
+        accountId: sourceAccount.id,
+        date: DateTime(2025, 1),
+        amount: 198591,
+        currency: 'RUB',
+        type: TransactionType.investment,
+        categoryId: 'other',
+        tags: const ['statement-import', 'excel-capital-allocation'],
+      );
+
+      await controller.importStatement(
+        account: sourceAccount,
+        additionalAccounts: const [cryptoAccount],
+        transactions: [allocation],
+        createdPeriodIds: const {},
+        actionTitle: 'Импорт Excel',
+      );
+
+      final importedCapital = controller.accounts.firstWhere(
+        (item) => item.id == cryptoAccount.id,
+      );
+      expect(importedCapital.title, 'Крипта');
+      expect(importedCapital.balance, 198591);
+      expect(importedCapital.type, AccountType.investment);
+      expect(
+        const StatisticsCalculationService().expenses(controller.transactions),
+        0,
+      );
+      expect(controller.transactions.single.type, TransactionType.investment);
+    },
+  );
+
+  test(
+    'Excel reimport replaces the old expense meaning with investment',
+    () async {
+      final oldExpense = BudgetTransaction(
+        id: 'excel-crypto-allocation',
+        userId: 'user-1',
+        accountId: 'excel-account',
+        date: DateTime(2000, 1),
+        amount: 198591,
+        currency: 'RUB',
+        type: TransactionType.expense,
+        categoryId: 'other',
+        tags: const ['statement-import', 'excel-import'],
+      );
+      final controller = BudgetController(
+        configuration: budgetConfiguration,
+        financialData: UserFinancialData(
+          user: const QestoUser(
+            id: 'user-1',
+            name: 'Test',
+            defaultCurrency: 'RUB',
+          ),
+          referenceDate: DateTime(2026, 8, 9),
+          accounts: const [
+            QestoAccount(
+              id: 'excel-account',
+              userId: 'user-1',
+              title: 'Импорт из Excel',
+              balance: 0,
+              currency: 'RUB',
+              type: AccountType.other,
+            ),
+          ],
+          transactions: [oldExpense],
+        ),
+      );
+      final refreshed = oldExpense.copyWith(
+        date: DateTime(2025, 1),
+        type: TransactionType.investment,
+        tags: const [
+          'statement-import',
+          'excel-import',
+          'excel-capital-allocation',
+        ],
+      );
+
+      await controller.importStatement(
+        account: controller.accounts.single,
+        transactions: [refreshed],
+        createdPeriodIds: const {},
+        actionTitle: 'Обновление Excel',
+      );
+
+      expect(controller.transactions.single.type, TransactionType.investment);
+      expect(controller.transactions.single.date, DateTime(2025, 1));
+      expect(
+        controller.transactions.single.tags.where(
+          (tag) => tag.startsWith('legacy-type-'),
+        ),
+        ['legacy-type-investment'],
+      );
+      expect(controller.actions.single.previousTransactions, hasLength(1));
+
+      await controller.undoAction(controller.actions.single.id);
+      expect(controller.transactions.single.type, TransactionType.expense);
+      expect(controller.transactions.single.date, DateTime(2000, 1));
     },
   );
 }

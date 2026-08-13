@@ -28,8 +28,11 @@ class BudgetDynamicsCard extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           const SizedBox(height: 6),
-          BudgetDynamicsChart(period: period, forecast: forecast),
-          const SizedBox(height: 14),
+          if (period.hasAssignedBudget) ...[
+            BudgetDynamicsChart(period: period, forecast: forecast),
+            const SizedBox(height: 14),
+          ] else
+            const SizedBox(height: 8),
           _ForecastMessage(period: period, forecast: forecast),
         ],
       ),
@@ -45,6 +48,14 @@ class _ForecastMessage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!period.hasAssignedBudget) {
+      return const _ForecastNotice(
+        icon: Icons.account_balance_wallet_outlined,
+        color: QestoColors.secondaryText,
+        message:
+            'Бюджет не назначен. Задайте лимит, чтобы увидеть план и прогноз.',
+      );
+    }
     final (icon, color, message) = switch (forecast.state) {
       BudgetForecastState.projectedOverLimit => (
         Icons.info_outline_rounded,
@@ -67,25 +78,40 @@ class _ForecastMessage extends StatelessWidget {
         'Недостаточно данных для прогноза.',
       ),
     };
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              message,
-              style: const TextStyle(fontSize: 13.5, height: 1.3),
-            ),
-          ),
-        ],
-      ),
-    );
+    return _ForecastNotice(icon: icon, color: color, message: message);
   }
+}
+
+class _ForecastNotice extends StatelessWidget {
+  const _ForecastNotice({
+    required this.icon,
+    required this.color,
+    required this.message,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: Row(
+      children: [
+        Icon(icon, color: color),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            message,
+            style: const TextStyle(fontSize: 13.5, height: 1.3),
+          ),
+        ),
+      ],
+    ),
+  );
 }

@@ -1,0 +1,436 @@
+openapi: 3.1.0
+info:
+  title: Synoball Financial Data API
+  version: 1.0.0
+  description: >-
+    Transport contract for the canonical financial core used by Qesto.
+    Provider-specific schemas terminate at the adapter boundary.
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: /synoball/v1
+security:
+  - bearerAuth: []
+paths:
+  /entities:
+    get:
+      summary: List financial entities
+      operationId: listEntities
+      responses:
+        '200':
+          description: Financial owners visible to the caller.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Entity'}
+        '401': {$ref: '#/components/responses/Error'}
+  /institutions:
+    get:
+      summary: List known institutions
+      operationId: listInstitutions
+      responses:
+        '200':
+          description: Known financial institutions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Institution'}
+        '401': {$ref: '#/components/responses/Error'}
+  /connections:
+    get:
+      summary: List persistent source connections
+      operationId: listConnections
+      parameters:
+        - {$ref: '#/components/parameters/EntityId'}
+      responses:
+        '200':
+          description: Persistent source connections only.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Connection'}
+        '401': {$ref: '#/components/responses/Error'}
+  /consents:
+    get:
+      summary: List source-access consents
+      operationId: listConsents
+      parameters:
+        - {$ref: '#/components/parameters/EntityId'}
+      responses:
+        '200':
+          description: Active and historical source-access consents.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Consent'}
+        '401': {$ref: '#/components/responses/Error'}
+  /accounts:
+    get:
+      summary: List canonical accounts
+      operationId: listAccounts
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+      responses:
+        '200':
+          description: Canonical accounts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Account'}
+        '401': {$ref: '#/components/responses/Error'}
+  /transactions:
+    get:
+      summary: List canonical transactions
+      operationId: listTransactions
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+        - name: from
+          in: query
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Posted canonical transactions. Sources are represented as evidence.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Transaction'}
+        '401': {$ref: '#/components/responses/Error'}
+  /transactions/{transactionId}/evidence:
+    get:
+      summary: List evidence for a transaction
+      operationId: listTransactionEvidence
+      parameters:
+        - name: transactionId
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        '200':
+          description: Every source that supports the canonical event.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/SourceEvidence'}
+        '401': {$ref: '#/components/responses/Error'}
+  /merchants:
+    get:
+      summary: List merchant spending summaries
+      operationId: listMerchants
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+      responses:
+        '200':
+          description: Merchant summaries derived from canonical transactions.
+        '401': {$ref: '#/components/responses/Error'}
+  /categories:
+    get:
+      summary: List category layers
+      operationId: listCategories
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+      responses:
+        '200':
+          description: Provider, Synoball and user category layers.
+        '401': {$ref: '#/components/responses/Error'}
+  /recurring-streams:
+    get:
+      summary: List recurring streams
+      operationId: listRecurringStreams
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+      responses:
+        '200':
+          description: Inferred recurring financial streams.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/RecurringStream'}
+        '401': {$ref: '#/components/responses/Error'}
+  /financial-state:
+    get:
+      summary: Calculate financial state
+      operationId: getFinancialState
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+        - name: asOf
+          in: query
+          required: true
+          schema: {type: string, format: date-time}
+      responses:
+        '200':
+          description: Recalculable financial state, never the source of truth.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/FinancialState'}
+        '401': {$ref: '#/components/responses/Error'}
+  /analytics/daily-spending:
+    get:
+      summary: Get daily spending
+      operationId: getDailySpending
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: Daily spending read model.}
+        '401': {$ref: '#/components/responses/Error'}
+  /analytics/monthly-categories:
+    get:
+      summary: Get monthly category totals
+      operationId: getMonthlyCategories
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+      responses:
+        '200': {description: Monthly category read model.}
+        '401': {$ref: '#/components/responses/Error'}
+  /analytics/merchants:
+    get:
+      summary: Get merchant leaderboard
+      operationId: getMerchantSpending
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+      responses:
+        '200': {description: Merchant leaderboard read model.}
+        '401': {$ref: '#/components/responses/Error'}
+  /analytics/cashflow:
+    get:
+      summary: Get cash-flow summary
+      operationId: getCashflow
+      parameters:
+        - {$ref: '#/components/parameters/EntityIdRequired'}
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200': {description: "Income, expenses and net cash-flow."}
+        '401': {$ref: '#/components/responses/Error'}
+  /ai/context:
+    post:
+      summary: Create task-specific AI context
+      operationId: createAiContext
+      description: Returns task-specific facts; never returns the complete raw history.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AiContextRequest'}
+      responses:
+        '200':
+          description: Deterministic facts calculated by Synoball for an LLM.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AiContext'}
+        '422': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    EntityId:
+      name: entityId
+      in: query
+      required: false
+      schema: {type: string}
+    EntityIdRequired:
+      name: entityId
+      in: query
+      required: true
+      schema: {type: string}
+  responses:
+    Error:
+      description: Normalized Synoball error.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Money:
+      type: object
+      required: [value, currency]
+      properties:
+        value:
+          type: string
+          pattern: '^-?[0-9]+\.[0-9]{2}$'
+          examples: ['1490.00']
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          examples: [RUB]
+    Entity:
+      type: object
+      required: [id, type, displayName]
+      properties:
+        id: {type: string}
+        type: {type: string, enum: [PERSON, BUSINESS]}
+        displayName: {type: string}
+    Institution:
+      type: object
+      required: [id, name, countryCode]
+      properties:
+        id: {type: string}
+        name: {type: string}
+        countryCode: {type: string, pattern: '^[A-Z]{2}$'}
+    Connection:
+      type: object
+      required: [id, entityId, status, method, capabilities, adapterId, adapterVersion]
+      properties:
+        id: {type: string}
+        entityId: {type: string}
+        status: {type: string, enum: [ACTIVE, DEGRADED, DISCONNECTED, REVOKED]}
+        method: {type: string}
+        institutionId: {type: [string, 'null']}
+        capabilities:
+          type: array
+          items: {type: string, enum: [ACCOUNTS, BALANCES, TRANSACTIONS, INVESTMENTS, LOANS, INSURANCE, IDENTITY]}
+        consentId: {type: [string, 'null']}
+        adapterId: {type: string}
+        adapterVersion: {type: string}
+        lastSyncedAt: {type: [string, 'null'], format: date-time}
+        syncCursor: {type: [string, 'null']}
+        lastErrorCode: {$ref: '#/components/schemas/ErrorCode'}
+    Consent:
+      type: object
+      required: [id, entityId, connectionId, status, scopes, purpose, grantedAt, jurisdiction]
+      properties:
+        id: {type: string}
+        entityId: {type: string}
+        connectionId: {type: string}
+        status: {type: string, enum: [ACTIVE, EXPIRED, REVOKED]}
+        scopes: {type: array, items: {type: string}}
+        purpose: {type: string}
+        grantedAt: {type: string, format: date-time}
+        expiresAt: {type: [string, 'null'], format: date-time}
+        revokedAt: {type: [string, 'null'], format: date-time}
+        jurisdiction: {type: string}
+        externalConsentId: {type: [string, 'null']}
+    Account:
+      type: object
+      required: [id, entityId, name, type, currency, balance]
+      properties:
+        id: {type: string}
+        entityId: {type: string}
+        name: {type: string}
+        type: {type: string, enum: [CHECKING, CARD, SAVINGS, DEPOSIT, CREDIT, LOAN, BROKERAGE, INVESTMENT, CASH, WALLET, OTHER]}
+        currency: {type: string}
+        balance: {$ref: '#/components/schemas/Money'}
+        connectionId: {type: [string, 'null']}
+        institutionId: {type: [string, 'null']}
+    Transaction:
+      type: object
+      required: [id, entityId, accountId, status, amount, direction, occurredAt, description, eventType, quality]
+      properties:
+        id: {type: string}
+        entityId: {type: string}
+        accountId: {type: string}
+        status: {type: string, enum: [PENDING, POSTED, REVERSED, DELETED]}
+        amount: {$ref: '#/components/schemas/Money'}
+        direction: {type: string, enum: [INFLOW, OUTFLOW, NEUTRAL]}
+        occurredAt: {type: string, format: date-time}
+        description:
+          type: object
+          required: [raw, normalized]
+          properties:
+            raw: {type: string}
+            normalized: {type: string}
+        merchantId: {type: [string, 'null']}
+        merchantName: {type: [string, 'null']}
+        providerCategory: {type: [string, 'null']}
+        synoballCategory: {type: [string, 'null']}
+        userCategoryOverride: {type: [string, 'null']}
+        effectiveCategory: {type: [string, 'null']}
+        eventType: {type: string, enum: [OBSERVED, INFERRED, EXPECTED]}
+        receiptId: {type: [string, 'null']}
+        quality:
+          type: object
+          properties:
+            merchantConfidence: {type: [number, 'null'], minimum: 0, maximum: 1}
+            categoryConfidence: {type: [number, 'null'], minimum: 0, maximum: 1}
+    SourceEvidence:
+      type: object
+      required: [id, transactionId, sourceType, ingestionRecordId, confidence, trust, observedAt]
+      properties:
+        id: {type: string}
+        transactionId: {type: string}
+        sourceType: {type: string, enum: [LEGACY, MANUAL, MANUAL_VOICE, ANDROID_NOTIFICATION, RECEIPT, STATEMENT, REGULATED_API, DIRECT_API, MODEL_INFERENCE]}
+        ingestionRecordId: {type: string}
+        confidence: {type: number, minimum: 0, maximum: 1}
+        trust: {type: string}
+        observedAt: {type: string, format: date-time}
+        providerTransactionId: {type: [string, 'null']}
+    RecurringStream:
+      type: object
+      required: [id, entityId, title, typicalAmount, frequency, nextExpectedAt, confidence]
+      properties:
+        id: {type: string}
+        entityId: {type: string}
+        title: {type: string}
+        typicalAmount: {$ref: '#/components/schemas/Money'}
+        frequency: {type: string, enum: [WEEKLY, MONTHLY, QUARTERLY, YEARLY, IRREGULAR]}
+        nextExpectedAt: {type: string, format: date-time}
+        confidence: {type: number, minimum: 0, maximum: 1}
+    DataQuality:
+      type: object
+      required: [overall, freshness, completeness, sourceReliability, warnings]
+      properties:
+        overall: {type: number, minimum: 0, maximum: 1}
+        freshness: {type: number, minimum: 0, maximum: 1}
+        completeness: {type: number, minimum: 0, maximum: 1}
+        sourceReliability: {type: number, minimum: 0, maximum: 1}
+        warnings: {type: array, items: {type: string}}
+    FinancialState:
+      type: object
+      required: [entityId, asOf, liquidMoney, monthlyIncome, monthlyExpenses, mandatoryExpenses, freeCashflow, assets, debts, investments, dataQuality]
+      properties:
+        entityId: {type: string}
+        asOf: {type: string, format: date-time}
+        liquidMoney: {$ref: '#/components/schemas/Money'}
+        monthlyIncome: {$ref: '#/components/schemas/Money'}
+        incomeStability: {type: number, minimum: 0, maximum: 1}
+        monthlyExpenses: {$ref: '#/components/schemas/Money'}
+        mandatoryExpenses: {$ref: '#/components/schemas/Money'}
+        freeCashflow: {$ref: '#/components/schemas/Money'}
+        plannedExpenses: {$ref: '#/components/schemas/Money'}
+        assets: {$ref: '#/components/schemas/Money'}
+        debts: {$ref: '#/components/schemas/Money'}
+        investments: {$ref: '#/components/schemas/Money'}
+        dataQuality: {$ref: '#/components/schemas/DataQuality'}
+    AiContextRequest:
+      type: object
+      required: [entityId, purpose, asOf]
+      properties:
+        entityId: {type: string}
+        purpose: {type: string, enum: [PURCHASE_DECISION, BUDGET_ANALYSIS, FINANCIAL_SUMMARY, EXPENSE_OPTIMIZATION, SUBSCRIPTION_ANALYSIS]}
+        asOf: {type: string, format: date-time}
+        proposedPurchase: {$ref: '#/components/schemas/Money'}
+    AiContext:
+      type: object
+      required: [purpose, entityId, generatedAt, facts, dataQuality, warnings]
+      properties:
+        purpose: {type: string}
+        entityId: {type: string}
+        generatedAt: {type: string, format: date-time}
+        facts: {type: object, additionalProperties: true}
+        dataQuality: {type: number, minimum: 0, maximum: 1}
+        warnings: {type: array, items: {type: string}}
+    ErrorCode:
+      type: [string, 'null']
+      enum: [CONSENT_EXPIRED, SOURCE_UNAVAILABLE, INVALID_DATA, SYNC_FAILED, PARTIAL_SYNC, UNSUPPORTED_CAPABILITY, AUTH_REQUIRED, null]
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: {$ref: '#/components/schemas/ErrorCode'}
+        message: {type: string}
+        providerErrorId: {type: [string, 'null']}

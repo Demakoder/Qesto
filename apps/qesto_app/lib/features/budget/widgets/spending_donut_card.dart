@@ -159,7 +159,9 @@ class _DonutChart extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'из ${formatMoney(summary.period.totalPlan, summary.period.currency)}',
+                    summary.hasAssignedBudget
+                        ? 'из ${formatMoney(summary.period.totalPlan, summary.period.currency)}'
+                        : 'бюджет не назначен',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 ],

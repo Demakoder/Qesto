@@ -9,5 +9,10 @@ export 'bank_statement_file_models.dart';
 class BankStatementFileService {
   const BankStatementFileService();
 
-  Future<ExtractedStatementFile?> pickPdf() => platform.pickStatementPdf();
+  Future<ExtractedStatementFile?> pickStatement({
+    StatementPickerMode mode = StatementPickerMode.all,
+  }) => platform.pickStatementFile(mode);
+
+  Future<ExtractedStatementFile?> pickPdf() =>
+      pickStatement(mode: StatementPickerMode.statement);
 }

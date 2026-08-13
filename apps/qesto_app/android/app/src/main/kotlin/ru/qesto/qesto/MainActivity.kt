@@ -3,9 +3,11 @@ package ru.qesto.qesto
 import android.Manifest
 import android.app.Activity
 import android.app.NotificationManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -27,11 +29,14 @@ import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
 
 class MainActivity : FlutterActivity() {
     private val notificationChannelName = "ru.qesto.qesto/notifications"
+    private val notificationEventsChannelName =
+        "ru.qesto.qesto/notification_events"
     private val statementChannelName = "ru.qesto.qesto/statements"
     private val receiptChannelName = "ru.qesto.qesto/receipts"
     private val voiceChannelName = "ru.qesto.qesto/voice"
@@ -41,9 +46,40 @@ class MainActivity : FlutterActivity() {
     private var pendingVoiceResult: MethodChannel.Result? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var voiceRecognitionOnDevice = false
+    private var notificationEventSink: EventChannel.EventSink? = null
+    private var notificationReceiverRegistered = false
+    private val notificationEventReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            notificationEventSink?.success(
+                intent?.getStringExtra(
+                    NotificationInbox.EXTRA_NOTIFICATION_KEY,
+                ),
+            )
+        }
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+
+        EventChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            notificationEventsChannelName,
+        ).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(
+                    arguments: Any?,
+                    events: EventChannel.EventSink?,
+                ) {
+                    notificationEventSink = events
+                    registerNotificationEventReceiver()
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    notificationEventSink = null
+                    unregisterNotificationEventReceiver()
+                }
+            },
+        )
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -96,7 +132,7 @@ class MainActivity : FlutterActivity() {
             statementChannelName,
         ).setMethodCallHandler { call, result ->
             when (call.method) {
-                "pickPdf" -> {
+                "pickPdf", "pickStatement" -> {
                     if (pendingStatementResult != null) {
                         result.error(
                             "statement_picker_busy",
@@ -105,10 +141,28 @@ class MainActivity : FlutterActivity() {
                         )
                     } else {
                         pendingStatementResult = result
+                        val pickerMode = call.argument<String>("mode") ?: "all"
+                        val mimeTypes = when (pickerMode) {
+                            "excel" -> arrayOf(
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-excel.sheet.macroEnabled.12",
+                            )
+                            "statement" -> arrayOf(
+                                "application/pdf",
+                                "text/plain",
+                            )
+                            else -> arrayOf(
+                                "application/pdf",
+                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                "application/vnd.ms-excel.sheet.macroEnabled.12",
+                                "text/plain",
+                            )
+                        }
                         startActivityForResult(
                             Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
                                 addCategory(Intent.CATEGORY_OPENABLE)
-                                type = "application/pdf"
+                                type = "*/*"
+                                putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes)
                             },
                             REQUEST_STATEMENT_PDF,
                         )
@@ -296,6 +350,34 @@ class MainActivity : FlutterActivity() {
         pendingVoiceResult = null
         releaseSpeechRecognizer()
         super.onDestroy()
+    }
+
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        notificationEventSink = null
+        unregisterNotificationEventReceiver()
+        super.cleanUpFlutterEngine(flutterEngine)
+    }
+
+    private fun registerNotificationEventReceiver() {
+        if (notificationReceiverRegistered) return
+        val filter = IntentFilter(NotificationInbox.ACTION_CAPTURED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(
+                notificationEventReceiver,
+                filter,
+                Context.RECEIVER_NOT_EXPORTED,
+            )
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(notificationEventReceiver, filter)
+        }
+        notificationReceiverRegistered = true
+    }
+
+    private fun unregisterNotificationEventReceiver() {
+        if (!notificationReceiverRegistered) return
+        unregisterReceiver(notificationEventReceiver)
+        notificationReceiverRegistered = false
     }
 
     private fun scanReceiptQr(result: MethodChannel.Result) {
@@ -524,7 +606,42 @@ class MainActivity : FlutterActivity() {
             try {
                 val metadata = statementMetadata(uri)
                 if (metadata.size != null && metadata.size > MAX_STATEMENT_BYTES) {
-                    throw IllegalArgumentException("PDF file is larger than 20 MB")
+                    throw IllegalArgumentException("Statement file is larger than 20 MB")
+                }
+
+                val extension = metadata.name.substringAfterLast('.', "").lowercase()
+                if (extension == "xlsx" || extension == "xlsm") {
+                    val bytes = contentResolver.openInputStream(uri)?.use { input ->
+                        input.readBytes()
+                    } ?: throw IllegalArgumentException("Unable to open selected Excel file")
+                    runOnUiThread {
+                        pendingStatementResult = null
+                        result.success(
+                            mapOf(
+                                "fileName" to metadata.name,
+                                "kind" to "excel",
+                                "bytes" to bytes,
+                            ),
+                        )
+                    }
+                    return@Thread
+                }
+
+                if (extension == "txt") {
+                    val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use {
+                        it.readText()
+                    } ?: throw IllegalArgumentException("Unable to open selected text file")
+                    runOnUiThread {
+                        pendingStatementResult = null
+                        result.success(
+                            mapOf(
+                                "fileName" to metadata.name,
+                                "kind" to "text",
+                                "text" to text,
+                            ),
+                        )
+                    }
+                    return@Thread
                 }
 
                 PDFBoxResourceLoader.init(applicationContext)
@@ -541,6 +658,7 @@ class MainActivity : FlutterActivity() {
                     result.success(
                         mapOf(
                             "fileName" to metadata.name,
+                            "kind" to "pdf",
                             "text" to text,
                         ),
                     )
@@ -550,7 +668,7 @@ class MainActivity : FlutterActivity() {
                     pendingStatementResult = null
                     result.error(
                         "statement_read_failed",
-                        "Не удалось прочитать PDF-выписку",
+                        "Не удалось прочитать выписку или Excel-таблицу",
                         error.javaClass.simpleName,
                     )
                 }

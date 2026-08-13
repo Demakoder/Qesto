@@ -20,9 +20,13 @@ class SberbankStatementParser {
   static final _operationPattern = RegExp(
     r'^\s*(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2})\s+(.+?)\s+([+\-−]?\d[\d\s\u00A0]*,\d{2})\s+([\-−]?\d[\d\s\u00A0]*,\d{2})\s*$',
   );
+  static final _columnarOperationPattern = RegExp(
+    r'^\s*(\d{2}\.\d{2}\.\d{4})\s+(\d{2}:\d{2})\s+(.+?)\s+(\d{2}\.\d{2}\.\d{4})\s+(\d{6})\s+(.+?)\s*$',
+  );
   static final _detailsPattern = RegExp(
     r'^\s*(\d{2}\.\d{2}\.\d{4})\s+(\d{6})\s+(.*)$',
   );
+  static final _moneyOnlyPattern = RegExp(r'^[+\-−]?\d[\d\s\u00A0]*,\d{2}$');
   static final _cardPattern = RegExp(r'\*{2,}(\d{4})');
 
   ParsedBankStatement parse(String source) {
@@ -40,6 +44,30 @@ class SberbankStatementParser {
       );
     }
 
+    final pendingTransactions = _parseRowTransactions(text);
+    if (pendingTransactions.isEmpty) {
+      pendingTransactions.addAll(_parseColumnarTransactions(text));
+    }
+
+    final transactions = pendingTransactions
+        .map(_buildTransaction)
+        .toList(growable: false);
+    if (transactions.isEmpty) {
+      throw const UnsupportedBankStatementException(
+        'В выписке Сбербанка не найдены операции',
+      );
+    }
+
+    return ParsedBankStatement(
+      bankName: 'Сбербанк',
+      periodStart: _parseDate(period.group(1)!),
+      periodEnd: _parseDate(period.group(2)!),
+      accountLastFour: _accountLastFour(text),
+      transactions: transactions,
+    );
+  }
+
+  List<_PendingStatementTransaction> _parseRowTransactions(String text) {
     final pendingTransactions = <_PendingStatementTransaction>[];
     _PendingStatementTransaction? current;
 
@@ -78,23 +106,119 @@ class SberbankStatementParser {
       }
     }
     if (current?.isComplete ?? false) pendingTransactions.add(current!);
+    return pendingTransactions;
+  }
 
-    final transactions = pendingTransactions
-        .map(_buildTransaction)
-        .toList(growable: false);
-    if (transactions.isEmpty) {
-      throw const UnsupportedBankStatementException(
-        'В выписке Сбербанка не найдены операции',
-      );
+  List<_PendingStatementTransaction> _parseColumnarTransactions(String text) {
+    final transactions = <_PendingStatementTransaction>[];
+    for (final page in _splitPages(text)) {
+      final lines = page
+          .split(RegExp(r'\r?\n'))
+          .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+          .where((line) => line.isNotEmpty)
+          .toList(growable: false);
+      final pageOperations = <_ColumnarStatementTransaction>[];
+      final pageMoney = <String>[];
+      _ColumnarStatementTransaction? current;
+      var readingMoney = false;
+
+      for (final line in lines) {
+        if (_isMoneyColumnHeader(line)) {
+          readingMoney = true;
+          current = null;
+          continue;
+        }
+        if (readingMoney) {
+          if (_moneyOnlyPattern.hasMatch(line)) pageMoney.add(line);
+          continue;
+        }
+
+        final operation = _columnarOperationPattern.firstMatch(line);
+        if (operation != null) {
+          current = _ColumnarStatementTransaction(
+            operationDate: _parseDateTime(
+              operation.group(1)!,
+              operation.group(2)!,
+            ),
+            bankCategory: operation.group(3)!.trim(),
+            processingDate: _parseDate(operation.group(4)!),
+            authorizationCode: operation.group(5)!,
+            description: operation.group(6)!.trim(),
+          );
+          pageOperations.add(current);
+          continue;
+        }
+
+        if (current != null && _isColumnarDescriptionContinuation(line)) {
+          current.description = '${current.description} $line'.trim();
+        }
+        if (_endsOperationColumn(line)) current = null;
+      }
+
+      final pairCount = pageMoney.length ~/ 2;
+      final transactionCount = pairCount < pageOperations.length
+          ? pairCount
+          : pageOperations.length;
+      for (var index = 0; index < transactionCount; index++) {
+        final operation = pageOperations[index];
+        transactions.add(
+          _PendingStatementTransaction(
+              operationDate: operation.operationDate,
+              bankCategory: operation.bankCategory,
+              amountText: pageMoney[index * 2],
+              balanceText: pageMoney[(index * 2) + 1],
+            )
+            ..processingDate = operation.processingDate
+            ..authorizationCode = operation.authorizationCode
+            ..description = operation.description,
+        );
+      }
     }
+    return transactions;
+  }
 
-    return ParsedBankStatement(
-      bankName: 'Сбербанк',
-      periodStart: _parseDate(period.group(1)!),
-      periodEnd: _parseDate(period.group(2)!),
-      accountLastFour: _accountLastFour(text),
-      transactions: transactions,
+  List<String> _splitPages(String text) {
+    final explicitPages = text
+        .split('\f')
+        .where((page) => page.trim().isNotEmpty)
+        .toList(growable: false);
+    if (explicitPages.length > 1) return explicitPages;
+
+    final pageStarts = RegExp(
+      r'(?=Выписка по плат[её]жному сч[её]ту\s+Страница\s+\d+\s+из\s+\d+)',
+      caseSensitive: false,
     );
+    return text
+        .split(pageStarts)
+        .where((page) => page.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
+  bool _isMoneyColumnHeader(String line) {
+    final normalized = line.toLowerCase().replaceAll('ё', 'е');
+    return normalized.contains('сумма в валюте счета') &&
+        normalized.contains('остаток средств');
+  }
+
+  bool _isColumnarDescriptionContinuation(String line) {
+    if (_moneyOnlyPattern.hasMatch(line)) return false;
+    if (_columnarOperationPattern.hasMatch(line)) return false;
+    if (_isBoilerplate(line) || _endsOperationColumn(line)) return false;
+    final normalized = line.toLowerCase().replaceAll('ё', 'е');
+    return !normalized.startsWith('итого по операциям') &&
+        !normalized.startsWith('остаток на ') &&
+        !normalized.startsWith('пополнение') &&
+        !normalized.startsWith('списание') &&
+        !normalized.startsWith('заказано в сбербанк онлайн') &&
+        !RegExp(r'^\d+\.\s').hasMatch(line);
+  }
+
+  bool _endsOperationColumn(String line) {
+    final normalized = line.toLowerCase().replaceAll('ё', 'е');
+    return normalized.startsWith('продолжение на следующей странице') ||
+        normalized.startsWith('для проверки подлинности документа') ||
+        normalized.startsWith('итого по операциям') ||
+        _isMoneyColumnHeader(line);
   }
 
   bool _looksLikeSberbankStatement(String text) {
@@ -249,4 +373,20 @@ class _PendingStatementTransaction {
       processingDate != null &&
       authorizationCode != null &&
       description.isNotEmpty;
+}
+
+class _ColumnarStatementTransaction {
+  _ColumnarStatementTransaction({
+    required this.operationDate,
+    required this.bankCategory,
+    required this.processingDate,
+    required this.authorizationCode,
+    required this.description,
+  });
+
+  final DateTime operationDate;
+  final String bankCategory;
+  final DateTime processingDate;
+  final String authorizationCode;
+  String description;
 }

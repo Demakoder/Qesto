@@ -1,0 +1,7 @@
+# Local Codex analysis workspace.
+/.codex_tmp/
+
+# Reproducible release artifacts. Publish these via GitHub Releases instead of
+# regular Git objects (Windows installers exceed GitHub's 100 MB file limit).
+/Qesto-Android-*.apk
+/Qesto-Setup-*.exe

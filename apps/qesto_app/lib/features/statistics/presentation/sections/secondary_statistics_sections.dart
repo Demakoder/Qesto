@@ -768,7 +768,9 @@ class _CategoryPlanCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          '${formatMoney(item.spentAmount, 'RUB')} из ${formatMoney(item.plannedAmount, 'RUB')}',
+                          item.hasAssignedBudget
+                              ? '${formatMoney(item.spentAmount, 'RUB')} из ${formatMoney(item.plannedAmount, 'RUB')}'
+                              : '${formatMoney(item.spentAmount, 'RUB')} · бюджет не назначен',
                           style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ],
@@ -780,7 +782,9 @@ class _CategoryPlanCard extends StatelessWidget {
                       borderRadius: BorderRadius.circular(7),
                       backgroundColor: QestoColors.border,
                       valueColor: AlwaysStoppedAnimation(
-                        item.isExceeded
+                        !item.hasAssignedBudget
+                            ? QestoColors.secondaryText
+                            : item.isExceeded
                             ? QestoColors.orange
                             : QestoColors.primary,
                       ),
@@ -1104,7 +1108,8 @@ class _BudgetPeriodRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ratio = point.expenses / math.max(point.plan, 1);
+    final hasBudget = point.plan > 0;
+    final ratio = hasBudget ? point.expenses / point.plan : 0.0;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 9),
       child: Column(
@@ -1120,7 +1125,9 @@ class _BudgetPeriodRow extends StatelessWidget {
                 ),
               ),
               Text(
-                '${formatMoney(point.expenses, 'RUB')} / ${formatMoney(point.plan, 'RUB')}',
+                hasBudget
+                    ? '${formatMoney(point.expenses, 'RUB')} / ${formatMoney(point.plan, 'RUB')}'
+                    : '${formatMoney(point.expenses, 'RUB')} · бюджет не назначен',
                 style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
@@ -1132,19 +1139,27 @@ class _BudgetPeriodRow extends StatelessWidget {
             borderRadius: BorderRadius.circular(7),
             backgroundColor: QestoColors.border,
             valueColor: AlwaysStoppedAnimation(
-              ratio > 1 ? QestoColors.orange : QestoColors.primary,
+              !hasBudget
+                  ? QestoColors.secondaryText
+                  : ratio > 1
+                  ? QestoColors.orange
+                  : QestoColors.primary,
             ),
           ),
           const SizedBox(height: 4),
           Align(
             alignment: Alignment.centerRight,
             child: Text(
-              ratio > 1
+              !hasBudget
+                  ? 'Назначьте бюджет для сравнения'
+                  : ratio > 1
                   ? '↑ превышение ${(ratio * 100 - 100).toStringAsFixed(0)}%'
                   : '✓ в пределах плана',
               style: TextStyle(
                 fontSize: 12,
-                color: ratio > 1
+                color: !hasBudget
+                    ? QestoColors.secondaryText
+                    : ratio > 1
                     ? const Color(0xFFB76500)
                     : const Color(0xFF168C4A),
                 fontWeight: FontWeight.w700,

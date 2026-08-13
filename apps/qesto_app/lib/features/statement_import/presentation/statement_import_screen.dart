@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -10,18 +12,23 @@ import '../../budget/state/budget_controller.dart';
 import '../data/bank_statement_file_service.dart';
 import '../domain/bank_statement_models.dart';
 import '../services/sberbank_statement_parser.dart';
+import '../services/universal_excel_statement_adapter.dart';
 
 class StatementImportScreen extends StatefulWidget {
   const StatementImportScreen({
     required this.controller,
     this.fileService = const BankStatementFileService(),
     this.parser = const SberbankStatementParser(),
+    this.excelAdapter = const UniversalExcelStatementAdapter(),
+    this.pickerMode = StatementPickerMode.all,
     super.key,
   });
 
   final BudgetController controller;
   final BankStatementFileService fileService;
   final SberbankStatementParser parser;
+  final UniversalExcelStatementAdapter excelAdapter;
+  final StatementPickerMode pickerMode;
 
   @override
   State<StatementImportScreen> createState() => _StatementImportScreenState();
@@ -31,8 +38,10 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   var _loading = false;
   String? _error;
   String? _fileName;
+  String? _rawStatementText;
   ParsedBankStatement? _statement;
   Set<String> _selectedIds = <String>{};
+  int? _yearOverride;
 
   List<ParsedStatementTransaction> get _statementTransactions =>
       _statement?.transactions ?? const [];
@@ -65,12 +74,30 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
     });
 
     try {
-      final file = await widget.fileService.pickPdf();
+      final file = await widget.fileService.pickStatement(
+        mode: widget.pickerMode,
+      );
       if (file == null || !mounted) {
         if (mounted) setState(() => _loading = false);
         return;
       }
-      final statement = widget.parser.parse(file.text);
+      if (widget.pickerMode == StatementPickerMode.excel &&
+          file.kind != StatementFileKind.excel) {
+        throw const FormatException('Выберите таблицу в формате XLSX или XLSM');
+      }
+      if (widget.pickerMode == StatementPickerMode.statement &&
+          file.kind == StatementFileKind.excel) {
+        throw const FormatException('Выберите банковскую выписку PDF');
+      }
+      final statement = switch (file.kind) {
+        StatementFileKind.excel => await widget.excelAdapter.parseInBackground(
+          bytes: file.bytes!,
+          fileName: file.fileName,
+          referenceDate: widget.controller.referenceDate,
+          yearOverride: _yearOverride,
+        ),
+        _ => widget.parser.parse(file.text),
+      };
       final selected = statement.transactions
           .where((item) => !widget.controller.hasTransaction(item.id))
           .map((item) => item.id)
@@ -78,17 +105,25 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
       setState(() {
         _loading = false;
         _fileName = file.fileName;
+        _rawStatementText = file.text.isNotEmpty
+            ? file.text
+            : jsonEncode({
+                'source': 'qesto-excel-adapter-v1',
+                'fileName': file.fileName,
+                'byteLength': file.bytes?.length ?? 0,
+                'transactions': statement.transactions.length,
+              });
         _statement = statement;
         _selectedIds = selected;
       });
     } on UnsupportedBankStatementException catch (error) {
       _showError(error.message);
     } on PlatformException catch (error) {
-      _showError(error.message ?? 'Не удалось прочитать PDF-выписку');
+      _showError(error.message ?? 'Не удалось прочитать выбранный файл');
     } on FormatException catch (error) {
       _showError(error.message);
     } on Object {
-      _showError('Не удалось обработать PDF-выписку');
+      _showError('Не удалось обработать выписку или Excel-таблицу');
     }
   }
 
@@ -135,14 +170,52 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
     final accountSuffix = statement.accountLastFour == null
         ? ''
         : ' • ${statement.accountLastFour}';
+    final sourceId = statement.bankName == 'Excel'
+        ? 'excel-${_stableFileId(_fileName ?? 'excel')}'
+        : 'sber-${statement.accountLastFour ?? 'statement'}';
+    final sourceTitle = statement.bankName == 'Excel'
+        ? 'Импорт из Excel'
+        : 'Счёт Сбербанка$accountSuffix';
     final account = QestoAccount(
-      id: 'sber-account-${statement.accountLastFour ?? 'statement'}',
+      id: '$sourceId-account',
       userId: currentAccount.userId,
-      title: 'Счёт Сбербанка$accountSuffix',
+      title: sourceTitle,
       balance: statement.closingBalanceRubles,
-      currency: currentAccount.currency,
-      type: AccountType.bankCard,
+      currency: statement.transactions.first.currency,
+      type: statement.bankName == 'Excel'
+          ? AccountType.other
+          : AccountType.bankCard,
     );
+    final capitalTotals = <String, _CapitalAccountDraft>{};
+    for (final item in transactionsToApply) {
+      final kind = item.capitalKind;
+      if (kind == null) continue;
+      final name = item.capitalAccountName?.trim().isNotEmpty == true
+          ? item.capitalAccountName!.trim()
+          : _capitalAccountDefaultName(kind);
+      final key = '${kind.name}|${name.toLowerCase()}';
+      final existing = capitalTotals[key];
+      capitalTotals[key] = _CapitalAccountDraft(
+        name: name,
+        kind: kind,
+        amountMinor: (existing?.amountMinor ?? 0) + item.amountMinor.abs(),
+      );
+    }
+    final capitalAccounts = [
+      for (final entry in capitalTotals.entries)
+        QestoAccount(
+          id: '$sourceId-capital-${_stableFileId(entry.key)}',
+          userId: currentAccount.userId,
+          title: entry.value.name,
+          balance: (entry.value.amountMinor / 100).round(),
+          currency: statement.transactions.first.currency,
+          type: switch (entry.value.kind) {
+            StatementCapitalKind.savings => AccountType.savings,
+            StatementCapitalKind.deposit => AccountType.deposit,
+            StatementCapitalKind.investment => AccountType.investment,
+          },
+        ),
+    ];
     final knownPeriodIds = widget.controller.periods
         .map((period) => period.id)
         .toSet();
@@ -158,7 +231,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           accountId: account.id,
           date: item.operationDate,
           amount: item.roundedRubles,
-          currency: period.currency,
+          currency: item.currency,
           type: _transactionType(item.kind),
           categoryId: item.category.categoryId,
           subcategoryId: item.category.subcategoryId,
@@ -166,7 +239,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           title: item.merchant,
           description: item.description,
           comment:
-              'Импортировано из выписки Сбербанка · код ${item.authorizationCode}'
+              'Импортировано из ${statement.bankName == 'Excel' ? 'Excel' : 'выписки Сбербанка'} · источник ${item.authorizationCode}'
               '${item.hasKopecks ? ' · точная сумма $exactAmount ₽' : ''}',
           normalizedMerchant: _normalizeMerchant(item.merchant),
           classificationConfidence: item.confidence,
@@ -177,7 +250,10 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
               : null,
           tags: [
             'statement-import',
-            'sberbank',
+            if (statement.bankName == 'Excel') 'excel-import' else 'sberbank',
+            if (item.description.contains('агрегировано за период'))
+              'excel-period-aggregate',
+            if (item.capitalKind != null) 'excel-capital-allocation',
             if (item.kind == StatementTransactionKind.transfer)
               item.isIncoming ? 'transfer-incoming' : 'transfer-outgoing',
           ],
@@ -193,7 +269,12 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
       account: account,
       transactions: transactions,
       createdPeriodIds: createdPeriodIds,
-      actionTitle: 'Импорт выписки ${_fileName ?? 'Сбербанка'}',
+      actionTitle: 'Импорт ${_fileName ?? statement.bankName}',
+      rawPayload: _rawStatementText,
+      exactMinorById: {
+        for (final item in transactionsToApply) item.id: item.amountMinor.abs(),
+      },
+      additionalAccounts: capitalAccounts,
     );
     if (!mounted) return;
     Navigator.of(context).pop(importedCount);
@@ -205,7 +286,9 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
     return Scaffold(
       appBar: NestedScreenHeader(
         title: Text(
-          'Загрузить выписку',
+          widget.pickerMode == StatementPickerMode.excel
+              ? 'Добавить Excel-таблицу'
+              : 'Загрузить выписку',
           style: Theme.of(context).textTheme.titleLarge,
         ),
       ),
@@ -240,27 +323,42 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   }
 
   Widget _buildPickerState(BuildContext context) {
+    final excelOnly = widget.pickerMode == StatementPickerMode.excel;
+    final statementOnly = widget.pickerMode == StatementPickerMode.statement;
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
       children: [
         QestoCard(
           child: Column(
             children: [
-              const Icon(
-                Icons.picture_as_pdf_rounded,
+              Icon(
+                excelOnly
+                    ? Icons.table_view_rounded
+                    : Icons.account_balance_rounded,
                 size: 58,
                 color: QestoColors.primary,
               ),
               const SizedBox(height: 14),
               Text(
-                'Выписка Сбербанка в PDF',
+                excelOnly
+                    ? 'Excel-таблица'
+                    : statementOnly
+                    ? 'Выписка Сбербанка в PDF'
+                    : 'Выписка или Excel-таблица',
                 style: Theme.of(context).textTheme.titleLarge,
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 8),
               Text(
-                'Выберите выписку по платёжному счёту. Файл обрабатывается '
-                'только на вашем устройстве и никуда не отправляется.',
+                excelOnly
+                    ? 'Выберите XLSX или XLSM с журналом операций либо помесячной таблицей. '
+                          'Данные обрабатываются на устройстве, макросы не запускаются.'
+                    : statementOnly
+                    ? 'Выберите PDF-выписку Сбербанка. Она будет преобразована адаптером '
+                          'в стандартный формат перед импортом в Synoball.'
+                    : 'Поддерживаются PDF Сбербанка, XLSX и XLSM с журналами операций '
+                          'или помесячными таблицами. Всё обрабатывается только на вашем устройстве; '
+                          'макросы не запускаются.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -275,11 +373,45 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 ),
               ],
               const SizedBox(height: 18),
+              if (excelOnly) ...[
+                DropdownButtonFormField<int?>(
+                  key: const Key('excel-year-override'),
+                  initialValue: _yearOverride,
+                  decoration: const InputDecoration(
+                    labelText: 'Год данных',
+                    helperText:
+                        'Авто использует год из книги или определяет его по заполненным месяцам',
+                  ),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('Определить автоматически'),
+                    ),
+                    for (var offset = 0; offset < 8; offset++)
+                      DropdownMenuItem<int?>(
+                        value: widget.controller.referenceDate.year - offset,
+                        child: Text(
+                          '${widget.controller.referenceDate.year - offset}',
+                        ),
+                      ),
+                  ],
+                  onChanged: _loading
+                      ? null
+                      : (value) => setState(() => _yearOverride = value),
+                ),
+                const SizedBox(height: 14),
+              ],
               FilledButton.icon(
-                key: const Key('pick-statement-pdf'),
+                key: Key(excelOnly ? 'pick-excel-file' : 'pick-statement-pdf'),
                 onPressed: _loading ? null : _pickStatement,
                 icon: const Icon(Icons.upload_file_rounded),
-                label: Text(_loading ? 'Читаем выписку…' : 'Выбрать PDF'),
+                label: Text(
+                  _loading
+                      ? 'Анализируем данные…'
+                      : excelOnly
+                      ? 'Выбрать Excel-файл'
+                      : 'Выбрать выписку',
+                ),
               ),
               if (_loading) ...[
                 const SizedBox(height: 14),
@@ -326,7 +458,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        _fileName ?? 'Выписка Сбербанка',
+                        _fileName ?? 'Финансовые данные',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 6),
@@ -336,9 +468,9 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Счёт Сбербанка'
+                        '${statement.bankName == 'Excel' ? 'Универсальный Excel-адаптер' : 'Счёт Сбербанка'}'
                         '${statement.accountLastFour == null ? '' : ' • ${statement.accountLastFour}'}'
-                        ' · остаток ${formatMoney(statement.closingBalanceRubles, 'RUB')}',
+                        '${statement.bankName == 'Excel' ? '' : ' · остаток ${formatMoney(statement.closingBalanceRubles, 'RUB')}'}',
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -353,6 +485,15 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                         'переводов: ${counts[StatementTransactionKind.transfer]} '
                         '(входящих: $incomingTransfers, исходящих: $outgoingTransfers)',
                       ),
+                      if ((counts[StatementTransactionKind.savings] ?? 0) > 0 ||
+                          (counts[StatementTransactionKind.investment] ?? 0) >
+                              0)
+                        Text(
+                          'В капитал: накопления — '
+                          '${counts[StatementTransactionKind.savings]} · '
+                          'инвестиции — '
+                          '${counts[StatementTransactionKind.investment]}',
+                        ),
                       if (duplicates > 0)
                         Text('Уже добавленных операций: $duplicates'),
                       if (_roundingCount > 0) ...[
@@ -444,6 +585,8 @@ TransactionType _transactionType(StatementTransactionKind kind) =>
       StatementTransactionKind.income => TransactionType.income,
       StatementTransactionKind.transfer => TransactionType.transfer,
       StatementTransactionKind.refund => TransactionType.refund,
+      StatementTransactionKind.savings => TransactionType.savingsTransfer,
+      StatementTransactionKind.investment => TransactionType.investment,
     };
 
 String _kindLabel(StatementTransactionKind kind) => switch (kind) {
@@ -451,6 +594,8 @@ String _kindLabel(StatementTransactionKind kind) => switch (kind) {
   StatementTransactionKind.income => 'Доход',
   StatementTransactionKind.transfer => 'Перевод',
   StatementTransactionKind.refund => 'Возврат',
+  StatementTransactionKind.savings => 'В накопления',
+  StatementTransactionKind.investment => 'Инвестиция',
 };
 
 bool _isCredit(ParsedStatementTransaction transaction) =>
@@ -475,3 +620,30 @@ String _normalizeMerchant(String value) => value
     .replaceAll('ё', 'е')
     .replaceAll(RegExp(r'[^a-zа-я0-9]+'), ' ')
     .trim();
+
+String _stableFileId(String value) {
+  var hash = 0x811c9dc5;
+  for (final unit in value.toLowerCase().codeUnits) {
+    hash ^= unit;
+    hash = (hash * 0x01000193) & 0xffffffff;
+  }
+  return hash.toRadixString(16).padLeft(8, '0');
+}
+
+String _capitalAccountDefaultName(StatementCapitalKind kind) => switch (kind) {
+  StatementCapitalKind.savings => 'Накопления из Excel',
+  StatementCapitalKind.deposit => 'Депозит из Excel',
+  StatementCapitalKind.investment => 'Инвестиции из Excel',
+};
+
+class _CapitalAccountDraft {
+  const _CapitalAccountDraft({
+    required this.name,
+    required this.kind,
+    required this.amountMinor,
+  });
+
+  final String name;
+  final StatementCapitalKind kind;
+  final int amountMinor;
+}

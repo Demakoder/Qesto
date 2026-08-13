@@ -1,0 +1,32 @@
+{
+  "fixtureVersion": "cbr-open-finance-v1",
+  "institution": {
+    "id": "ins-sber",
+    "name": "Сбер",
+    "countryCode": "RU"
+  },
+  "consent": {
+    "externalConsentId": "fixture-consent-001",
+    "scopes": ["accounts", "balances", "transactions"],
+    "status": "ACTIVE"
+  },
+  "accounts": [
+    {
+      "externalId": "fixture-account-1234",
+      "type": "CARD",
+      "currency": "RUB",
+      "balance": "50000.00"
+    }
+  ],
+  "transactions": [
+    {
+      "externalId": "fixture-operation-001",
+      "accountExternalId": "fixture-account-1234",
+      "amount": "1490.00",
+      "currency": "RUB",
+      "direction": "OUTFLOW",
+      "occurredAt": "2026-08-12T12:05:00+03:00",
+      "description": "PYATEROCHKA 1834 MOSCOW"
+    }
+  ]
+}

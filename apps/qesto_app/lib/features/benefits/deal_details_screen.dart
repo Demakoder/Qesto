@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
+import '../../core/platform/external_url_launcher.dart';
 import '../../core/theme/qesto_theme.dart';
 import '../../core/widgets/nested_screen_header.dart';
 import '../../core/widgets/qesto_card.dart';
@@ -184,10 +184,7 @@ class DealDetailsScreen extends StatelessWidget {
   }
 
   Future<void> _open(BuildContext context, String value) async {
-    final uri = Uri.tryParse(value);
-    final opened =
-        uri != null &&
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
+    final opened = await openExternalUrl(value);
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Не удалось открыть ссылку')),

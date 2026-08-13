@@ -8,6 +8,7 @@ abstract class QestoRepository {
   Future<List<Deal>> getCoupons();
   Future<List<Deal>> getPromotions();
   Future<void> saveUserFinancialData(UserFinancialData data) async {}
+  Future<void> deleteUserFinancialData() async {}
   void resetPublicDeals() {}
 
   Future<QestoAppData> loadAppData() async {

@@ -7,6 +7,67 @@ class MerchantCategoryClassifier {
     final value = _normalize(merchant);
 
     if (_containsAny(value, const [
+      'продукт',
+      'супермаркет',
+      'бакалея',
+      'grocery',
+    ])) {
+      return const CategorySuggestion(
+        categoryId: 'groceries',
+        subcategoryId: 'Продукты домой',
+      );
+    }
+
+    if (_containsAny(value, const [
+      'общественный транспорт',
+      'транспорт',
+      'метро',
+      'автобус',
+      'трамвай',
+      'троллейбус',
+      'электричк',
+      'проезд',
+    ])) {
+      return const CategorySuggestion(categoryId: 'transport');
+    }
+
+    if (_containsAny(value, const [
+      'еда вне дома',
+      'ресторан',
+      'кафе',
+      'кофейн',
+      'фастфуд',
+    ])) {
+      return const CategorySuggestion(categoryId: 'cafes');
+    }
+
+    if (_containsAny(value, const ['аптек', 'лекарств', 'клиник'])) {
+      return const CategorySuggestion(categoryId: 'health');
+    }
+
+    if (_containsAny(value, const [
+      'жкх',
+      'коммунал',
+      'квартплат',
+      'электроэнерг',
+      'водоснаб',
+    ])) {
+      return const CategorySuggestion(categoryId: 'utilities');
+    }
+
+    if (_containsAny(value, const ['кредит', 'займ', 'задолженн', 'ипотек'])) {
+      return const CategorySuggestion(categoryId: 'loans');
+    }
+
+    if (_containsAny(value, const ['подарок', 'подарки'])) {
+      return const CategorySuggestion(categoryId: 'gifts');
+    }
+
+    if (_containsAny(value, const ['айкос', 'iqos', 'табак', 'сигарет'])) {
+      return const CategorySuggestion(categoryId: 'habits');
+    }
+
+    if (_containsAny(value, const [
       'burger king',
       'burgerrus',
       'бургер кинг',
@@ -56,7 +117,15 @@ class MerchantCategoryClassifier {
       return const CategorySuggestion(categoryId: 'transport');
     }
 
-    if (_containsAny(value, const ['ozon', 'avito', 'market'])) {
+    if (_containsAny(value, const [
+      'ozon',
+      'озон',
+      'яндекс',
+      'avito',
+      'market',
+      'маркет',
+      'покупк',
+    ])) {
       return const CategorySuggestion(categoryId: 'shopping');
     }
 

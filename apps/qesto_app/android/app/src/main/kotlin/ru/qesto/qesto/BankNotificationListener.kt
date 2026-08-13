@@ -1,6 +1,7 @@
 package ru.qesto.qesto
 
 import android.app.Notification
+import android.content.Intent
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import java.util.Locale
@@ -46,6 +47,14 @@ class BankNotificationListener : NotificationListenerService() {
             postedAt = sbn.postTime,
             title = title,
             text = text,
+        )
+        sendBroadcast(
+            Intent(NotificationInbox.ACTION_CAPTURED)
+                .setPackage(applicationContext.packageName)
+                .putExtra(
+                    NotificationInbox.EXTRA_NOTIFICATION_KEY,
+                    sbn.key,
+                ),
         )
     }
 }

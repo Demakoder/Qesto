@@ -77,9 +77,7 @@ class ReceiptQrParser {
           date.hour != hour ||
           date.minute != minute ||
           date.second != second) {
-        throw const FormatException(
-          'В QR-коде указана некорректная дата',
-        );
+        throw const FormatException('В QR-коде указана некорректная дата');
       }
       return date;
     } on Object {

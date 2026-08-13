@@ -36,6 +36,7 @@ class ReceiptImportScreen extends StatefulWidget {
 
 class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   final _merchantController = TextEditingController();
+  final _qrController = TextEditingController();
   var _loading = false;
   var _documentLoading = false;
   var _createNew = true;
@@ -50,14 +51,15 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   @override
   void dispose() {
     _merchantController.dispose();
+    _qrController.dispose();
     super.dispose();
   }
 
   Future<void> _scan() async {
     if (_loading) return;
-    if (!widget.scanner.isSupported) {
+    if (!widget.scanner.canScanQr) {
       _showError(
-        'Сканирование QR-кода чека доступно только в Android-приложении',
+        'Камера QR недоступна. Вставьте содержимое QR-кода в поле ниже.',
       );
       return;
     }
@@ -107,6 +109,48 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
     } on Object {
       _showError('Не удалось обработать QR-код чека');
     }
+  }
+
+  void _parseManualQr() {
+    final value = _qrController.text.trim();
+    if (value.isEmpty) {
+      _showError('Вставьте строку из QR-кода кассового чека');
+      return;
+    }
+    try {
+      _applyRawQr(value);
+    } on FormatException catch (error) {
+      _showError(error.message);
+    }
+  }
+
+  void _applyRawQr(String rawValue) {
+    final receipt = widget.parser.parse(rawValue);
+    if (widget.matcher.isImported(
+      transactions: widget.controller.transactions,
+      receipt: receipt,
+    )) {
+      throw const FormatException('Этот чек уже добавлен в Qesto');
+    }
+    final matches = widget.matcher.findMatches(
+      transactions: widget.controller.transactions,
+      receipt: receipt,
+    );
+    final category = widget.controller.categories.firstWhere(
+      (item) => item.id == 'groceries',
+      orElse: () => widget.controller.categories.last,
+    );
+    _merchantController.clear();
+    setState(() {
+      _loading = false;
+      _error = null;
+      _receipt = receipt;
+      _matches = matches;
+      _selectedTransactionId = matches.firstOrNull?.id;
+      _createNew = matches.isEmpty;
+      _selectedCategory = category;
+      _document = null;
+    });
   }
 
   Future<void> _scanDocument() async {
@@ -178,7 +222,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
     }
   }
 
-  void _saveReceipt() {
+  Future<void> _saveReceipt() async {
     final receipt = _receipt;
     if (receipt == null) return;
     final importedTransaction = widget.controller.transactions
@@ -203,7 +247,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         if (!transaction.tags.contains(receipt.transactionTag))
           _receiptComment(receipt),
       ].whereType<String>().where((item) => item.trim().isNotEmpty).join('\n');
-      widget.controller.updateTransaction(
+      await widget.controller.ingestReceiptTransaction(
         transaction.copyWith(
           comment: comment,
           tags: {
@@ -213,7 +257,10 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           }.toList(),
           receipt: receiptDetails,
         ),
+        rawPayload: receipt.rawQr,
+        rawText: _document?.rawText ?? receipt.rawQr,
       );
+      if (!mounted) return;
       Navigator.of(context).pop(
         _updatingExistingReceipt
             ? 'Состав чека обновлён'
@@ -234,7 +281,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
     );
     final merchant = _merchantController.text.trim();
     final title = merchant.isEmpty ? 'Кассовый чек' : merchant;
-    widget.controller.addImportedTransactions([
+    await widget.controller.ingestReceiptTransaction(
       BudgetTransaction(
         id: receipt.transactionId,
         userId: period.userId,
@@ -254,7 +301,10 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         tags: ['receipt-import', receipt.transactionTag],
         receipt: receiptDetails,
       ),
-    ]);
+      rawPayload: receipt.rawQr,
+      rawText: _document?.rawText ?? receipt.rawQr,
+    );
+    if (!mounted) return;
     Navigator.of(context).pop(
       receipt.kind == FiscalReceiptKind.refund
           ? 'Возврат из чека добавлен'
@@ -336,7 +386,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   }
 
   Widget _buildScannerState(BuildContext context) {
-    final supported = widget.scanner.isSupported;
+    final supported = widget.scanner.canScanQr;
     return ListView(
       padding: const EdgeInsets.fromLTRB(18, 20, 18, 30),
       children: [
@@ -359,8 +409,8 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                 supported
                     ? 'Наведите системный сканер Android на QR-код внизу '
                           'чека. Изображение обрабатывается на устройстве.'
-                    : 'Системный сканер чеков доступен только в '
-                          'Android-приложении Qesto.',
+                    : 'На компьютере вставьте содержимое фискального QR-кода. '
+                          'После этого можно выбрать фотографию чека для OCR.',
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center,
               ),
@@ -380,6 +430,24 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                 onPressed: supported && !_loading ? _scan : null,
                 icon: const Icon(Icons.qr_code_scanner_rounded),
                 label: Text(_loading ? 'Открываем сканер…' : 'Сканировать QR'),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                key: const Key('manual-receipt-qr'),
+                controller: _qrController,
+                minLines: 2,
+                maxLines: 4,
+                decoration: const InputDecoration(
+                  labelText: 'Содержимое QR-кода',
+                  hintText: 't=20260809T1430&s=1250.50&fn=...&i=...&fp=...&n=1',
+                ),
+              ),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                key: const Key('parse-manual-receipt-qr'),
+                onPressed: _parseManualQr,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: const Text('Проверить QR-код'),
               ),
               if (_loading) ...[
                 const SizedBox(height: 14),
@@ -484,9 +552,24 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         if (_createNew) _buildNewTransactionFields(context),
         const SizedBox(height: 14),
         OutlinedButton.icon(
-          onPressed: _loading ? null : _scan,
+          onPressed: _loading
+              ? null
+              : widget.scanner.canScanQr
+              ? _scan
+              : () {
+                  setState(() {
+                    _receipt = null;
+                    _document = null;
+                    _error = null;
+                    _qrController.clear();
+                  });
+                },
           icon: const Icon(Icons.qr_code_scanner_rounded),
-          label: const Text('Сканировать другой чек'),
+          label: Text(
+            widget.scanner.canScanQr
+                ? 'Сканировать другой чек'
+                : 'Ввести другой QR-код',
+          ),
         ),
         if (_error != null) ...[
           const SizedBox(height: 10),
@@ -526,21 +609,25 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Необязательно: сфотографируйте печатную часть чека. '
-            'Android распознает текст локально, без отправки на сервер.',
+            widget.scanner.canScanDocument
+                ? 'Необязательно: выберите фотографию печатной части чека. '
+                      'Текст распознаётся локально на устройстве.'
+                : 'Распознавание фотографии недоступно на этой платформе.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 12),
           OutlinedButton.icon(
             key: const Key('scan-receipt-document'),
-            onPressed: _documentLoading ? null : _scanDocument,
-            icon: const Icon(Icons.camera_alt_rounded),
+            onPressed: widget.scanner.canScanDocument && !_documentLoading
+                ? _scanDocument
+                : null,
+            icon: const Icon(Icons.add_photo_alternate_outlined),
             label: Text(
               _documentLoading
                   ? 'Распознаём чек…'
                   : document == null
-                  ? 'Сфотографировать чек'
-                  : 'Переснять чек',
+                  ? 'Выбрать фотографию чека'
+                  : 'Выбрать другое изображение',
             ),
           ),
           if (_documentLoading) ...[
