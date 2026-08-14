@@ -106,3 +106,24 @@ install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release
   COMPONENT Runtime)
+
+# Qesto uses whisper.cpp for private, offline Russian speech recognition on
+# Windows. Keep the runtime next to qesto.exe so it can be discovered from
+# Platform.resolvedExecutable both in a build and after installation.
+set(QESTO_WHISPER_RUNTIME_DIR "${CMAKE_CURRENT_SOURCE_DIR}/whisper/runtime")
+if(EXISTS "${QESTO_WHISPER_RUNTIME_DIR}/whisper-stream.exe")
+  file(GLOB QESTO_WHISPER_CPU_LIBRARIES
+    "${QESTO_WHISPER_RUNTIME_DIR}/ggml-cpu-*.dll")
+  install(FILES
+    "${QESTO_WHISPER_RUNTIME_DIR}/whisper-stream.exe"
+    "${QESTO_WHISPER_RUNTIME_DIR}/whisper-cli.exe"
+    "${QESTO_WHISPER_RUNTIME_DIR}/whisper.dll"
+    "${QESTO_WHISPER_RUNTIME_DIR}/ggml.dll"
+    "${QESTO_WHISPER_RUNTIME_DIR}/ggml-base.dll"
+    "${QESTO_WHISPER_RUNTIME_DIR}/SDL2.dll"
+    "${QESTO_WHISPER_RUNTIME_DIR}/ggml-small-q5_1.bin"
+    "${QESTO_WHISPER_RUNTIME_DIR}/LICENSE-whisper.cpp.txt"
+    ${QESTO_WHISPER_CPU_LIBRARIES}
+    DESTINATION "${CMAKE_INSTALL_PREFIX}/whisper"
+    COMPONENT Runtime)
+endif()

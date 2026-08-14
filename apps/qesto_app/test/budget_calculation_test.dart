@@ -149,4 +149,32 @@ void main() {
     expect(forecast.state, BudgetForecastState.exceeded);
     expect(forecast.targetPoints, isEmpty);
   });
+
+  test('нулевой план означает неназначенный бюджет, а не превышение', () {
+    final unassigned = BudgetPeriod(
+      id: 'unassigned',
+      userId: 'user',
+      startDate: DateTime(2026, 7),
+      endDate: DateTime(2026, 7, 10),
+      type: BudgetPeriodType.custom,
+      totalPlan: 0,
+      currency: 'RUB',
+    );
+    final summary = calculations.summary(unassigned, [
+      transaction(id: 'expense-without-budget', day: 2, amount: 7000),
+    ], const []);
+    final forecast = forecasts.buildForecast(
+      period: unassigned,
+      transactions: [
+        transaction(id: 'expense-without-budget', day: 2, amount: 7000),
+      ],
+      asOfDate: DateTime(2026, 7, 2),
+    );
+
+    expect(unassigned.hasAssignedBudget, isFalse);
+    expect(summary.hasAssignedBudget, isFalse);
+    expect(summary.progress, 0);
+    expect(forecast.state, BudgetForecastState.noForecast);
+    expect(forecast.projectedPoints, isEmpty);
+  });
 }

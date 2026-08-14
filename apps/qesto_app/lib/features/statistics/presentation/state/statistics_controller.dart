@@ -109,9 +109,11 @@ class StatisticsController extends ChangeNotifier {
           reference,
         );
       case StatisticsPeriodPreset.allTime:
-        final earliest = budgetController.transactions
-            .map((item) => item.date)
-            .reduce((a, b) => a.isBefore(b) ? a : b);
+        final earliest = budgetController.transactions.isEmpty
+            ? reference
+            : budgetController.transactions
+                  .map((item) => item.date)
+                  .reduce((a, b) => a.isBefore(b) ? a : b);
         range = StatisticsDateRange(earliest, reference);
       case StatisticsPeriodPreset.custom:
         return;

@@ -1,9 +1,8 @@
-import 'package:shared_preferences/shared_preferences.dart';
-
 import '../../mocks/fixtures/budget_categories.dart';
 import '../../mocks/fixtures/empty_user_financial_data.dart';
 import '../models/qesto_models.dart';
 import '../persistence/user_financial_data_codec.dart';
+import '../persistence/local_key_value_store.dart';
 import '../../features/benefits/data/deals_api_client.dart';
 import '../../features/benefits/data/deals_cache.dart';
 import 'qesto_repository.dart';
@@ -11,11 +10,14 @@ import 'qesto_repository.dart';
 class LocalQestoRepository extends QestoRepository {
   LocalQestoRepository({
     this.codec = const UserFinancialDataCodec(),
+    LocalKeyValueStore? store,
     DealsApiClient? dealsApiClient,
-  }) : dealsApiClient = dealsApiClient ?? DealsApiClient();
+  }) : store = store ?? const LocalKeyValueStore(),
+       dealsApiClient = dealsApiClient ?? DealsApiClient();
 
   static const _financialDataKey = 'qesto.user-financial-data.v1';
   final UserFinancialDataCodec codec;
+  final LocalKeyValueStore store;
   final DealsApiClient dealsApiClient;
   Future<void> _pendingSave = Future<void>.value();
   Future<List<Deal>>? _dealsFuture;
@@ -26,8 +28,7 @@ class LocalQestoRepository extends QestoRepository {
 
   @override
   Future<UserFinancialData> getUserFinancialData() async {
-    final preferences = await SharedPreferences.getInstance();
-    final source = preferences.getString(_financialDataKey);
+    final source = await store.readString(_financialDataKey);
     if (source == null) return emptyUserFinancialData;
     try {
       return codec.decode(source);
@@ -52,9 +53,17 @@ class LocalQestoRepository extends QestoRepository {
   }
 
   Future<void> _write(String encoded) async {
-    final preferences = await SharedPreferences.getInstance();
-    final saved = await preferences.setString(_financialDataKey, encoded);
-    if (!saved) throw StateError('Could not save user financial data');
+    await store.writeString(_financialDataKey, encoded);
+  }
+
+  @override
+  Future<void> deleteUserFinancialData() async {
+    try {
+      await _pendingSave;
+    } on Object {
+      // Deletion remains authoritative even if a previous save failed.
+    }
+    await store.remove(_financialDataKey);
   }
 
   @override
@@ -73,13 +82,12 @@ class LocalQestoRepository extends QestoRepository {
   void resetPublicDeals() => _dealsFuture = null;
 
   Future<List<Deal>> _fetchOrReadCachedDeals() async {
-    final preferences = await SharedPreferences.getInstance();
     try {
       final source = await dealsApiClient.fetchOffersJson();
-      await preferences.setString(publicDealsCacheKey, source);
+      await store.writeString(publicDealsCacheKey, source);
       return dealsApiClient.decodeOffers(source);
     } on Object {
-      final cached = preferences.getString(publicDealsCacheKey);
+      final cached = await store.readString(publicDealsCacheKey);
       if (cached == null) return const [];
       try {
         return dealsApiClient.decodeOffers(cached);

@@ -19,6 +19,15 @@ class BudgetForecastService {
       asOfDate,
     );
     final current = actual.isEmpty ? 0.0 : actual.last.amount;
+    if (!period.hasAssignedBudget) {
+      return BudgetForecast(
+        state: BudgetForecastState.noForecast,
+        actualPoints: actual,
+        projectedPoints: const [],
+        targetPoints: const [],
+        totalPlan: period.totalPlan,
+      );
+    }
     if (current > period.totalPlan) {
       return BudgetForecast(
         state: BudgetForecastState.exceeded,

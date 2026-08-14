@@ -33,6 +33,11 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Downloaded offline speech runtime. Recreate it with
+# windows/whisper/setup_runtime.ps1 before a Windows build.
+/windows/whisper/runtime/*
+!/windows/whisper/runtime/README.md
+
 # Symbolication related
 app.*.symbols
 
@@ -43,3 +48,21 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Retired local downloads from the temporary Typography Lab. Variant B keeps
+# only Manrope and IBM Plex in source control.
+/assets/fonts/geist/
+/assets/fonts/geologica/
+/assets/fonts/hanken_grotesk/
+/assets/fonts/inter_tight/
+/assets/fonts/mona_sans/
+/assets/fonts/red_hat_display/
+/assets/fonts/unbounded/
+/licenses/fonts/Geist-OFL.txt
+/licenses/fonts/GeistMono-OFL.txt
+/licenses/fonts/Geologica-OFL.txt
+/licenses/fonts/HankenGrotesk-OFL.txt
+/licenses/fonts/InterTight-OFL.txt
+/licenses/fonts/MonaSans-OFL.txt
+/licenses/fonts/RedHatDisplay-OFL.txt
+/licenses/fonts/Unbounded-OFL.txt

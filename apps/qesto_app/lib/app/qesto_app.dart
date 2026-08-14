@@ -1,36 +1,78 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme/app_appearance_controller.dart';
 import '../core/theme/qesto_theme.dart';
 import '../core/widgets/states.dart';
 import '../data/models/qesto_models.dart';
+import '../data/persistence/local_key_value_store.dart';
 import '../data/repositories/local_qesto_repository.dart';
 import '../data/repositories/qesto_repository.dart';
 import 'qesto_app_shell.dart';
 
-class QestoApp extends StatelessWidget {
-  QestoApp({super.key, QestoRepository? repository})
+class QestoApp extends StatefulWidget {
+  QestoApp({super.key, QestoRepository? repository, this.preferenceStore})
     : repository = repository ?? LocalQestoRepository();
 
   final QestoRepository repository;
+  final LocalKeyValueStore? preferenceStore;
+
+  @override
+  State<QestoApp> createState() => _QestoAppState();
+}
+
+class _QestoAppState extends State<QestoApp> {
+  late final AppAppearanceController _appearanceController;
+
+  @override
+  void initState() {
+    super.initState();
+    _appearanceController = AppAppearanceController(
+      store: widget.preferenceStore,
+    );
+    _appearanceController.load();
+  }
+
+  @override
+  void dispose() {
+    _appearanceController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Qesto',
-      debugShowCheckedModeBanner: false,
-      theme: buildQestoTheme(),
-      builder: (context, child) {
-        return ColoredBox(
-          color: const Color(0xFFEFF2F7),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: child ?? const SizedBox.shrink(),
+    return ListenableBuilder(
+      listenable: _appearanceController,
+      builder: (context, _) => MaterialApp(
+        title: 'Qesto',
+        debugShowCheckedModeBanner: false,
+        theme: buildQestoTheme(),
+        builder: (context, child) {
+          final content = child ?? const SizedBox.shrink();
+          final dark = _appearanceController.isDark(
+            MediaQuery.platformBrightnessOf(context),
+          );
+          return AppAppearanceScope(
+            controller: _appearanceController,
+            child: QestoDarkSurface(
+              enabled: dark,
+              child: LayoutBuilder(
+                builder: (context, constraints) => ColoredBox(
+                  color: const Color(0xFFEFF2F7),
+                  child: constraints.maxWidth >= 900
+                      ? content
+                      : Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 520),
+                            child: content,
+                          ),
+                        ),
+                ),
+              ),
             ),
-          ),
-        );
-      },
-      home: _AppDataLoader(repository: repository),
+          );
+        },
+        home: _AppDataLoader(repository: widget.repository),
+      ),
     );
   }
 }
@@ -80,6 +122,11 @@ class _AppDataLoaderState extends State<_AppDataLoader>
     setState(() => _future = widget.repository.loadAppData());
   }
 
+  Future<void> _deleteAllData() async {
+    await widget.repository.deleteUserFinancialData();
+    if (mounted) _retry();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -95,6 +142,7 @@ class _AppDataLoaderState extends State<_AppDataLoader>
           return QestoAppShell(
             data: snapshot.requireData,
             repository: widget.repository,
+            onAllDataDeleted: _deleteAllData,
           );
         },
       ),

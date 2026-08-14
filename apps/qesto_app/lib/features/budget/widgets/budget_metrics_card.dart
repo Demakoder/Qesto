@@ -23,7 +23,8 @@ class BudgetMetricsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final exceeded = currentExpense > period.totalPlan;
+    final hasBudget = period.hasAssignedBudget;
+    final exceeded = hasBudget && currentExpense > period.totalPlan;
     return QestoCard(
       padding: const EdgeInsets.all(20),
       child: LayoutBuilder(
@@ -55,14 +56,18 @@ class BudgetMetricsCard extends StatelessWidget {
                   label: period.type == BudgetPeriodType.calendarMonth
                       ? 'План на месяц'
                       : 'План на период',
-                  value: formatMoney(period.totalPlan, period.currency),
+                  value: hasBudget
+                      ? formatMoney(period.totalPlan, period.currency)
+                      : 'Не назначен',
                 ),
               ),
               SizedBox(
                 width: itemWidth,
                 child: _Metric(
                   label: 'Допустимый расход',
-                  value: exceeded
+                  value: !hasBudget
+                      ? 'Назначьте бюджет'
+                      : exceeded
                       ? 'Лимит превышен'
                       : allowedDailyExpense == 0
                       ? 'Период завершён'

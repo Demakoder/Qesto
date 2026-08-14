@@ -1,6 +1,15 @@
 import '../../notification_import/domain/parsed_bank_transaction.dart';
 
-enum StatementTransactionKind { expense, income, transfer, refund }
+enum StatementTransactionKind {
+  expense,
+  income,
+  transfer,
+  refund,
+  savings,
+  investment,
+}
+
+enum StatementCapitalKind { savings, deposit, investment }
 
 class ParsedBankStatement {
   const ParsedBankStatement({
@@ -41,7 +50,10 @@ class ParsedStatementTransaction {
     required this.isIncoming,
     required this.category,
     required this.confidence,
+    this.currency = 'RUB',
     this.cardLastFour,
+    this.capitalKind,
+    this.capitalAccountName,
   });
 
   final String id;
@@ -57,7 +69,10 @@ class ParsedStatementTransaction {
   final bool isIncoming;
   final CategorySuggestion category;
   final double confidence;
+  final String currency;
   final String? cardLastFour;
+  final StatementCapitalKind? capitalKind;
+  final String? capitalAccountName;
 
   bool get hasKopecks => amountMinor.abs() % 100 != 0;
   int get roundedRubles => (amountMinor.abs() / 100).round();

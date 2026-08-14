@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/data/models/qesto_models.dart';
 import 'package:qesto/data/persistence/user_financial_data_codec.dart';
+import 'package:qesto/data/persistence/local_key_value_store.dart';
 import 'package:qesto/data/repositories/local_qesto_repository.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   test('unified user data survives a JSON round trip', () {
@@ -17,6 +17,14 @@ void main() {
           balance: 1000,
           currency: 'RUB',
           type: AccountType.bankCard,
+        ),
+      ],
+      categoryCustomizations: const [
+        BudgetCategoryCustomization(
+          categoryId: 'groceries',
+          name: 'Еда домой',
+          iconKey: 'cart',
+          colorValue: 0xFF2EC4B6,
         ),
       ],
       transactions: [
@@ -107,10 +115,12 @@ void main() {
       'Тестовый товар',
     );
     expect(restored.transactions.single.receipt?.items.single.quantity, 2);
+    expect(restored.categoryCustomizations.single.name, 'Еда домой');
+    expect(restored.categoryCustomizations.single.colorValue, 0xFF2EC4B6);
   });
 
   test('local repository restores data after an app restart', () async {
-    SharedPreferences.setMockInitialValues({});
+    final store = MemoryKeyValueStore();
     final source = UserFinancialData(
       user: const QestoUser(id: 'user-1', name: 'Test', defaultCurrency: 'RUB'),
       referenceDate: DateTime(2026, 8, 9),
@@ -128,10 +138,40 @@ void main() {
       ],
     );
 
-    await LocalQestoRepository().saveUserFinancialData(source);
-    final restored = await LocalQestoRepository().getUserFinancialData();
+    await LocalQestoRepository(store: store).saveUserFinancialData(source);
+    final restored = await LocalQestoRepository(
+      store: store,
+    ).getUserFinancialData();
 
     expect(restored.transactions.single.id, 'imported-operation');
     expect(restored.transactions.single.tags, ['statement-import']);
+  });
+
+  test('local repository deletes only private financial data', () async {
+    final store = MemoryKeyValueStore();
+    final repository = LocalQestoRepository(store: store);
+    final source = UserFinancialData(
+      user: const QestoUser(id: 'user-1', name: 'Test', defaultCurrency: 'RUB'),
+      referenceDate: DateTime(2026, 8, 13),
+      transactions: [
+        BudgetTransaction(
+          id: 'private-operation',
+          userId: 'user-1',
+          accountId: 'account-1',
+          date: DateTime(2026, 8, 12),
+          amount: 100,
+          currency: 'RUB',
+          type: TransactionType.expense,
+        ),
+      ],
+    );
+
+    await repository.saveUserFinancialData(source);
+    await repository.deleteUserFinancialData();
+    final restored = await repository.getUserFinancialData();
+
+    expect(restored.transactions, isEmpty);
+    expect(restored.accounts, isEmpty);
+    expect(restored.synoballState, isNull);
   });
 }

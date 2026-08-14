@@ -16,12 +16,16 @@ class NotificationImportScreen extends StatefulWidget {
     required this.controller,
     this.captureService = const NotificationCaptureService(),
     this.parser = const SberbankNotificationParser(),
+    this.captureAvailable = true,
+    this.onAllDataDeleted,
     super.key,
   });
 
   final BudgetController controller;
   final NotificationCaptureService captureService;
   final BankNotificationParser parser;
+  final bool captureAvailable;
+  final Future<void> Function()? onAllDataDeleted;
 
   @override
   State<NotificationImportScreen> createState() =>
@@ -32,6 +36,7 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
   var _loading = true;
   String? _error;
   List<CapturedNotification> _notifications = const [];
+  var _deletingAllData = false;
 
   @override
   void initState() {
@@ -40,6 +45,15 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
   }
 
   Future<void> _load() async {
+    if (!widget.captureAvailable) {
+      if (!mounted) return;
+      setState(() {
+        _notifications = const [];
+        _loading = false;
+        _error = null;
+      });
+      return;
+    }
     try {
       final notifications = await widget.captureService.readNotifications();
       if (!mounted) return;
@@ -54,6 +68,60 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
         _loading = false;
         _error = 'Не удалось прочитать уведомления';
       });
+    }
+  }
+
+  Future<void> _deleteAllData() async {
+    if (_deletingAllData) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить все данные Qesto?'),
+        content: const Text(
+          'Будут безвозвратно удалены операции, счета, бюджеты, накопления, '
+          'планы и история действий. Само приложение останется установленным.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton.icon(
+            key: const Key('confirm-delete-all-data'),
+            style: FilledButton.styleFrom(backgroundColor: QestoColors.orange),
+            onPressed: () => Navigator.of(context).pop(true),
+            icon: const Icon(Icons.delete_forever_rounded),
+            label: const Text('Удалить всё'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _deletingAllData = true);
+    try {
+      await widget.controller.clearAllFinancialData();
+      if (widget.captureAvailable) {
+        try {
+          await widget.captureService.clearNotifications();
+        } on Object {
+          // Financial data deletion must not depend on Android inbox access.
+        }
+      }
+      await widget.onAllDataDeleted?.call();
+      if (!mounted) return;
+      setState(() {
+        _notifications = const [];
+        _deletingAllData = false;
+      });
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Все данные Qesto удалены')));
+    } on Object {
+      if (!mounted) return;
+      setState(() => _deletingAllData = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось удалить все данные')),
+      );
     }
   }
 
@@ -128,17 +196,20 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
     ParsedBankTransaction transaction,
   ) async {
     final period = _periodFor(transaction.date);
-    if (period == null || !transaction.hasWholeCurrencyAmount) return;
+    if (period == null) return;
 
-    widget.controller.addExpense(
+    await widget.controller.addAndroidNotificationExpense(
       period: period,
-      amount: transaction.wholeCurrencyAmount,
+      amountMinor: transaction.amountMinor,
       date: transaction.date,
       categoryId: transaction.categoryId,
       accountId: _defaultAccount.id,
       title: transaction.merchant,
+      notificationKey: notification.notificationKey,
+      packageName: notification.packageName,
+      rawNotification: '${notification.title}\n${notification.text}',
       subcategoryId: transaction.subcategoryId,
-      comment: 'Импортировано из уведомления Сбербанка',
+      confidence: transaction.confidence,
     );
     final removed = await _removeNotification(notification.notificationKey);
     if (removed && mounted) {
@@ -194,6 +265,23 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
           'Найденные операции',
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        actions: [
+          IconButton(
+            key: const Key('delete-all-data'),
+            tooltip: 'Удалить все данные Qesto',
+            onPressed: _deletingAllData ? null : _deleteAllData,
+            icon: _deletingAllData
+                ? const SizedBox.square(
+                    dimension: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(
+                    Icons.delete_sweep_outlined,
+                    color: QestoColors.orange,
+                  ),
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: SafeArea(
         top: false,
@@ -205,9 +293,11 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
             actionLabel: 'Повторить',
             onAction: _load,
           ),
-          (false, null, true) => const _MessageState(
+          (false, null, true) => _MessageState(
             icon: Icons.notifications_none_rounded,
-            message: 'Новых операций нет',
+            message: widget.captureAvailable
+                ? 'Новых операций нет'
+                : 'Банковские уведомления доступны на Android. Здесь можно удалить все локальные данные Qesto.',
           ),
           _ => RefreshIndicator(
             onRefresh: _load,

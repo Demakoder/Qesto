@@ -3,7 +3,7 @@ import '../../../../data/models/qesto_models.dart';
 enum StatisticsSection {
   overview('Обзор'),
   expenses('Расходы'),
-  rhythm('Ритм'),
+  rhythm('Ритм жизни'),
   merchants('Магазины'),
   categories('Категории'),
   cashFlow('Денежный поток'),

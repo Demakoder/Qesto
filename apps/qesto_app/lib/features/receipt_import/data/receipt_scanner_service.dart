@@ -11,6 +11,10 @@ class ReceiptScannerService {
 
   bool get isSupported => platform.receiptScannerSupported;
 
+  bool get canScanQr => platform.receiptQrScannerSupported;
+
+  bool get canScanDocument => platform.receiptDocumentScannerSupported;
+
   Future<String?> scanQr() => platform.scanReceiptQr();
 
   Future<ExtractedReceiptDocument?> scanDocument() =>

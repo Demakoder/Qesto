@@ -71,11 +71,22 @@ class BudgetPeriod {
   int get year => startDate.year;
   int get month => startDate.month;
   int get dayCount => endDate.difference(startDate).inDays + 1;
+  bool get hasAssignedBudget => totalPlan > 0;
 
   bool contains(DateTime date) {
     final normalized = DateTime(date.year, date.month, date.day);
     return !normalized.isBefore(startDate) && !normalized.isAfter(endDate);
   }
+
+  BudgetPeriod copyWith({int? totalPlan}) => BudgetPeriod(
+    id: id,
+    userId: userId,
+    startDate: startDate,
+    endDate: endDate,
+    type: type,
+    totalPlan: totalPlan ?? this.totalPlan,
+    currency: currency,
+  );
 }
 
 class BudgetTransaction {
@@ -196,6 +207,38 @@ class BudgetCategory {
   final int colorValue;
   final String? shortName;
   final List<String> subcategories;
+
+  BudgetCategory copyWith({
+    String? name,
+    String? iconKey,
+    int? colorValue,
+    String? shortName,
+    List<String>? subcategories,
+  }) => BudgetCategory(
+    id: id,
+    name: name ?? this.name,
+    iconKey: iconKey ?? this.iconKey,
+    colorValue: colorValue ?? this.colorValue,
+    shortName: shortName ?? this.shortName,
+    subcategories: subcategories ?? this.subcategories,
+  );
+}
+
+/// User-owned presentation overrides. They deliberately live outside the
+/// Synoball transaction/category schema so a design preference can never alter
+/// ingestion, reconciliation or Open Banking contracts.
+class BudgetCategoryCustomization {
+  const BudgetCategoryCustomization({
+    required this.categoryId,
+    required this.name,
+    required this.iconKey,
+    required this.colorValue,
+  });
+
+  final String categoryId;
+  final String name;
+  final String iconKey;
+  final int colorValue;
 }
 
 class CategoryBudget {
@@ -318,8 +361,9 @@ class BudgetSummary {
   final List<SpendingCategory> categories;
 
   double get progress =>
-      period.totalPlan == 0 ? 0 : currentExpense / period.totalPlan;
+      period.hasAssignedBudget ? currentExpense / period.totalPlan : 0;
   int get remainingAmount => period.totalPlan - currentExpense;
+  bool get hasAssignedBudget => period.hasAssignedBudget;
   bool get isEmpty => currentExpense == 0 && categories.isEmpty;
 }
 

@@ -5,6 +5,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 object NotificationInbox {
+    const val ACTION_CAPTURED = "ru.qesto.qesto.NOTIFICATION_CAPTURED"
+    const val EXTRA_NOTIFICATION_KEY = "notificationKey"
     private const val PREFS_NAME = "qesto_notification_inbox"
     private const val ITEMS_KEY = "items"
 

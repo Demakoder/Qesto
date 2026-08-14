@@ -27,10 +27,17 @@ void main() {
     mockVoiceRecognition = null;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(notificationChannel, (call) async {
+          if (call.method == 'removeNotification') {
+            final arguments = Map<Object?, Object?>.from(call.arguments as Map);
+            mockNotifications.removeWhere(
+              (item) => item['notificationKey'] == arguments['notificationKey'],
+            );
+            return null;
+          }
           return switch (call.method) {
             'hasAccess' => true,
             'readNotifications' => mockNotifications,
-            'removeNotification' || 'clearNotifications' => null,
+            'clearNotifications' => null,
             _ => null,
           };
         });
@@ -138,7 +145,7 @@ void main() {
     expect(find.text('Расходы по категориям'), findsOneWidget);
   });
 
-  testWidgets('распознанное уведомление Сбербанка показывается как расход', (
+  testWidgets('уведомление Сбербанка автоматически добавляется как расход', (
     tester,
   ) async {
     mockNotifications = [
@@ -153,12 +160,13 @@ void main() {
 
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
+    expect(find.text('46 750 ₽'), findsWidgets);
+
     await tester.tap(find.byTooltip('Уведомления'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Burger King'), findsOneWidget);
-    expect(find.text('50 ₽ · Кафе и рестораны'), findsOneWidget);
-    expect(find.text('Добавить'), findsOneWidget);
+    expect(find.text('Новых операций нет'), findsOneWidget);
+    expect(find.text('Добавить'), findsNothing);
   });
 
   testWidgets('месяцы бюджета переключаются свайпом, детали открываются', (
@@ -346,6 +354,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Загрузить выписку'));
     await tester.pumpAndSettle();
+    expect(find.text('Добавить Excel-таблицу'), findsOneWidget);
     await tester.tap(find.text('Загрузить выписку'));
     await tester.pumpAndSettle();
 
@@ -375,7 +384,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('action-history-button')));
     await tester.pumpAndSettle();
-    expect(find.text('Импорт выписки sber-test.pdf'), findsOneWidget);
+    expect(find.text('Импорт sber-test.pdf'), findsOneWidget);
     await tester.tap(find.text('Отменить'));
     await tester.pumpAndSettle();
     expect(find.textContaining('отменено'), findsOneWidget);

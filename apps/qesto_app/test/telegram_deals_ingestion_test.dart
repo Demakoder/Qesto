@@ -43,10 +43,10 @@ void main() {
       expect(byCode['NEW50']!['merchant_id'], 'samokat');
       expect(byCode['NEW50']!['discount_value'], 50);
       expect(byCode['NEW50']!['minimum_order'], 700);
-    expect(byCode['NEW50']!['display_text'], isNot(contains('Ozon')));
-    expect(byCode['NEW50']!['display_text'], isNot(contains('Реклама.')));
-    expect(byCode['OZON500']!['merchant_id'], 'ozon');
-    expect(source, isNot(contains('WINE30')));
+      expect(byCode['NEW50']!['display_text'], isNot(contains('Ozon')));
+      expect(byCode['NEW50']!['display_text'], isNot(contains('Реклама.')));
+      expect(byCode['OZON500']!['merchant_id'], 'ozon');
+      expect(source, isNot(contains('WINE30')));
     },
   );
 

@@ -1,6 +1,7 @@
 export 'budget_models.dart';
 
 import 'budget_models.dart';
+import '../../synoball/core/models.dart';
 
 enum AccountType {
   cash,
@@ -29,6 +30,18 @@ class QestoUser {
   final String name;
   final String defaultCurrency;
   final String? avatarUrl;
+
+  QestoUser copyWith({
+    String? name,
+    String? defaultCurrency,
+    String? avatarUrl,
+    bool clearAvatar = false,
+  }) => QestoUser(
+    id: id,
+    name: name ?? this.name,
+    defaultCurrency: defaultCurrency ?? this.defaultCurrency,
+    avatarUrl: clearAvatar ? null : avatarUrl ?? this.avatarUrl,
+  );
 }
 
 class QestoAccount {
@@ -210,12 +223,14 @@ class UserFinancialData {
     this.accounts = const [],
     this.budgetPeriods = const [],
     this.categoryBudgets = const [],
+    this.categoryCustomizations = const [],
     this.transactions = const [],
     this.upcomingExpenses = const [],
     this.plannedCumulativePoints = const [],
     this.savingsGoals = const [],
     this.trackedProducts = const [],
     this.actions = const [],
+    this.synoballState,
   });
 
   final QestoUser user;
@@ -223,12 +238,14 @@ class UserFinancialData {
   final List<QestoAccount> accounts;
   final List<BudgetPeriod> budgetPeriods;
   final List<CategoryBudget> categoryBudgets;
+  final List<BudgetCategoryCustomization> categoryCustomizations;
   final List<BudgetTransaction> transactions;
   final List<UpcomingExpense> upcomingExpenses;
   final List<BudgetPlanPoint> plannedCumulativePoints;
   final List<SavingsGoal> savingsGoals;
   final List<TrackedProduct> trackedProducts;
   final List<FinancialAction> actions;
+  final SynoballState? synoballState;
 
   UserFinancialData copyWith({
     QestoUser? user,
@@ -236,12 +253,14 @@ class UserFinancialData {
     List<QestoAccount>? accounts,
     List<BudgetPeriod>? budgetPeriods,
     List<CategoryBudget>? categoryBudgets,
+    List<BudgetCategoryCustomization>? categoryCustomizations,
     List<BudgetTransaction>? transactions,
     List<UpcomingExpense>? upcomingExpenses,
     List<BudgetPlanPoint>? plannedCumulativePoints,
     List<SavingsGoal>? savingsGoals,
     List<TrackedProduct>? trackedProducts,
     List<FinancialAction>? actions,
+    SynoballState? synoballState,
   }) {
     return UserFinancialData(
       user: user ?? this.user,
@@ -249,6 +268,8 @@ class UserFinancialData {
       accounts: accounts ?? this.accounts,
       budgetPeriods: budgetPeriods ?? this.budgetPeriods,
       categoryBudgets: categoryBudgets ?? this.categoryBudgets,
+      categoryCustomizations:
+          categoryCustomizations ?? this.categoryCustomizations,
       transactions: transactions ?? this.transactions,
       upcomingExpenses: upcomingExpenses ?? this.upcomingExpenses,
       plannedCumulativePoints:
@@ -256,6 +277,7 @@ class UserFinancialData {
       savingsGoals: savingsGoals ?? this.savingsGoals,
       trackedProducts: trackedProducts ?? this.trackedProducts,
       actions: actions ?? this.actions,
+      synoballState: synoballState ?? this.synoballState,
     );
   }
 }

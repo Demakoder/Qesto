@@ -19,9 +19,14 @@ class BudgetLimitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final period = summary.period;
-    final exceeded = summary.remainingAmount < 0;
-    final accent = exceeded ? QestoColors.danger : QestoColors.primary;
-    final percent = formatPercent(summary.progress);
+    final hasBudget = summary.hasAssignedBudget;
+    final exceeded = hasBudget && summary.remainingAmount < 0;
+    final accent = !hasBudget
+        ? QestoColors.secondaryText
+        : exceeded
+        ? QestoColors.danger
+        : QestoColors.primary;
+    final percent = hasBudget ? formatPercent(summary.progress) : 'Не назначен';
     final periodName = formatBudgetPeriod(period.month, period.year);
 
     return QestoCard(
@@ -53,7 +58,9 @@ class BudgetLimitCard extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 3),
                       child: Text(
-                        '/ ${formatMoney(period.totalPlan, period.currency)}',
+                        hasBudget
+                            ? '/ ${formatMoney(period.totalPlan, period.currency)}'
+                            : '/ бюджет не назначен',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: QestoColors.secondaryText,
                         ),
@@ -82,7 +89,9 @@ class BudgetLimitCard extends StatelessWidget {
           QestoProgressBar(value: summary.progress, color: accent),
           const SizedBox(height: 10),
           Text(
-            exceeded
+            !hasBudget
+                ? 'Назначьте общий бюджет, чтобы Qesto рассчитала темп и остаток'
+                : exceeded
                 ? 'Превышение лимита на ${formatMoney(summary.remainingAmount.abs(), period.currency)}'
                 : 'Осталось ${formatMoney(summary.remainingAmount, period.currency)} до лимита',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(

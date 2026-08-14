@@ -14,6 +14,7 @@ class CategoryPlanStatus {
 
   double get progress => plannedAmount <= 0 ? 0 : spentAmount / plannedAmount;
   int get remaining => plannedAmount - spentAmount;
+  bool get hasAssignedBudget => plannedAmount > 0;
   bool get isExceeded => plannedAmount > 0 && spentAmount > plannedAmount;
 }
 
