@@ -23,14 +23,13 @@ class EnrichmentEngine {
           : transaction.synoballCategory != null
           ? transaction.categoryConfidence ?? 0.9
           : 0.82,
-      updatedAt: DateTime.now(),
     );
   }
 
   List<RecurringStream> detectRecurring(
     Iterable<CanonicalTransaction> transactions,
   ) {
-    final groups = <String, List<CanonicalTransaction>>{};
+    final groups = <_RecurringKey, List<CanonicalTransaction>>{};
     for (final transaction in transactions) {
       if (transaction.status != CanonicalTransactionStatus.posted ||
           transaction.direction != FinancialDirection.outflow) {
@@ -38,9 +37,12 @@ class EnrichmentEngine {
       }
       final merchant = transaction.merchantName?.trim();
       if (merchant == null || merchant.isEmpty) continue;
-      final key =
-          '${_key(merchant)}:${transaction.amount.minorUnits}:'
-          '${transaction.amount.currency}';
+      final key = (
+        entityId: transaction.entityId,
+        merchant: _key(merchant),
+        minorUnits: transaction.amount.minorUnits,
+        currency: transaction.amount.currency,
+      );
       groups.putIfAbsent(key, () => []).add(transaction);
     }
     final streams = <RecurringStream>[];
@@ -64,19 +66,15 @@ class EnrichmentEngine {
           ? RecurrenceFrequency.monthly
           : RecurrenceFrequency.weekly;
       final next = monthly
-          ? DateTime(
-              last.occurredAt.year,
-              last.occurredAt.month + 1,
-              last.occurredAt.day,
-              last.occurredAt.hour,
-              last.occurredAt.minute,
-            )
+          ? _sameTimeNextMonth(last.occurredAt)
           : last.occurredAt.add(const Duration(days: 7));
       streams.add(
         RecurringStream(
-          id: 'rec-${_key(last.merchantName!)}-${last.amount.minorUnits}',
+          id:
+              'rec-${last.entityId}-${entry.key.merchant}-'
+              '${last.amount.minorUnits}-${last.amount.currency.toLowerCase()}',
           entityId: last.entityId,
-          merchantKey: _key(last.merchantName!),
+          merchantKey: entry.key.merchant,
           title: last.merchantName!,
           typicalAmount: last.amount,
           frequency: frequency,
@@ -136,6 +134,13 @@ class EnrichmentEngine {
   }
 }
 
+typedef _RecurringKey = ({
+  String entityId,
+  String merchant,
+  int minorUnits,
+  String currency,
+});
+
 class _MerchantResolution {
   const _MerchantResolution(this.id, this.name, this.confidence);
   final String id;
@@ -143,9 +148,50 @@ class _MerchantResolution {
   final double confidence;
 }
 
+final RegExp _nonMerchantCharacterPattern = RegExp(r'[^a-zа-я0-9]+');
+final RegExp _whitespacePattern = RegExp(r'\s+');
+
 String _key(String value) => value
     .toLowerCase()
     .replaceAll('ё', 'е')
-    .replaceAll(RegExp(r'[^a-zа-я0-9]+'), ' ')
-    .replaceAll(RegExp(r'\s+'), ' ')
+    .replaceAll(_nonMerchantCharacterPattern, ' ')
+    .replaceAll(_whitespacePattern, ' ')
     .trim();
+
+DateTime _sameTimeNextMonth(DateTime value) {
+  final nextYear = value.month == 12 ? value.year + 1 : value.year;
+  final nextMonth = value.month == 12 ? 1 : value.month + 1;
+  final followingMonthYear = nextMonth == 12 ? nextYear + 1 : nextYear;
+  final followingMonth = nextMonth == 12 ? 1 : nextMonth + 1;
+  final lastDay = value.isUtc
+      ? DateTime.utc(
+          followingMonthYear,
+          followingMonth,
+        ).subtract(const Duration(days: 1)).day
+      : DateTime(
+          followingMonthYear,
+          followingMonth,
+        ).subtract(const Duration(days: 1)).day;
+  final day = value.day > lastDay ? lastDay : value.day;
+  return value.isUtc
+      ? DateTime.utc(
+          nextYear,
+          nextMonth,
+          day,
+          value.hour,
+          value.minute,
+          value.second,
+          value.millisecond,
+          value.microsecond,
+        )
+      : DateTime(
+          nextYear,
+          nextMonth,
+          day,
+          value.hour,
+          value.minute,
+          value.second,
+          value.millisecond,
+          value.microsecond,
+        );
+}

@@ -29,7 +29,7 @@ def _service_is_ready() -> bool:
         return False
 
 
-def _start_service() -> subprocess.Popen[bytes] | None:
+def _start_service(*, allow_lan: bool) -> subprocess.Popen[bytes] | None:
     if _service_is_ready():
         print("Qesto: сервис акций уже запущен.")
         return None
@@ -48,7 +48,7 @@ def _start_service() -> subprocess.Popen[bytes] | None:
                 "qesto_deals",
                 "serve",
                 "--host",
-                "0.0.0.0",
+                "0.0.0.0" if allow_lan else "127.0.0.1",
                 "--port",
                 "8787",
                 "--interval",
@@ -126,7 +126,7 @@ def _find_adb() -> str | None:
     return None
 
 
-def _android_api_url(device: str) -> str:
+def _android_api_url(device: str, *, allow_lan: bool) -> str:
     adb = _find_adb()
     if adb:
         try:
@@ -145,6 +145,11 @@ def _android_api_url(device: str) -> str:
             print(f"Qesto: adb reverse недоступен ({detail}).")
         except (OSError, subprocess.SubprocessError) as error:
             print(f"Qesto: не удалось настроить adb reverse ({error}).")
+    if not allow_lan:
+        raise RuntimeError(
+            "adb reverse недоступен. Подключите телефон по USB или явно "
+            "разрешите доступ из локальной сети флагом --allow-lan."
+        )
     address = _local_ip()
     print(
         "Qesto: Android подключается по Wi-Fi. Телефон и компьютер должны "
@@ -194,7 +199,12 @@ def _reverse_connected_android_devices() -> int:
     return configured
 
 
-def _flutter_command(device: str | None, extra_args: list[str]) -> list[str]:
+def _flutter_command(
+    device: str | None,
+    extra_args: list[str],
+    *,
+    allow_lan: bool,
+) -> list[str]:
     flutter = shutil.which("flutter")
     if not flutter:
         raise RuntimeError("Flutter не найден в PATH.")
@@ -204,9 +214,14 @@ def _flutter_command(device: str | None, extra_args: list[str]) -> list[str]:
     if device:
         platform = _flutter_device_platform(flutter, device)
         if platform and platform.casefold().startswith("android"):
-            api_url = _android_api_url(device)
+            api_url = _android_api_url(device, allow_lan=allow_lan)
             command.append(f"--dart-define=QESTO_DEALS_API_URL={api_url}")
         elif device.casefold() not in {"edge", "chrome", "windows"}:
+            if not allow_lan:
+                raise RuntimeError(
+                    "Удалённому устройству нужен сетевой доступ. "
+                    "Запустите с явным флагом --allow-lan."
+                )
             command.append(
                 "--dart-define="
                 f"QESTO_DEALS_API_URL=http://{_local_ip()}:8787"
@@ -230,21 +245,32 @@ def main() -> int:
     parser.add_argument("--service-only", action="store_true")
     parser.add_argument("--device", help="Flutter device id; defaults to Edge")
     parser.add_argument(
+        "--allow-lan",
+        action="store_true",
+        help="Expose the public deals API to the local network",
+    )
+    parser.add_argument(
         "flutter_args",
         nargs=argparse.REMAINDER,
         help="Extra flutter run arguments after --",
     )
     args = parser.parse_args()
 
-    owned_service = _start_service()
+    if args.allow_lan:
+        print("Qesto: ВНИМАНИЕ — сервис акций открыт для локальной сети.")
+    owned_service = _start_service(allow_lan=args.allow_lan)
     if args.service_only:
         _reverse_connected_android_devices()
         return 0
 
-    device = args.device or "edge"
-    command = _flutter_command(device, args.flutter_args)
-    print(f"Qesto: запуск Flutter на устройстве {device}.")
     try:
+        device = args.device or "edge"
+        command = _flutter_command(
+            device,
+            args.flutter_args,
+            allow_lan=args.allow_lan,
+        )
+        print(f"Qesto: запуск Flutter на устройстве {device}.")
         return subprocess.call(command, cwd=APP_DIRECTORY)
     except KeyboardInterrupt:
         return 130

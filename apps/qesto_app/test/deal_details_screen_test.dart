@@ -40,5 +40,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('open-deal-target')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('open-deal-target')));
+    await tester.pumpAndSettle();
+    expect(find.text('Открыть внешний сайт?'), findsOneWidget);
+    expect(find.textContaining('example.com'), findsOneWidget);
+    await tester.tap(find.text('Отмена'));
+    await tester.pumpAndSettle();
   });
 }

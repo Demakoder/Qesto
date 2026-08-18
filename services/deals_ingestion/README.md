@@ -23,7 +23,7 @@ VS Code task `Qesto: Run app + deals service`.
 ```powershell
 cd C:\Users\ARM\Documents\Qesto\services\deals_ingestion
 python -m qesto_deals sync
-python -m qesto_deals serve --host 0.0.0.0 --port 8787 --interval 2700
+python -m qesto_deals serve --host 127.0.0.1 --port 8787 --interval 2700
 ```
 
 Endpoints:
@@ -31,13 +31,26 @@ Endpoints:
 - `GET /health`
 - `GET /offers?limit=200`
 - `GET /offers?kind=promo_code&limit=200`
-- `POST /sync`
+- `POST /sync` (disabled unless `QESTO_DEALS_SYNC_TOKEN` is configured)
 
-For a physical phone, run Flutter with the computer's LAN address:
+For a physical Android phone, prefer USB and `adb reverse`; the repository
+runner configures it automatically:
 
 ```powershell
-flutter run --dart-define=QESTO_DEALS_API_URL=http://192.168.1.10:8787
+python scripts/run_qesto.py --device <android-device-id>
 ```
+
+If USB forwarding is unavailable, explicitly expose the public-offers service
+to the local network with `--allow-lan`. Do not use this mode on a public Wi-Fi
+network:
+
+```powershell
+python scripts/run_qesto.py --allow-lan --device <android-device-id>
+```
+
+To enable the manual sync endpoint, set a long random token and send it as an
+HTTP Bearer token. Browser origins beyond localhost must also be listed in the
+comma-separated `QESTO_DEALS_ALLOWED_ORIGINS` environment variable.
 
 ## Tests
 

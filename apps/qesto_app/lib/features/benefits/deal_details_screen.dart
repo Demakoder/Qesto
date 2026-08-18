@@ -184,6 +184,34 @@ class DealDetailsScreen extends StatelessWidget {
   }
 
   Future<void> _open(BuildContext context, String value) async {
+    final uri = Uri.tryParse(value);
+    if (uri == null || uri.host.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Некорректная ссылка')));
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Открыть внешний сайт?'),
+        content: Text(
+          'Qesto не контролирует содержимое сайта ${uri.host}. '
+          'Не вводите данные карты, если не доверяете адресу.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Отмена'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Открыть'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !context.mounted) return;
     final opened = await openExternalUrl(value);
     if (!opened && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(

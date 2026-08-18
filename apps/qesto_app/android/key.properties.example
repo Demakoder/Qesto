@@ -1,0 +1,5 @@
+# Copy this file to key.properties. Never commit key.properties or the .jks file.
+storePassword=replace-with-a-strong-password
+keyPassword=replace-with-a-strong-password
+keyAlias=qesto-release
+storeFile=C:/Users/you/.android-keys/qesto-release.jks

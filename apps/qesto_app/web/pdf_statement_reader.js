@@ -2,6 +2,8 @@
   "use strict";
 
   const maxPdfSizeBytes = 20 * 1024 * 1024;
+  const maxPdfPages = 500;
+  const maxExtractedTextCharacters = 5 * 1024 * 1024;
   const scriptUrl = document.currentScript?.src ?? document.baseURI;
   const pdfModuleUrl = new URL("pdfjs/pdf.min.js", scriptUrl).href;
   const pdfWorkerUrl = new URL("pdfjs/pdf.worker.min.js", scriptUrl).href;
@@ -108,11 +110,20 @@
     const document = await loadingTask.promise;
 
     try {
+      if (document.numPages > maxPdfPages) {
+        throw new Error("PDF содержит слишком много страниц");
+      }
       const pages = [];
+      let extractedCharacters = 0;
       for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
         const page = await document.getPage(pageNumber);
         const content = await page.getTextContent();
-        pages.push(textContentToLines(content.items));
+        const text = textContentToLines(content.items);
+        extractedCharacters += text.length;
+        if (extractedCharacters > maxExtractedTextCharacters) {
+          throw new Error("Из PDF извлечено слишком много текста");
+        }
+        pages.push(text);
         page.cleanup();
       }
       return pages.join("\n\f\n");

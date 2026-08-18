@@ -10,6 +10,31 @@ import 'package:qesto/features/statistics/domain/models/statistics_models.dart';
 import 'package:qesto/features/statistics/domain/services/statistics_calculation_service.dart';
 
 void main() {
+  test('Excel adapter rejects an archive expansion bomb before decoding', () {
+    final bytes = Uint8List(68);
+    final data = ByteData.sublistView(bytes);
+    data.setUint32(0, 0x02014b50, Endian.little);
+    data.setUint32(24, 101 * 1024 * 1024, Endian.little);
+    data.setUint32(46, 0x06054b50, Endian.little);
+    data.setUint16(56, 1, Endian.little);
+    data.setUint32(58, 46, Endian.little);
+    data.setUint32(62, 0, Endian.little);
+
+    expect(
+      () => const UniversalExcelStatementAdapter().parse(
+        bytes: bytes,
+        fileName: 'bomb.xlsx',
+      ),
+      throwsA(
+        isA<UnsupportedBankStatementException>().having(
+          (error) => error.message,
+          'message',
+          contains('100 МБ'),
+        ),
+      ),
+    );
+  });
+
   test('universal Excel adapter normalizes ordinary income and expenses', () {
     final workbook = Excel.createExcel();
     final sheet = workbook['Sheet1'];

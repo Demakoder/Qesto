@@ -38,19 +38,23 @@ Future<void> remove(String key) {
 Future<Map<String, String>> _readAll() async {
   final file = _storeFile();
   final backup = File('${file.path}.backup');
-  final source = await file.exists()
-      ? await file.readAsString()
-      : await backup.exists()
-      ? await backup.readAsString()
-      : null;
-  if (source == null || source.trim().isEmpty) return <String, String>{};
-  try {
-    final decoded = jsonDecode(source);
-    if (decoded is! Map<String, dynamic>) return <String, String>{};
-    return decoded.map((key, value) => MapEntry(key, value.toString()));
-  } on FormatException {
-    return <String, String>{};
+  Object? lastError;
+  for (final candidate in [file, backup]) {
+    if (!await candidate.exists()) continue;
+    final source = await candidate.readAsString();
+    if (source.trim().isEmpty) continue;
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('Qesto storage root is not an object');
+      }
+      return decoded.map((key, value) => MapEntry(key, value.toString()));
+    } on FormatException catch (error) {
+      lastError = error;
+    }
   }
+  if (lastError != null) throw lastError;
+  return <String, String>{};
 }
 
 Future<void> _writeAll(Map<String, String> values) async {

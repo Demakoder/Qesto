@@ -511,32 +511,36 @@ class TransactionCandidate {
   final bool requiresConfirmation;
   final String? canonicalId;
 
-  TransactionCandidate copyWith({CandidateStatus? status}) =>
-      TransactionCandidate(
-        id: id,
-        ingestionRecordId: ingestionRecordId,
-        entityId: entityId,
-        accountId: accountId,
-        amount: amount,
-        direction: direction,
-        occurredAt: occurredAt,
-        rawDescription: rawDescription,
-        normalizedDescription: normalizedDescription,
-        merchantGuess: merchantGuess,
-        providerCategory: providerCategory,
-        categoryGuess: categoryGuess,
-        userCategoryOverride: userCategoryOverride,
-        subcategoryId: subcategoryId,
-        providerTransactionId: providerTransactionId,
-        receiptId: receiptId,
-        transferDirection: transferDirection,
-        confidence: confidence,
-        sourceTrust: sourceTrust,
-        status: status ?? this.status,
-        tags: tags,
-        requiresConfirmation: requiresConfirmation,
-        canonicalId: canonicalId,
-      );
+  TransactionCandidate copyWith({
+    double? confidence,
+    SourceTrustLevel? sourceTrust,
+    CandidateStatus? status,
+    bool? requiresConfirmation,
+  }) => TransactionCandidate(
+    id: id,
+    ingestionRecordId: ingestionRecordId,
+    entityId: entityId,
+    accountId: accountId,
+    amount: amount,
+    direction: direction,
+    occurredAt: occurredAt,
+    rawDescription: rawDescription,
+    normalizedDescription: normalizedDescription,
+    merchantGuess: merchantGuess,
+    providerCategory: providerCategory,
+    categoryGuess: categoryGuess,
+    userCategoryOverride: userCategoryOverride,
+    subcategoryId: subcategoryId,
+    providerTransactionId: providerTransactionId,
+    receiptId: receiptId,
+    transferDirection: transferDirection,
+    confidence: confidence ?? this.confidence,
+    sourceTrust: sourceTrust ?? this.sourceTrust,
+    status: status ?? this.status,
+    tags: tags,
+    requiresConfirmation: requiresConfirmation ?? this.requiresConfirmation,
+    canonicalId: canonicalId,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -687,6 +691,7 @@ class CanonicalTransaction {
     String? transferDirection,
     bool? isRecurring,
     String? recurringStreamId,
+    bool clearRecurringStreamId = false,
     String? receiptId,
     List<String>? tags,
     DateTime? updatedAt,
@@ -712,7 +717,9 @@ class CanonicalTransaction {
     transferDirection: transferDirection ?? this.transferDirection,
     eventType: eventType,
     isRecurring: isRecurring ?? this.isRecurring,
-    recurringStreamId: recurringStreamId ?? this.recurringStreamId,
+    recurringStreamId: clearRecurringStreamId
+        ? null
+        : recurringStreamId ?? this.recurringStreamId,
     receiptId: receiptId ?? this.receiptId,
     tags: tags ?? this.tags,
     createdAt: createdAt,

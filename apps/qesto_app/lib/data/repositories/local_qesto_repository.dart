@@ -2,6 +2,7 @@ import '../../mocks/fixtures/budget_categories.dart';
 import '../../mocks/fixtures/empty_user_financial_data.dart';
 import '../models/qesto_models.dart';
 import '../persistence/user_financial_data_codec.dart';
+import '../persistence/encrypted_local_key_value_store.dart';
 import '../persistence/local_key_value_store.dart';
 import '../../features/benefits/data/deals_api_client.dart';
 import '../../features/benefits/data/deals_cache.dart';
@@ -11,13 +12,16 @@ class LocalQestoRepository extends QestoRepository {
   LocalQestoRepository({
     this.codec = const UserFinancialDataCodec(),
     LocalKeyValueStore? store,
+    LocalKeyValueStore? publicStore,
     DealsApiClient? dealsApiClient,
-  }) : store = store ?? const LocalKeyValueStore(),
+  }) : store = store ?? EncryptedLocalKeyValueStore(),
+       publicStore = publicStore ?? store ?? const LocalKeyValueStore(),
        dealsApiClient = dealsApiClient ?? DealsApiClient();
 
   static const _financialDataKey = 'qesto.user-financial-data.v1';
   final UserFinancialDataCodec codec;
   final LocalKeyValueStore store;
+  final LocalKeyValueStore publicStore;
   final DealsApiClient dealsApiClient;
   Future<void> _pendingSave = Future<void>.value();
   Future<List<Deal>>? _dealsFuture;
@@ -32,7 +36,9 @@ class LocalQestoRepository extends QestoRepository {
     if (source == null) return emptyUserFinancialData;
     try {
       return codec.decode(source);
-    } on Object {
+    } on FormatException {
+      return emptyUserFinancialData;
+    } on TypeError {
       return emptyUserFinancialData;
     }
   }
@@ -84,10 +90,10 @@ class LocalQestoRepository extends QestoRepository {
   Future<List<Deal>> _fetchOrReadCachedDeals() async {
     try {
       final source = await dealsApiClient.fetchOffersJson();
-      await store.writeString(publicDealsCacheKey, source);
+      await publicStore.writeString(publicDealsCacheKey, source);
       return dealsApiClient.decodeOffers(source);
     } on Object {
-      final cached = await store.readString(publicDealsCacheKey);
+      final cached = await publicStore.readString(publicDealsCacheKey);
       if (cached == null) return const [];
       try {
         return dealsApiClient.decodeOffers(cached);

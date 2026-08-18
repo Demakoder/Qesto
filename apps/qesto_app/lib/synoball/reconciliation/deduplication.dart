@@ -30,47 +30,48 @@ class TransactionDeduplicator {
     required Iterable<CanonicalTransaction> transactions,
     required Iterable<SourceEvidence> evidence,
   }) {
-    final active = transactions
-        .where(
-          (item) =>
-              item.status != CanonicalTransactionStatus.deleted &&
-              item.entityId == candidate.entityId,
-        )
-        .toList(growable: false);
-    final evidenceList = evidence.toList(growable: false);
-
-    if (candidate.canonicalId != null) {
-      for (final transaction in active) {
-        if (transaction.id == candidate.canonicalId) {
-          return DeduplicationMatch(
-            transaction: transaction,
-            score: 1,
-            reasons: const ['canonical_id'],
-          );
-        }
+    final activeById = <String, CanonicalTransaction>{};
+    for (final transaction in transactions) {
+      if (transaction.status != CanonicalTransactionStatus.deleted &&
+          transaction.entityId == candidate.entityId) {
+        activeById[transaction.id] = transaction;
       }
     }
 
-    final providerId = candidate.providerTransactionId;
-    if (providerId != null && providerId.isNotEmpty) {
-      for (final item in evidenceList) {
-        // Provider identifiers are scoped to their adapter/source. A receipt
-        // fiscal key and a bank transaction id may legally have equal text.
-        if (item.sourceType != sourceType ||
-            item.providerTransactionId != providerId) {
-          continue;
-        }
-        final transaction = active
-            .where((value) => value.id == item.transactionId)
-            .firstOrNull;
-        if (transaction != null) {
-          return DeduplicationMatch(
-            transaction: transaction,
-            score: 1,
-            reasons: const ['provider_transaction_id'],
-          );
-        }
+    if (candidate.canonicalId != null) {
+      final transaction = activeById[candidate.canonicalId];
+      if (transaction != null) {
+        return DeduplicationMatch(
+          transaction: transaction,
+          score: 1,
+          reasons: const ['canonical_id'],
+        );
       }
+    }
+
+    final evidenceByTransactionId = <String, List<SourceEvidence>>{};
+    SourceEvidence? providerEvidence;
+    final providerId = candidate.providerTransactionId;
+    for (final item in evidence) {
+      evidenceByTransactionId
+          .putIfAbsent(item.transactionId, () => <SourceEvidence>[])
+          .add(item);
+      // Provider identifiers are scoped to their adapter/source. A receipt
+      // fiscal key and a bank transaction id may legally have equal text.
+      if (providerId != null &&
+          providerId.isNotEmpty &&
+          item.sourceType == sourceType &&
+          item.providerTransactionId == providerId &&
+          activeById.containsKey(item.transactionId)) {
+        providerEvidence = item;
+      }
+    }
+    if (providerEvidence != null) {
+      return DeduplicationMatch(
+        transaction: activeById[providerEvidence.transactionId]!,
+        score: 1,
+        reasons: const ['provider_transaction_id'],
+      );
     }
 
     // Explicit user input and legacy migration must remain distinct. A later
@@ -83,10 +84,12 @@ class TransactionDeduplicator {
     }
 
     DeduplicationMatch? best;
-    for (final transaction in active) {
-      final transactionEvidence = evidenceList
-          .where((item) => item.transactionId == transaction.id)
-          .toList(growable: false);
+    final incomingMerchant = _merchantKey(
+      candidate.merchantGuess ?? candidate.normalizedDescription ?? '',
+    );
+    for (final transaction in activeById.values) {
+      final transactionEvidence =
+          evidenceByTransactionId[transaction.id] ?? const <SourceEvidence>[];
 
       // One fuzzy observation per source. Re-imports are reconciled through a
       // stable provider/canonical id above; otherwise repeating purchases from
@@ -97,6 +100,7 @@ class TransactionDeduplicator {
 
       final scored = _score(
         candidate,
+        incomingMerchant,
         transaction,
         sourceType,
         transactionEvidence.map((item) => item.sourceType).toSet(),
@@ -110,6 +114,7 @@ class TransactionDeduplicator {
 
   DeduplicationMatch? _score(
     TransactionCandidate candidate,
+    String incomingMerchant,
     CanonicalTransaction transaction,
     SynoballSourceType incomingSource,
     Set<SynoballSourceType> existingSources,
@@ -120,9 +125,6 @@ class TransactionDeduplicator {
       return null;
     }
 
-    final incomingMerchant = _merchantKey(
-      candidate.merchantGuess ?? candidate.normalizedDescription ?? '',
-    );
     final knownMerchant = _merchantKey(
       transaction.merchantName ?? transaction.normalizedDescription,
     );
@@ -190,15 +192,10 @@ String _merchantKey(String value) {
   final normalized = value
       .toLowerCase()
       .replaceAll('ё', 'е')
-      .replaceAll(
-        RegExp(
-          r'\b(ооо|оао|пао|зао|ао|ип|ooo|oao|pao|zao|moscow|москва|rus|russia)\b',
-        ),
-        ' ',
-      )
-      .replaceAll(RegExp(r'[^a-zа-я0-9]+'), ' ')
-      .replaceAll(RegExp(r'\b\d{3,}\b'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(_businessFormPattern, ' ')
+      .replaceAll(_nonMerchantCharacterPattern, ' ')
+      .replaceAll(_longNumberPattern, ' ')
+      .replaceAll(_whitespacePattern, ' ')
       .trim();
   if (normalized.contains('pyaterochka') ||
       normalized.contains('пятерочка') ||
@@ -256,6 +253,9 @@ double _diceCoefficient(String left, String right) {
   return (2 * intersection) / (left.length + right.length - 2);
 }
 
-extension<T> on Iterable<T> {
-  T? get firstOrNull => isEmpty ? null : first;
-}
+final RegExp _businessFormPattern = RegExp(
+  r'\b(ооо|оао|пао|зао|ао|ип|ooo|oao|pao|zao|moscow|москва|rus|russia)\b',
+);
+final RegExp _nonMerchantCharacterPattern = RegExp(r'[^a-zа-я0-9]+');
+final RegExp _longNumberPattern = RegExp(r'\b\d{3,}\b');
+final RegExp _whitespacePattern = RegExp(r'\s+');

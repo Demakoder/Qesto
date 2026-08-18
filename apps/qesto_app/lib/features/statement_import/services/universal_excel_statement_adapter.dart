@@ -35,6 +35,12 @@ class UniversalExcelStatementAdapter {
     if (bytes.isEmpty) {
       throw const UnsupportedBankStatementException('Excel-файл пуст');
     }
+    if (bytes.length > 20 * 1024 * 1024) {
+      throw const UnsupportedBankStatementException(
+        'Размер Excel-файла не должен превышать 20 МБ',
+      );
+    }
+    _validateExcelArchive(bytes);
 
     late final Excel workbook;
     try {
@@ -42,6 +48,14 @@ class UniversalExcelStatementAdapter {
     } on Object {
       throw const UnsupportedBankStatementException(
         'Не удалось прочитать Excel. Поддерживаются файлы XLSX и XLSM без запуска макросов.',
+      );
+    }
+    if (workbook.tables.length > 50 ||
+        workbook.tables.values.any(
+          (sheet) => sheet.maxRows > 10000 || sheet.maxColumns > 80,
+        )) {
+      throw const UnsupportedBankStatementException(
+        'Excel слишком большой: максимум 50 листов, 10000 строк и 80 столбцов',
       );
     }
 
@@ -607,6 +621,61 @@ class UniversalExcelStatementAdapter {
       capitalKind: draft.capitalKind,
       capitalAccountName: draft.capitalAccountName,
     );
+  }
+}
+
+void _validateExcelArchive(Uint8List bytes) {
+  const endSignature = 0x06054b50;
+  const centralSignature = 0x02014b50;
+  const maximumEntries = 5000;
+  const maximumUncompressedBytes = 100 * 1024 * 1024;
+  final data = ByteData.sublistView(bytes);
+  final firstPossibleEnd = bytes.length > 65557 ? bytes.length - 65557 : 0;
+  int? endOffset;
+  for (var offset = bytes.length - 22; offset >= firstPossibleEnd; offset--) {
+    if (data.getUint32(offset, Endian.little) == endSignature) {
+      endOffset = offset;
+      break;
+    }
+  }
+  if (endOffset == null) {
+    throw const UnsupportedBankStatementException(
+      'Excel-файл повреждён: не найдена структура XLSX',
+    );
+  }
+  final entries = data.getUint16(endOffset + 10, Endian.little);
+  final centralSize = data.getUint32(endOffset + 12, Endian.little);
+  var offset = data.getUint32(endOffset + 16, Endian.little);
+  if (entries > maximumEntries || offset + centralSize > bytes.length) {
+    throw const UnsupportedBankStatementException(
+      'Excel-файл содержит слишком много данных',
+    );
+  }
+
+  var uncompressedTotal = 0;
+  for (var entry = 0; entry < entries; entry++) {
+    if (offset + 46 > bytes.length ||
+        data.getUint32(offset, Endian.little) != centralSignature) {
+      throw const UnsupportedBankStatementException(
+        'Excel-файл повреждён: неверная структура XLSX',
+      );
+    }
+    final uncompressed = data.getUint32(offset + 24, Endian.little);
+    if (uncompressed == 0xffffffff) {
+      throw const UnsupportedBankStatementException(
+        'ZIP64 Excel-файлы не поддерживаются',
+      );
+    }
+    uncompressedTotal += uncompressed;
+    if (uncompressedTotal > maximumUncompressedBytes) {
+      throw const UnsupportedBankStatementException(
+        'Распакованный Excel-файл не должен превышать 100 МБ',
+      );
+    }
+    final nameLength = data.getUint16(offset + 28, Endian.little);
+    final extraLength = data.getUint16(offset + 30, Endian.little);
+    final commentLength = data.getUint16(offset + 32, Endian.little);
+    offset += 46 + nameLength + extraLength + commentLength;
   }
 }
 

@@ -1,8 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:qesto/data/models/qesto_models.dart';
 import 'package:qesto/data/persistence/user_financial_data_codec.dart';
 import 'package:qesto/data/persistence/local_key_value_store.dart';
 import 'package:qesto/data/repositories/local_qesto_repository.dart';
+import 'package:qesto/features/benefits/data/deals_api_client.dart';
+import 'package:qesto/features/benefits/data/deals_cache.dart';
 
 void main() {
   test('unified user data survives a JSON round trip', () {
@@ -173,5 +177,27 @@ void main() {
     expect(restored.transactions, isEmpty);
     expect(restored.accounts, isEmpty);
     expect(restored.synoballState, isNull);
+  });
+
+  test('public deals use a separate non-sensitive cache', () async {
+    final financialStore = MemoryKeyValueStore();
+    final publicStore = MemoryKeyValueStore({
+      publicDealsCacheKey: '''
+        {"offers":[{"id":"cached-deal","type":"promotion","title":"Кэш"}]}
+      ''',
+    });
+    final repository = LocalQestoRepository(
+      store: financialStore,
+      publicStore: publicStore,
+      dealsApiClient: DealsApiClient(
+        baseUrl: 'http://deals.test',
+        client: MockClient((_) async => http.Response('unavailable', 503)),
+      ),
+    );
+
+    final deals = await repository.getPromotions();
+
+    expect(deals.single.id, 'cached-deal');
+    expect(await financialStore.readString(publicDealsCacheKey), isNull);
   });
 }

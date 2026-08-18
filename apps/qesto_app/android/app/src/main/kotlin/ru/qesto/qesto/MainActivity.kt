@@ -31,7 +31,10 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.InputStream
+import java.io.OutputStream
 
 class MainActivity : FlutterActivity() {
     private val notificationChannelName = "ru.qesto.qesto/notifications"
@@ -233,14 +236,20 @@ class MainActivity : FlutterActivity() {
 
         try {
             speechRecognizer?.destroy()
-            voiceRecognitionOnDevice =
-                Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
-            speechRecognizer = if (voiceRecognitionOnDevice) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
-            } else {
-                SpeechRecognizer.createSpeechRecognizer(this)
+            if (
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||
+                !SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+            ) {
+                pendingVoiceResult = null
+                pending.error(
+                    "voice_on_device_unavailable",
+                    "Локальное распознавание речи недоступно. Установите русский языковой пакет Android.",
+                    null,
+                )
+                return
             }
+            voiceRecognitionOnDevice = true
+            speechRecognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
             speechRecognizer?.setRecognitionListener(
                 object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) = Unit
@@ -596,7 +605,14 @@ class MainActivity : FlutterActivity() {
     private fun copyReceiptImageToCache(uri: Uri): File {
         val target = File(cacheDir, "receipt-ocr-${System.nanoTime()}.jpg")
         contentResolver.openInputStream(uri)?.use { input ->
-            target.outputStream().use { output -> input.copyTo(output) }
+            target.outputStream().use { output ->
+                copyLimited(
+                    input,
+                    output,
+                    MAX_RECEIPT_IMAGE_BYTES,
+                    "Receipt image is larger than 20 MB",
+                )
+            }
         } ?: throw IllegalArgumentException("Unable to open receipt image")
         return target
     }
@@ -609,11 +625,9 @@ class MainActivity : FlutterActivity() {
                     throw IllegalArgumentException("Statement file is larger than 20 MB")
                 }
 
+                val bytes = readStatementBytes(uri)
                 val extension = metadata.name.substringAfterLast('.', "").lowercase()
                 if (extension == "xlsx" || extension == "xlsm") {
-                    val bytes = contentResolver.openInputStream(uri)?.use { input ->
-                        input.readBytes()
-                    } ?: throw IllegalArgumentException("Unable to open selected Excel file")
                     runOnUiThread {
                         pendingStatementResult = null
                         result.success(
@@ -628,9 +642,8 @@ class MainActivity : FlutterActivity() {
                 }
 
                 if (extension == "txt") {
-                    val text = contentResolver.openInputStream(uri)?.bufferedReader()?.use {
-                        it.readText()
-                    } ?: throw IllegalArgumentException("Unable to open selected text file")
+                    val text = String(bytes, Charsets.UTF_8)
+                    validateStatementText(text)
                     runOnUiThread {
                         pendingStatementResult = null
                         result.success(
@@ -645,13 +658,15 @@ class MainActivity : FlutterActivity() {
                 }
 
                 PDFBoxResourceLoader.init(applicationContext)
-                val text = contentResolver.openInputStream(uri)?.use { input ->
-                    PDDocument.load(input).use { document ->
+                val text = PDDocument.load(bytes).use { document ->
+                    if (document.numberOfPages > MAX_STATEMENT_PAGES) {
+                        throw IllegalArgumentException("Statement PDF has too many pages")
+                    }
                         PDFTextStripper().apply {
                             sortByPosition = true
                         }.getText(document)
-                    }
-                } ?: throw IllegalArgumentException("Unable to open selected PDF")
+                }
+                validateStatementText(text)
 
                 runOnUiThread {
                     pendingStatementResult = null
@@ -700,6 +715,42 @@ class MainActivity : FlutterActivity() {
         return StatementMetadata(name = name, size = size)
     }
 
+    private fun readStatementBytes(uri: Uri): ByteArray {
+        return contentResolver.openInputStream(uri)?.use { input ->
+            val output = ByteArrayOutputStream()
+            copyLimited(
+                input,
+                output,
+                MAX_STATEMENT_BYTES,
+                "Statement file is larger than 20 MB",
+            )
+            output.toByteArray()
+        } ?: throw IllegalArgumentException("Unable to open selected statement file")
+    }
+
+    private fun copyLimited(
+        input: InputStream,
+        output: OutputStream,
+        maximumBytes: Long,
+        errorMessage: String,
+    ) {
+        val buffer = ByteArray(16 * 1024)
+        var total = 0L
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) return
+            total += count
+            if (total > maximumBytes) throw IllegalArgumentException(errorMessage)
+            output.write(buffer, 0, count)
+        }
+    }
+
+    private fun validateStatementText(text: String) {
+        if (text.length > MAX_STATEMENT_TEXT_CHARACTERS) {
+            throw IllegalArgumentException("Statement contains too much text")
+        }
+    }
+
     private fun hasNotificationAccess(): Boolean {
         val component = ComponentName(
             this,
@@ -729,6 +780,9 @@ class MainActivity : FlutterActivity() {
 
     private companion object {
         const val MAX_STATEMENT_BYTES = 20L * 1024L * 1024L
+        const val MAX_STATEMENT_PAGES = 500
+        const val MAX_STATEMENT_TEXT_CHARACTERS = 5 * 1024 * 1024
+        const val MAX_RECEIPT_IMAGE_BYTES = 20L * 1024L * 1024L
         const val REQUEST_STATEMENT_PDF = 4102
         const val REQUEST_RECEIPT_DOCUMENT = 4103
         const val REQUEST_RECORD_AUDIO = 4104

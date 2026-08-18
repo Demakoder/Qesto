@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 
 from .api import DealsApiServer
 from .config import load_config
@@ -54,6 +55,12 @@ def main() -> None:
         config=config,
         storage=storage,
         pipeline=pipeline,
+        sync_token=os.environ.get("QESTO_DEALS_SYNC_TOKEN") or None,
+        allowed_origins={
+            value.strip()
+            for value in os.environ.get("QESTO_DEALS_ALLOWED_ORIGINS", "").split(",")
+            if value.strip()
+        },
     ).serve_forever()
 
 

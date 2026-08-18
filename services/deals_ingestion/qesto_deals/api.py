@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import threading
@@ -24,6 +25,8 @@ class DealsApiServer:
         config: DealsConfig,
         storage: DealsStorage,
         pipeline: DealsSyncPipeline,
+        sync_token: str | None = None,
+        allowed_origins: set[str] | None = None,
     ) -> None:
         self.host = host
         self.port = port
@@ -31,6 +34,8 @@ class DealsApiServer:
         self.config = config
         self.storage = storage
         self.pipeline = pipeline
+        self.sync_token = sync_token
+        self.allowed_origins = allowed_origins or set()
         self._sync_lock = threading.Lock()
         self._stop = threading.Event()
         self._last_sync_report: dict[str, object] | None = None
@@ -72,7 +77,11 @@ class DealsApiServer:
 
         class Handler(BaseHTTPRequestHandler):
             def do_OPTIONS(self) -> None:  # noqa: N802
+                if not self._origin_is_allowed():
+                    self._json(HTTPStatus.FORBIDDEN, {"error": "origin not allowed"})
+                    return
                 self.send_response(HTTPStatus.NO_CONTENT)
+                self._security_headers()
                 self._cors_headers()
                 self.end_headers()
 
@@ -116,6 +125,14 @@ class DealsApiServer:
                 if urlparse(self.path).path != "/sync":
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                     return
+                if api.sync_token is None:
+                    self._json(HTTPStatus.FORBIDDEN, {"error": "sync disabled"})
+                    return
+                authorization = self.headers.get("Authorization", "")
+                expected = f"Bearer {api.sync_token}"
+                if not hmac.compare_digest(authorization, expected):
+                    self._json(HTTPStatus.UNAUTHORIZED, {"error": "unauthorized"})
+                    return
                 started = api._sync_async()
                 self._json(
                     HTTPStatus.ACCEPTED if started else HTTPStatus.CONFLICT,
@@ -130,13 +147,38 @@ class DealsApiServer:
                 self.send_response(status)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.send_header("Content-Length", str(len(encoded)))
+                self._security_headers()
                 self._cors_headers()
                 self.end_headers()
                 self.wfile.write(encoded)
 
             def _cors_headers(self) -> None:
-                self.send_header("Access-Control-Allow-Origin", "*")
+                origin = self.headers.get("Origin")
+                if origin is None or not self._origin_is_allowed():
+                    return
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
                 self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-                self.send_header("Access-Control-Allow-Headers", "Content-Type")
+                self.send_header(
+                    "Access-Control-Allow-Headers",
+                    "Authorization, Content-Type",
+                )
+
+            def _origin_is_allowed(self) -> bool:
+                origin = self.headers.get("Origin")
+                if origin is None:
+                    return True
+                if origin in api.allowed_origins:
+                    return True
+                parsed = urlparse(origin)
+                return (
+                    parsed.scheme in {"http", "https"}
+                    and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+                )
+
+            def _security_headers(self) -> None:
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Referrer-Policy", "no-referrer")
 
         return Handler

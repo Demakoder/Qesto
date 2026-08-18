@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/theme/app_appearance_controller.dart';
 import '../core/theme/qesto_theme.dart';
@@ -7,6 +8,7 @@ import '../data/models/qesto_models.dart';
 import '../data/persistence/local_key_value_store.dart';
 import '../data/repositories/local_qesto_repository.dart';
 import '../data/repositories/qesto_repository.dart';
+import '../features/notification_import/data/notification_capture_service.dart';
 import 'qesto_app_shell.dart';
 
 class QestoApp extends StatefulWidget {
@@ -124,6 +126,11 @@ class _AppDataLoaderState extends State<_AppDataLoader>
 
   Future<void> _deleteAllData() async {
     await widget.repository.deleteUserFinancialData();
+    try {
+      await const NotificationCaptureService().clearNotifications();
+    } on MissingPluginException {
+      // Notification capture exists only in the Android host application.
+    }
     if (mounted) _retry();
   }
 

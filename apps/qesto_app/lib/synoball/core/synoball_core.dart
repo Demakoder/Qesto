@@ -44,7 +44,27 @@ class SynoballCore {
        _importBatches = List.of(initialState.importBatches),
        _recurringStreams = List.of(initialState.recurringStreams),
        _events = List.of(initialState.events),
-       _auditEntries = List.of(initialState.auditEntries);
+       _auditEntries = List.of(initialState.auditEntries) {
+    _transactionIndexById = _buildPositionIndex(
+      _transactions,
+      (value) => value.id,
+    );
+    _candidateIndexById = _buildPositionIndex(_candidates, (value) => value.id);
+    _ingestionRecordIndexById = _buildPositionIndex(
+      _ingestionRecords,
+      (value) => value.id,
+    );
+    _importBatchIndexById = _buildPositionIndex(
+      _importBatches,
+      (value) => value.id,
+    );
+    _evidenceByTransactionId = <String, List<SourceEvidence>>{};
+    _providerTransactionIds = <String>{};
+    _providerEvidenceKeys = <_ProviderEvidenceKey>{};
+    for (final item in _evidence) {
+      _indexEvidence(item);
+    }
+  }
 
   final TransactionDeduplicator _deduplicator;
   final SourceTrustPolicy _trustPolicy;
@@ -66,6 +86,13 @@ class SynoballCore {
   final List<RecurringStream> _recurringStreams;
   final List<SynoballEvent> _events;
   final List<SynoballAuditEntry> _auditEntries;
+  late final Map<String, int> _transactionIndexById;
+  late final Map<String, int> _candidateIndexById;
+  late final Map<String, int> _ingestionRecordIndexById;
+  late final Map<String, int> _importBatchIndexById;
+  late final Map<String, List<SourceEvidence>> _evidenceByTransactionId;
+  late final Set<String> _providerTransactionIds;
+  late final Set<_ProviderEvidenceKey> _providerEvidenceKeys;
 
   SynoballState get state => SynoballState(
     entities: List.unmodifiable(_entities),
@@ -94,15 +121,13 @@ class SynoballCore {
       .toList(growable: false);
 
   CanonicalTransaction? transactionById(String id) {
-    for (final transaction in _transactions) {
-      if (transaction.id == id) return transaction;
-    }
-    return null;
+    final index = _transactionIndexById[id];
+    return index == null ? null : _transactions[index];
   }
 
   bool hasTransactionOrProviderId(String id) =>
       transactionById(id)?.status == CanonicalTransactionStatus.posted ||
-      _evidence.any((item) => item.providerTransactionId == id);
+      _providerTransactionIds.contains(id);
 
   IngestionOutcome ingest<T>(SynoballAdapter<T> adapter, T input) {
     final adapted = adapter.parse(input);
@@ -111,10 +136,17 @@ class SynoballCore {
     _upsertMany(_consents, adapted.consents, (value) => value.id);
     _upsertMany(_accounts, adapted.accounts, (value) => value.id);
     _rawPayloads.add(adapted.rawPayload);
+    _ingestionRecordIndexById[adapted.record.id] = _ingestionRecords.length;
     _ingestionRecords.add(adapted.record);
-    _candidates.addAll(adapted.candidates);
+    for (final candidate in adapted.candidates) {
+      _candidateIndexById[candidate.id] = _candidates.length;
+      _candidates.add(candidate);
+    }
     _upsertMany(_receipts, adapted.receipts, (value) => value.id);
-    if (adapted.importBatch != null) _importBatches.add(adapted.importBatch!);
+    if (adapted.importBatch != null) {
+      _importBatchIndexById[adapted.importBatch!.id] = _importBatches.length;
+      _importBatches.add(adapted.importBatch!);
+    }
 
     final created = <String>[];
     final matched = <String>[];
@@ -133,9 +165,7 @@ class SynoballCore {
       }
     }
 
-    final recordIndex = _ingestionRecords.indexWhere(
-      (item) => item.id == adapted.record.id,
-    );
+    final recordIndex = _ingestionRecordIndexById[adapted.record.id]!;
     _ingestionRecords[recordIndex] = adapted.record.copyWith(
       status: failures > 0
           ? IngestionStatus.needsReview
@@ -147,9 +177,7 @@ class SynoballCore {
     );
 
     if (adapted.importBatch != null) {
-      final index = _importBatches.indexWhere(
-        (item) => item.id == adapted.importBatch!.id,
-      );
+      final index = _importBatchIndexById[adapted.importBatch!.id]!;
       _importBatches[index] = adapted.importBatch!.copyWith(
         status: failures > 0
             ? ImportBatchStatus.partial
@@ -192,38 +220,24 @@ class SynoballCore {
   }
 
   String confirmCandidate(String candidateId, {required String actorId}) {
-    final index = _candidates.indexWhere((item) => item.id == candidateId);
-    if (index < 0) throw StateError('Candidate not found: $candidateId');
+    final index = _candidateIndexById[candidateId];
+    if (index == null) throw StateError('Candidate not found: $candidateId');
     final candidate = _candidates[index];
     if (candidate.status != CandidateStatus.pending) {
       throw StateError('Candidate is not pending: $candidateId');
     }
-    final record = _ingestionRecords.firstWhere(
-      (item) => item.id == candidate.ingestionRecordId,
-    );
-    final confirmed = TransactionCandidate(
-      id: candidate.id,
-      ingestionRecordId: candidate.ingestionRecordId,
-      entityId: candidate.entityId,
-      accountId: candidate.accountId,
-      amount: candidate.amount,
-      direction: candidate.direction,
-      occurredAt: candidate.occurredAt,
-      rawDescription: candidate.rawDescription,
-      normalizedDescription: candidate.normalizedDescription,
-      merchantGuess: candidate.merchantGuess,
-      providerCategory: candidate.providerCategory,
-      categoryGuess: candidate.categoryGuess,
-      userCategoryOverride: candidate.userCategoryOverride,
-      subcategoryId: candidate.subcategoryId,
-      providerTransactionId: candidate.providerTransactionId,
-      receiptId: candidate.receiptId,
-      transferDirection: candidate.transferDirection,
+    final recordIndex = _ingestionRecordIndexById[candidate.ingestionRecordId];
+    if (recordIndex == null) {
+      throw StateError(
+        'Ingestion record not found: ${candidate.ingestionRecordId}',
+      );
+    }
+    final record = _ingestionRecords[recordIndex];
+    final confirmed = candidate.copyWith(
       confidence: 1,
       sourceTrust: SourceTrustLevel.userConfirmed,
       status: CandidateStatus.pending,
-      tags: candidate.tags,
-      canonicalId: candidate.canonicalId,
+      requiresConfirmation: false,
     );
     _candidates[index] = confirmed;
     final result = _reconcile(confirmed, record.sourceType);
@@ -258,8 +272,10 @@ class SynoballCore {
     required String actorId,
     String purpose = 'User corrected a transaction',
   }) {
-    final index = _transactions.indexWhere((item) => item.id == transaction.id);
-    if (index < 0) throw StateError('Transaction not found: ${transaction.id}');
+    final index = _transactionIndexById[transaction.id];
+    if (index == null) {
+      throw StateError('Transaction not found: ${transaction.id}');
+    }
     _transactions[index] = _enrichment.enrich(
       transaction.copyWith(
         updatedAt: DateTime.now(),
@@ -282,8 +298,8 @@ class SynoballCore {
   }
 
   void deleteTransaction(String id, {required String actorId}) {
-    final index = _transactions.indexWhere((item) => item.id == id);
-    if (index < 0) return;
+    final index = _transactionIndexById[id];
+    if (index == null) return;
     final transaction = _transactions[index];
     _transactions[index] = transaction.copyWith(
       status: CanonicalTransactionStatus.deleted,
@@ -305,12 +321,13 @@ class SynoballCore {
   }
 
   void restoreTransaction(CanonicalTransaction transaction) {
-    final index = _transactions.indexWhere((item) => item.id == transaction.id);
+    final index = _transactionIndexById[transaction.id];
     final restored = transaction.copyWith(
       status: CanonicalTransactionStatus.posted,
       updatedAt: DateTime.now(),
     );
-    if (index < 0) {
+    if (index == null) {
+      _transactionIndexById[restored.id] = _transactions.length;
       _transactions.add(restored);
     } else {
       _transactions[index] = restored;
@@ -363,6 +380,7 @@ class SynoballCore {
         updatedAt: now,
         fieldTrust: candidate.sourceTrust,
       );
+      _transactionIndexById[transactionId] = _transactions.length;
       _transactions.add(_enrichment.enrich(createdTransaction));
       created = true;
       _emit(
@@ -372,14 +390,12 @@ class SynoballCore {
       );
     } else {
       transactionId = match.transaction.id;
-      final index = _transactions.indexWhere(
-        (item) => item.id == transactionId,
-      );
+      final index = _transactionIndexById[transactionId]!;
       final current = _transactions[index];
-      final existingSources = _evidence
-          .where((item) => item.transactionId == transactionId)
-          .map((item) => item.sourceType)
-          .toSet();
+      final existingSources =
+          (_evidenceByTransactionId[transactionId] ?? const <SourceEvidence>[])
+              .map((item) => item.sourceType)
+              .toSet();
       final replace =
           (candidate.canonicalId == current.id &&
               sourceType == SynoballSourceType.statement) ||
@@ -404,6 +420,11 @@ class SynoballCore {
           (_sourceDetailRank(sourceType) >=
                   _bestSourceDetailRank(existingSources) ||
               current.rawDescription.trim().isEmpty);
+      final mergedSynoballCategory = _mergeCategory(
+        current.synoballCategory,
+        candidate.categoryGuess,
+        replace: replace,
+      );
       _transactions[index] = _enrichment.enrich(
         current.copyWith(
           accountId: replace ? candidate.accountId : current.accountId,
@@ -427,21 +448,12 @@ class SynoballCore {
             candidate.providerCategory,
             replace: replace,
           ),
-          synoballCategory: _mergeCategory(
-            current.synoballCategory,
-            candidate.categoryGuess,
-            replace: replace,
-          ),
+          synoballCategory: mergedSynoballCategory,
           userCategoryOverride:
               candidate.userCategoryOverride ?? current.userCategoryOverride,
           categoryConfidence:
               candidate.categoryGuess != null &&
-                  _mergeCategory(
-                        current.synoballCategory,
-                        candidate.categoryGuess,
-                        replace: replace,
-                      ) ==
-                      candidate.categoryGuess
+                  mergedSynoballCategory == candidate.categoryGuess
               ? candidate.confidence
               : current.categoryConfidence,
           subcategoryId:
@@ -466,31 +478,29 @@ class SynoballCore {
       );
     }
 
+    final providerTransactionId = candidate.providerTransactionId;
     final alreadyObserved =
-        candidate.providerTransactionId != null &&
-        _evidence.any(
-          (item) =>
-              item.transactionId == transactionId &&
-              item.sourceType == sourceType &&
-              item.providerTransactionId == candidate.providerTransactionId,
-        );
-    if (!alreadyObserved) {
-      _evidence.add(
-        SourceEvidence(
-          id: _ids.next('evd'),
+        providerTransactionId != null &&
+        _providerEvidenceKeys.contains((
           transactionId: transactionId,
           sourceType: sourceType,
-          ingestionRecordId: candidate.ingestionRecordId,
-          confidence: candidate.confidence,
-          trust: candidate.sourceTrust,
-          observedAt: candidate.occurredAt,
-          providerTransactionId: candidate.providerTransactionId,
-        ),
+          providerTransactionId: providerTransactionId,
+        ));
+    if (!alreadyObserved) {
+      final item = SourceEvidence(
+        id: _ids.next('evd'),
+        transactionId: transactionId,
+        sourceType: sourceType,
+        ingestionRecordId: candidate.ingestionRecordId,
+        confidence: candidate.confidence,
+        trust: candidate.sourceTrust,
+        observedAt: candidate.occurredAt,
+        providerTransactionId: providerTransactionId,
       );
+      _evidence.add(item);
+      _indexEvidence(item);
     }
-    final candidateIndex = _candidates.indexWhere(
-      (item) => item.id == candidate.id,
-    );
+    final candidateIndex = _candidateIndexById[candidate.id]!;
     _candidates[candidateIndex] = candidate.copyWith(
       status: created ? CandidateStatus.confirmed : CandidateStatus.merged,
     );
@@ -501,10 +511,6 @@ class SynoballCore {
   }
 
   void _refreshDerivedData() {
-    final enriched = _transactions.map(_enrichment.enrich).toList();
-    _transactions
-      ..clear()
-      ..addAll(enriched);
     final streams = _enrichment.detectRecurring(_transactions);
     _recurringStreams
       ..clear()
@@ -518,13 +524,30 @@ class SynoballCore {
     for (var index = 0; index < _transactions.length; index++) {
       final transaction = _transactions[index];
       final stream = streamByTransaction[transaction.id];
-      if (stream != null) {
+      final isRecurring = stream != null;
+      if (transaction.isRecurring != isRecurring ||
+          transaction.recurringStreamId != stream?.id) {
         _transactions[index] = transaction.copyWith(
-          isRecurring: true,
-          recurringStreamId: stream.id,
+          isRecurring: isRecurring,
+          recurringStreamId: stream?.id,
+          clearRecurringStreamId: stream == null,
         );
       }
     }
+  }
+
+  void _indexEvidence(SourceEvidence item) {
+    _evidenceByTransactionId
+        .putIfAbsent(item.transactionId, () => <SourceEvidence>[])
+        .add(item);
+    final providerTransactionId = item.providerTransactionId;
+    if (providerTransactionId == null) return;
+    _providerTransactionIds.add(providerTransactionId);
+    _providerEvidenceKeys.add((
+      transactionId: item.transactionId,
+      sourceType: item.sourceType,
+      providerTransactionId: providerTransactionId,
+    ));
   }
 
   void _emit({
@@ -639,14 +662,31 @@ class _ReconciliationResult {
   final bool created;
 }
 
+typedef _ProviderEvidenceKey = ({
+  String transactionId,
+  SynoballSourceType sourceType,
+  String providerTransactionId,
+});
+
+Map<String, int> _buildPositionIndex<T>(
+  List<T> values,
+  String Function(T) idOf,
+) => <String, int>{
+  for (var index = 0; index < values.length; index++)
+    idOf(values[index]): index,
+};
+
 void _upsertMany<T>(
   List<T> target,
   Iterable<T> incoming,
   String Function(T) idOf,
 ) {
+  final positions = _buildPositionIndex(target, idOf);
   for (final value in incoming) {
-    final index = target.indexWhere((item) => idOf(item) == idOf(value));
-    if (index < 0) {
+    final id = idOf(value);
+    final index = positions[id];
+    if (index == null) {
+      positions[id] = target.length;
       target.add(value);
     } else {
       target[index] = value;

@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/services.dart';
 import 'package:pdf_document/pdf_document.dart';
@@ -8,6 +9,9 @@ import 'package:pdf_graphics/pdf_graphics.dart';
 import 'bank_statement_file_models.dart';
 
 const _channel = MethodChannel('ru.qesto.qesto/statements');
+const _maxStatementBytes = 20 * 1024 * 1024;
+const _maxPdfPages = 500;
+const _maxExtractedTextCharacters = 5 * 1024 * 1024;
 
 Future<ExtractedStatementFile?> pickStatementFile(
   StatementPickerMode mode,
@@ -43,6 +47,9 @@ Future<ExtractedStatementFile?> pickStatementFile(
     if (normalizedBytes == null || normalizedBytes.isEmpty) {
       throw const FormatException('Excel-файл пуст');
     }
+    if (normalizedBytes.length > _maxStatementBytes) {
+      throw const FormatException('Размер файла не должен превышать 20 МБ');
+    }
     return ExtractedStatementFile(
       fileName: fileName,
       kind: StatementFileKind.excel,
@@ -53,6 +60,7 @@ Future<ExtractedStatementFile?> pickStatementFile(
   if (text is! String || text.trim().isEmpty) {
     throw const FormatException('Выписка не содержит доступного текста');
   }
+  _validateExtractedText(text);
   return ExtractedStatementFile(
     fileName: fileName,
     kind: kind == 'text' ? StatementFileKind.text : StatementFileKind.pdf,
@@ -78,6 +86,9 @@ Future<ExtractedStatementFile?> _pickWindowsStatement(
     );
   }
   try {
+    if (await file.length() > _maxStatementBytes) {
+      throw const FormatException('Размер файла не должен превышать 20 МБ');
+    }
     final extension = path.toLowerCase();
     if (extension.endsWith('.xlsx') || extension.endsWith('.xlsm')) {
       return ExtractedStatementFile(
@@ -87,10 +98,13 @@ Future<ExtractedStatementFile?> _pickWindowsStatement(
       );
     }
     final isText = extension.endsWith('.txt');
-    final text = isText ? await file.readAsString() : _extractPdfText(path);
+    final text = isText
+        ? await file.readAsString()
+        : await Isolate.run(() => _extractPdfText(path));
     if (text.trim().isEmpty) {
       throw const FormatException('Выписка не содержит доступного текста');
     }
+    _validateExtractedText(text);
     return ExtractedStatementFile(
       fileName: file.uri.pathSegments.last,
       kind: isText ? StatementFileKind.text : StatementFileKind.pdf,
@@ -111,10 +125,24 @@ String _extractPdfText(String path) {
   if (document.pageCount <= 0) {
     throw const FormatException('PDF не содержит страниц');
   }
-  return [
-    for (var page = 0; page < document.pageCount; page++)
-      PdfTextExtractor.reflowPage(document, page).text,
-  ].join('\n\f\n');
+  if (document.pageCount > _maxPdfPages) {
+    throw const FormatException('PDF содержит слишком много страниц');
+  }
+  final output = StringBuffer();
+  for (var page = 0; page < document.pageCount; page++) {
+    if (page > 0) output.write('\n\f\n');
+    output.write(PdfTextExtractor.reflowPage(document, page).text);
+    if (output.length > _maxExtractedTextCharacters) {
+      throw const FormatException('Из PDF извлечено слишком много текста');
+    }
+  }
+  return output.toString();
+}
+
+void _validateExtractedText(String text) {
+  if (text.length > _maxExtractedTextCharacters) {
+    throw const FormatException('Выписка содержит слишком много текста');
+  }
 }
 
 Future<String?> _pickWindowsStatementPath(StatementPickerMode mode) async {

@@ -321,6 +321,139 @@ void main() {
     },
   );
 
+  test(
+    'derived refresh does not modify an unrelated transaction timestamp',
+    () async {
+      final synoball = core();
+      synoball.ingest(
+        ManualInputAdapter(),
+        ManualInput(
+          entityId: entityId,
+          receivedAt: DateTime(2026, 7, 1),
+          rawPayload: 'Первая покупка',
+          transaction: seed(
+            date: DateTime(2026, 7, 1),
+            merchant: 'Первый магазин',
+          ),
+        ),
+      );
+      final originalUpdatedAt = synoball.transactions.single.updatedAt;
+      await Future<void>.delayed(const Duration(milliseconds: 2));
+
+      synoball.ingest(
+        ManualInputAdapter(),
+        ManualInput(
+          entityId: entityId,
+          receivedAt: DateTime(2026, 7, 2),
+          rawPayload: 'Вторая покупка',
+          transaction: seed(
+            date: DateTime(2026, 7, 2),
+            merchant: 'Второй магазин',
+          ),
+        ),
+      );
+
+      expect(synoball.transactions.first.updatedAt, originalUpdatedAt);
+    },
+  );
+
+  test('recurring flags are cleared when the sequence becomes incomplete', () {
+    final synoball = core();
+    for (final date in [
+      DateTime(2026, 6, 5),
+      DateTime(2026, 7, 5),
+      DateTime(2026, 8, 5),
+    ]) {
+      synoball.ingest(
+        ManualInputAdapter(),
+        ManualInput(
+          entityId: entityId,
+          receivedAt: date,
+          rawPayload: 'Подписка 399 ₽',
+          transaction: seed(
+            date: date,
+            amountMinor: 39900,
+            merchant: 'Подписка',
+          ),
+        ),
+      );
+    }
+    final lastTransactionId = synoball.transactions.last.id;
+    expect(synoball.transactions.every((item) => item.isRecurring), isTrue);
+
+    synoball.deleteTransaction(lastTransactionId, actorId: 'ivan');
+
+    expect(synoball.state.recurringStreams, isEmpty);
+    expect(synoball.transactions.every((item) => !item.isRecurring), isTrue);
+    expect(
+      synoball.transactions.every((item) => item.recurringStreamId == null),
+      isTrue,
+    );
+  });
+
+  test('recurring streams are isolated between entities', () {
+    final synoball = core();
+    const secondEntityId = 'ent-maria';
+    const secondAccountId = 'acc-maria';
+    synoball.upsertEntity(
+      const SynoballEntity(
+        id: secondEntityId,
+        type: SynoballEntityType.person,
+        displayName: 'Мария',
+      ),
+    );
+    synoball.upsertAccount(
+      const SynoballAccount(
+        id: secondAccountId,
+        entityId: secondEntityId,
+        name: 'Счёт Марии',
+        type: SynoballAccountType.card,
+        currency: 'RUB',
+        balance: Money(minorUnits: 0, currency: 'RUB'),
+      ),
+    );
+
+    for (final entity in [
+      (id: entityId, accountId: cashAccount),
+      (id: secondEntityId, accountId: secondAccountId),
+    ]) {
+      for (final date in [
+        DateTime(2026, 6, 5),
+        DateTime(2026, 7, 5),
+        DateTime(2026, 8, 5),
+      ]) {
+        synoball.ingest(
+          ManualInputAdapter(),
+          ManualInput(
+            entityId: entity.id,
+            receivedAt: date,
+            rawPayload: 'Общая подписка 399 ₽',
+            transaction: seed(
+              date: date,
+              accountId: entity.accountId,
+              amountMinor: 39900,
+              merchant: 'Общая подписка',
+            ),
+          ),
+        );
+      }
+    }
+
+    expect(synoball.state.recurringStreams, hasLength(2));
+    expect(
+      synoball.state.recurringStreams.map((item) => item.entityId).toSet(),
+      {entityId, secondEntityId},
+    );
+    expect(
+      synoball.state.recurringStreams.every(
+        (stream) => stream.transactionIds.every(
+          (id) => synoball.transactionById(id)!.entityId == stream.entityId,
+        ),
+      ),
+      isTrue,
+    );
+  });
+
   test('voice input remains a candidate until user confirmation', () {
     final synoball = core();
     final outcome = synoball.ingest(
