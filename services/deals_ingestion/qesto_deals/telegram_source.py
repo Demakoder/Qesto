@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 from urllib.request import Request, urlopen
 
 from .config import PromoSourceConfig
-from .models import RawMessage
+from .http_safety import DEFAULT_MAX_RESPONSE_BYTES, read_limited_response
+from .models import (
+    MAX_FORMATTED_CODE_CHARS,
+    MAX_FORMATTED_CODES_PER_MESSAGE,
+    MAX_LINKS_PER_MESSAGE,
+    MAX_MESSAGE_TEXT_CHARS,
+    MAX_MESSAGE_URL_CHARS,
+    RawMessage,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -14,8 +23,13 @@ LOGGER = logging.getLogger(__name__)
 class TelegramWebPreviewProvider:
     source_type = "telegram"
 
-    def __init__(self, timeout_seconds: int = 20) -> None:
+    def __init__(
+        self,
+        timeout_seconds: int = 20,
+        max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
+    ) -> None:
         self.timeout_seconds = timeout_seconds
+        self.max_response_bytes = max_response_bytes
 
     def fetch(self, source: PromoSourceConfig) -> list[RawMessage]:
         if source.type != self.source_type:
@@ -23,6 +37,8 @@ class TelegramWebPreviewProvider:
                 f"Telegram provider cannot fetch source type {source.type!r}"
             )
         normalized = source.id.removeprefix("@").strip()
+        if re.fullmatch(r"[A-Za-z0-9_]{5,32}", normalized) is None:
+            raise ValueError("Invalid Telegram channel name")
         request = Request(
             f"https://t.me/s/{normalized}",
             headers={
@@ -34,7 +50,10 @@ class TelegramWebPreviewProvider:
         )
         with urlopen(request, timeout=self.timeout_seconds) as response:
             charset = response.headers.get_content_charset() or "utf-8"
-            html = response.read().decode(charset, errors="replace")
+            html = read_limited_response(
+                response,
+                self.max_response_bytes,
+            ).decode(charset, errors="replace")
         parser = _TelegramPreviewParser(normalized)
         parser.feed(html)
         parser.close()
@@ -52,6 +71,7 @@ class _TelegramPreviewParser(HTMLParser):
         self._text_container_depth: int | None = None
         self._in_code = False
         self._code_buffer: list[str] = []
+        self._code_length = 0
 
     def handle_starttag(self, tag: str, attrs_list: list[tuple[str, str | None]]) -> None:
         attrs = dict(attrs_list)
@@ -60,11 +80,16 @@ class _TelegramPreviewParser(HTMLParser):
             data_post = attrs.get("data-post")
             if tag == "div" and data_post and "js-widget_message" in classes:
                 channel, _, raw_id = data_post.rpartition("/")
-                if channel and raw_id.isdigit():
+                if (
+                    channel.casefold() == self.expected_channel.casefold()
+                    and raw_id.isdigit()
+                    and len(raw_id) <= 20
+                ):
                     self._current = {
                         "channel": channel,
                         "message_id": int(raw_id),
                         "text": [],
+                        "text_length": 0,
                         "links": [],
                         "codes": [],
                         "published_at": None,
@@ -81,10 +106,12 @@ class _TelegramPreviewParser(HTMLParser):
         if self._text_container_depth is not None and tag == "code":
             self._in_code = True
             self._code_buffer = []
+            self._code_length = 0
         if tag == "a" and attrs.get("href"):
             links = self._current["links"]
             assert isinstance(links, list)
-            links.append(attrs["href"])
+            if len(links) < MAX_LINKS_PER_MESSAGE:
+                links.append(attrs["href"][:MAX_MESSAGE_URL_CHARS])
         if tag == "time" and attrs.get("datetime"):
             self._current["published_at"] = attrs["datetime"]
 
@@ -96,9 +123,11 @@ class _TelegramPreviewParser(HTMLParser):
             if code:
                 codes = self._current["codes"]
                 assert isinstance(codes, list)
-                codes.append(code)
+                if len(codes) < MAX_FORMATTED_CODES_PER_MESSAGE:
+                    codes.append(code)
             self._in_code = False
             self._code_buffer = []
+            self._code_length = 0
         if tag != "div":
             return
         if self._text_container_depth == self._div_depth:
@@ -111,14 +140,23 @@ class _TelegramPreviewParser(HTMLParser):
         if self._current is None or self._text_container_depth is None:
             return
         self._append_text(data)
-        if self._in_code:
-            self._code_buffer.append(data)
+        if self._in_code and self._code_length < MAX_FORMATTED_CODE_CHARS:
+            remaining = MAX_FORMATTED_CODE_CHARS - self._code_length
+            bounded = data[:remaining]
+            self._code_buffer.append(bounded)
+            self._code_length += len(bounded)
 
     def _append_text(self, value: str) -> None:
         assert self._current is not None
         text = self._current["text"]
         assert isinstance(text, list)
-        text.append(value)
+        text_length = int(self._current["text_length"])
+        remaining = MAX_MESSAGE_TEXT_CHARS - text_length
+        if remaining <= 0:
+            return
+        bounded = value[:remaining]
+        text.append(bounded)
+        self._current["text_length"] = text_length + len(bounded)
 
     def _finish_message(self) -> None:
         assert self._current is not None

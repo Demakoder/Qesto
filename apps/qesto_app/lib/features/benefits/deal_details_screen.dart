@@ -185,10 +185,11 @@ class DealDetailsScreen extends StatelessWidget {
 
   Future<void> _open(BuildContext context, String value) async {
     final uri = Uri.tryParse(value);
-    if (uri == null || uri.host.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Некорректная ссылка')));
+    final validationError = externalWebUrlValidationError(value);
+    if (uri == null || validationError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(validationError ?? 'Некорректная ссылка')),
+      );
       return;
     }
     final confirmed = await showDialog<bool>(

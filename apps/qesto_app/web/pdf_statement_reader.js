@@ -106,6 +106,8 @@
     const pdfjs = await loadPdfJs();
     const loadingTask = pdfjs.getDocument({
       data: new Uint8Array(await file.arrayBuffer()),
+      enableScripting: false,
+      isEvalSupported: false,
     });
     const document = await loadingTask.promise;
 

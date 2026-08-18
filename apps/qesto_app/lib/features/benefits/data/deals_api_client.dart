@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../../../data/models/qesto_models.dart';
+import 'bounded_http_response.dart';
 import 'platform_deals_source.dart';
 
 class DealsApiClient {
@@ -10,6 +11,7 @@ class DealsApiClient {
     http.Client? client,
     String? baseUrl,
     this.timeout = const Duration(seconds: 3),
+    this.maximumResponseBytes = 12 * 1024 * 1024,
   }) : _client = client ?? http.Client(),
        baseUrl =
            baseUrl ??
@@ -21,17 +23,31 @@ class DealsApiClient {
   final http.Client _client;
   final String baseUrl;
   final Duration timeout;
+  final int maximumResponseBytes;
 
   Future<String> fetchOffersJson() async {
     final platformResult = await fetchPlatformDealsJson(client: _client);
-    if (platformResult != null) return platformResult;
-    final response = await _client
-        .get(Uri.parse('$baseUrl/offers?limit=300'))
-        .timeout(timeout);
+    if (platformResult != null) {
+      if (utf8.encode(platformResult).length > maximumResponseBytes) {
+        throw const DealsApiException('Deals API response is too large');
+      }
+      return platformResult;
+    }
+    final request = http.Request('GET', Uri.parse('$baseUrl/offers?limit=300'));
+    final response = await _client.send(request).timeout(timeout);
     if (response.statusCode != 200) {
+      await response.stream.listen((_) {}).cancel();
       throw DealsApiException('Deals API returned ${response.statusCode}');
     }
-    return response.body;
+    try {
+      return await readBoundedHttpBody(
+        response,
+        maximumBytes: maximumResponseBytes,
+        timeout: timeout,
+      );
+    } on BoundedHttpBodyException catch (error) {
+      throw DealsApiException(error.message);
+    }
   }
 
   List<Deal> decodeOffers(String source) {

@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from qesto_deals.api import DealsApiServer
+from qesto_deals.api import DealsApiServer, _ClientRateLimiter
 from qesto_deals.config import load_config
 from qesto_deals.storage import DealsStorage
 
@@ -20,6 +20,13 @@ class _NoopPipeline:
 
 
 class DealsApiTest(unittest.TestCase):
+    def test_rate_limiter_rejects_excess_requests_per_client(self) -> None:
+        limiter = _ClientRateLimiter(maximum_requests=2, window_seconds=60)
+        self.assertTrue(limiter.allow("127.0.0.1"))
+        self.assertTrue(limiter.allow("127.0.0.1"))
+        self.assertFalse(limiter.allow("127.0.0.1"))
+        self.assertTrue(limiter.allow("127.0.0.2"))
+
     def test_health_and_offers_endpoints(self) -> None:
         with self._running_server() as base_url:
             with urlopen(f"{base_url}/health") as response:

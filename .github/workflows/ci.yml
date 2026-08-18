@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-and-security:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: '3.13'
+      - name: Check security invariants and tracked secrets
+        run: python scripts/check_security_invariants.py
+      - name: Run deals service tests
+        working-directory: services/deals_ingestion
+        run: python -m unittest discover -s tests -v
+
+  flutter:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve dependencies
+        working-directory: apps/qesto_app
+        run: flutter pub get
+      - name: Analyze
+        working-directory: apps/qesto_app
+        run: flutter analyze --no-pub
+      - name: Test
+        working-directory: apps/qesto_app
+        run: flutter test --no-pub
+      - name: Query OSV for Pub advisories
+        run: python scripts/check_pub_advisories.py --project apps/qesto_app

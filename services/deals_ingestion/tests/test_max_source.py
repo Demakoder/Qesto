@@ -36,8 +36,8 @@ class MaxSourceProviderTest(unittest.TestCase):
     def test_maps_twenty_max_posts_to_source_neutral_messages(self) -> None:
         requests = []
 
-        def load(request, timeout):
-            requests.append((request, timeout))
+        def load(request, timeout, maximum_bytes):
+            requests.append((request, timeout, maximum_bytes))
             return self.payload
 
         provider = MaxSourceProvider(
@@ -55,7 +55,9 @@ class MaxSourceProviderTest(unittest.TestCase):
 
     def test_extracts_external_links_but_keeps_permalink_separate(self) -> None:
         provider = MaxSourceProvider(
-            provider_config(), api_token="secret", json_loader=lambda _r, _t: self.payload
+            provider_config(),
+            api_token="secret",
+            json_loader=lambda _r, _t, _m: self.payload,
         )
         messages = provider.fetch(self.source)
         ozon = next(item for item in messages if item.message_id == "1002")
@@ -64,7 +66,9 @@ class MaxSourceProviderTest(unittest.TestCase):
 
     def test_fixture_corpus_passes_common_filters_and_extractor(self) -> None:
         provider = MaxSourceProvider(
-            provider_config(), api_token="secret", json_loader=lambda _r, _t: self.payload
+            provider_config(),
+            api_token="secret",
+            json_loader=lambda _r, _t, _m: self.payload,
         )
         messages = provider.fetch(self.source)
         expected = {
@@ -83,7 +87,7 @@ class MaxSourceProviderTest(unittest.TestCase):
     def test_retries_rate_limit_without_stopping_source(self) -> None:
         calls = 0
 
-        def load(_request, _timeout):
+        def load(_request, _timeout, _maximum_bytes):
             nonlocal calls
             calls += 1
             if calls == 1:
@@ -110,6 +114,17 @@ class MaxSourceProviderTest(unittest.TestCase):
         provider.api_token = None
         with self.assertRaisesRegex(MaxSourceConfigurationError, r"\.env"):
             provider.fetch(self.source)
+
+    def test_rejects_non_https_api_base_url(self) -> None:
+        unsafe = MaxProviderConfig(
+            api_base_url="http://api.maximeter.test",
+            api_token_env="MAXIMETER_API_TOKEN_FOR_TEST",
+            backfill_limit=50,
+            retry_attempts=1,
+            retry_backoff_seconds=0,
+        )
+        with self.assertRaisesRegex(ValueError, "HTTPS"):
+            MaxSourceProvider(unsafe, api_token="secret")
 
     def test_config_enables_telegram_and_disables_max(self) -> None:
         config = load_config()

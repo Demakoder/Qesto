@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -14,6 +15,21 @@ from qesto_deals.storage import DealsStorage
 
 
 PUBLISHED = datetime(2026, 8, 9, 12, tzinfo=timezone.utc)
+
+
+class _CountingDealsStorage(DealsStorage):
+    def __init__(self, database_path: str | Path) -> None:
+        self.select_count = 0
+        super().__init__(database_path)
+
+    def _connect(self) -> sqlite3.Connection:
+        connection = super()._connect()
+        connection.set_trace_callback(self._trace_statement)
+        return connection
+
+    def _trace_statement(self, statement: str) -> None:
+        if statement.lstrip().upper().startswith("SELECT"):
+            self.select_count += 1
 
 
 def message(
@@ -236,6 +252,25 @@ class ExtractorTest(unittest.TestCase):
 
         self.assertEqual(1, len(offers))
         self.assertEqual(2, len(offers[0]["sources"]))
+
+    def test_public_offer_payload_bounds_the_number_of_source_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            storage = _CountingDealsStorage(Path(directory) / "test.sqlite3")
+            for index in range(25):
+                offer = self.extractor.extract(
+                    message(
+                        "Самокат: промокод SAME500",
+                        channel=f"channel_{index}",
+                        message_id=index + 1,
+                    )
+                )[0]
+                storage.save_offer(offer)
+            storage.select_count = 0
+            offers = storage.list_offers(minimum_confidence=0)
+
+        self.assertEqual(1, len(offers))
+        self.assertEqual(20, len(offers[0]["sources"]))
+        self.assertEqual(2, storage.select_count)
 
     def test_refresh_removes_stale_offers_from_edited_post(self) -> None:
         old_message = message(

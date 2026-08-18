@@ -18,12 +18,16 @@ APP_DIRECTORY = ROOT / "apps" / "qesto_app"
 SERVICE_DIRECTORY = ROOT / "services" / "deals_ingestion"
 SERVICE_HEALTH_URL = "http://127.0.0.1:8787/health"
 SERVICE_LOG = SERVICE_DIRECTORY / "data" / "service.log"
+MAX_HEALTH_RESPONSE_BYTES = 64 * 1024
 
 
 def _service_is_ready() -> bool:
     try:
         with urlopen(SERVICE_HEALTH_URL, timeout=0.75) as response:
-            payload = json.loads(response.read().decode("utf-8"))
+            raw = response.read(MAX_HEALTH_RESPONSE_BYTES + 1)
+        if len(raw) > MAX_HEALTH_RESPONSE_BYTES:
+            return False
+        payload = json.loads(raw.decode("utf-8"))
         return response.status == 200 and payload.get("status") == "ok"
     except (OSError, URLError, ValueError, json.JSONDecodeError):
         return False

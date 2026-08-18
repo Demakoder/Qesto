@@ -12,15 +12,26 @@ from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .config import MaxProviderConfig, PromoSourceConfig
-from .models import RawMessage
+from .http_safety import (
+    DEFAULT_MAX_RESPONSE_BYTES,
+    read_limited_response,
+    same_origin_opener,
+    validate_https_base_url,
+)
+from .models import (
+    MAX_LINKS_PER_MESSAGE,
+    MAX_MESSAGE_TEXT_CHARS,
+    MAX_MESSAGE_URL_CHARS,
+    RawMessage,
+)
 
 LOGGER = logging.getLogger(__name__)
 _URL = re.compile(r"https?://[^\s<>\]\[(){}\"']+")
 _ZERO_WIDTH = re.compile("[\u200b\u200c\u200d\ufeff]")
-JsonLoader = Callable[[Request, int], Mapping[str, Any]]
+JsonLoader = Callable[[Request, int, int], Mapping[str, Any]]
 
 
 class MaxSourceConfigurationError(RuntimeError):
@@ -39,10 +50,13 @@ class MaxSourceProvider:
         timeout_seconds: int = 20,
         api_token: str | None = None,
         json_loader: JsonLoader | None = None,
+        max_response_bytes: int = DEFAULT_MAX_RESPONSE_BYTES,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.config = config
         self.timeout_seconds = timeout_seconds
+        self.max_response_bytes = max_response_bytes
+        self._api_base_url = validate_https_base_url(config.api_base_url)
         self.api_token = api_token or _load_token(config.api_token_env)
         self._json_loader = json_loader or _load_json
         self._sleep = sleep
@@ -68,7 +82,7 @@ class MaxSourceProvider:
             }
         )
         request = Request(
-            f"{self.config.api_base_url}/v1/posts?{query}",
+            f"{self._api_base_url}/v1/posts?{query}",
             headers={
                 "Accept": "application/json",
                 "User-Agent": "QestoDeals/2.0 (+https://github.com/Demakoder/Qesto)",
@@ -93,7 +107,11 @@ class MaxSourceProvider:
     def _request_with_retry(self, request: Request) -> Mapping[str, Any]:
         for attempt in range(1, self.config.retry_attempts + 1):
             try:
-                return self._json_loader(request, self.timeout_seconds)
+                return self._json_loader(
+                    request,
+                    self.timeout_seconds,
+                    self.max_response_bytes,
+                )
             except HTTPError as error:
                 retryable = error.code == 429 or 500 <= error.code < 600
                 if not retryable or attempt == self.config.retry_attempts:
@@ -122,13 +140,17 @@ class MaxSourceProvider:
     def _to_message(
         source: PromoSourceConfig, post: Mapping[str, Any]
     ) -> RawMessage | None:
-        text = _preprocess_max_text(str(post.get("text") or ""))
+        raw_text = str(post.get("text") or "")
+        text = _preprocess_max_text(
+            raw_text[: MAX_MESSAGE_TEXT_CHARS * 2]
+        )[:MAX_MESSAGE_TEXT_CHARS]
         message_id = str(post.get("id") or "").strip()
-        if not text or not message_id:
+        if not text or not message_id or len(message_id) > 128:
             return None
         url = str(post.get("url") or "").strip()
         if not url:
             url = f"https://max.ru/{source.id}/{message_id}"
+        url = url[:MAX_MESSAGE_URL_CHARS]
         return RawMessage(
             source_type="max",
             source_id=source.id,
@@ -136,13 +158,21 @@ class MaxSourceProvider:
             published_at=_parse_datetime(post.get("published_at")),
             original_text=text,
             original_url=url,
-            links=tuple(dict.fromkeys(_clean_url(item) for item in _URL.findall(text))),
+            links=tuple(
+                dict.fromkeys(_clean_url(item) for item in _URL.findall(text))
+            )[:MAX_LINKS_PER_MESSAGE],
         )
 
 
-def _load_json(request: Request, timeout_seconds: int) -> Mapping[str, Any]:
-    with urlopen(request, timeout=timeout_seconds) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+def _load_json(
+    request: Request,
+    timeout_seconds: int,
+    maximum_bytes: int,
+) -> Mapping[str, Any]:
+    with same_origin_opener().open(request, timeout=timeout_seconds) as response:
+        payload = json.loads(
+            read_limited_response(response, maximum_bytes).decode("utf-8")
+        )
     if not isinstance(payload, Mapping):
         raise ValueError("MAX API returned a non-object JSON response")
     return payload

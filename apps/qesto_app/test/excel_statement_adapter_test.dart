@@ -35,6 +35,55 @@ void main() {
     );
   });
 
+  test('Excel adapter rejects encrypted ZIP entries before decoding', () {
+    final bytes = Uint8List(68);
+    final data = ByteData.sublistView(bytes);
+    data.setUint32(0, 0x02014b50, Endian.little);
+    data.setUint16(8, 0x1, Endian.little);
+    data.setUint32(46, 0x06054b50, Endian.little);
+    data.setUint16(56, 1, Endian.little);
+    data.setUint32(58, 46, Endian.little);
+
+    expect(
+      () => const UniversalExcelStatementAdapter().parse(
+        bytes: bytes,
+        fileName: 'encrypted.xlsx',
+      ),
+      throwsA(
+        isA<UnsupportedBankStatementException>().having(
+          (error) => error.message,
+          'message',
+          contains('Зашифрованные'),
+        ),
+      ),
+    );
+  });
+
+  test('Excel adapter rejects Unix symlinks before decoding', () {
+    final bytes = Uint8List(68);
+    final data = ByteData.sublistView(bytes);
+    data.setUint32(0, 0x02014b50, Endian.little);
+    data.setUint16(4, 3 << 8, Endian.little);
+    data.setUint32(38, 0xa000 << 16, Endian.little);
+    data.setUint32(46, 0x06054b50, Endian.little);
+    data.setUint16(56, 1, Endian.little);
+    data.setUint32(58, 46, Endian.little);
+
+    expect(
+      () => const UniversalExcelStatementAdapter().parse(
+        bytes: bytes,
+        fileName: 'symlink.xlsx',
+      ),
+      throwsA(
+        isA<UnsupportedBankStatementException>().having(
+          (error) => error.message,
+          'message',
+          contains('Символические ссылки'),
+        ),
+      ),
+    );
+  });
+
   test('universal Excel adapter normalizes ordinary income and expenses', () {
     final workbook = Excel.createExcel();
     final sheet = workbook['Sheet1'];

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ipaddress
 import json
 import logging
 import os
@@ -32,6 +33,9 @@ def main() -> None:
         level=logging.DEBUG if args.verbose else logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
+    sync_token = (
+        _sync_token_for_host(args.host) if args.command == "serve" else None
+    )
     config = load_config(args.config)
     storage = DealsStorage(config.database_path)
     pipeline = DealsSyncPipeline(
@@ -40,8 +44,12 @@ def main() -> None:
             MaxSourceProvider(
                 config.max_provider,
                 timeout_seconds=config.request_timeout_seconds,
+                max_response_bytes=config.max_response_bytes,
             ),
-            TelegramWebPreviewProvider(config.request_timeout_seconds),
+            TelegramWebPreviewProvider(
+                config.request_timeout_seconds,
+                max_response_bytes=config.max_response_bytes,
+            ),
         ),
         storage=storage,
     )
@@ -55,13 +63,31 @@ def main() -> None:
         config=config,
         storage=storage,
         pipeline=pipeline,
-        sync_token=os.environ.get("QESTO_DEALS_SYNC_TOKEN") or None,
+        sync_token=sync_token,
         allowed_origins={
             value.strip()
             for value in os.environ.get("QESTO_DEALS_ALLOWED_ORIGINS", "").split(",")
             if value.strip()
         },
     ).serve_forever()
+
+
+def _is_loopback_host(host: str) -> bool:
+    if host.casefold() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def _sync_token_for_host(host: str) -> str | None:
+    token = os.environ.get("QESTO_DEALS_SYNC_TOKEN") or None
+    if token is not None and not _is_loopback_host(host):
+        raise SystemExit(
+            "Refusing to expose QESTO_DEALS_SYNC_TOKEN over non-loopback HTTP"
+        )
+    return token
 
 
 if __name__ == "__main__":

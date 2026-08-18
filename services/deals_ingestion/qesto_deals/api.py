@@ -4,6 +4,8 @@ import hmac
 import json
 import logging
 import threading
+import time
+from collections import defaultdict, deque
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -13,6 +15,61 @@ from .pipeline import DealsSyncPipeline
 from .storage import DealsStorage
 
 LOGGER = logging.getLogger(__name__)
+
+
+class BoundedThreadingHTTPServer(ThreadingHTTPServer):
+    daemon_threads = True
+    request_queue_size = 32
+
+    def __init__(self, server_address: tuple[str, int], handler: type, limit: int = 32):
+        self._request_slots = threading.BoundedSemaphore(limit)
+        super().__init__(server_address, handler)
+
+    def process_request(self, request: object, client_address: object) -> None:
+        if not self._request_slots.acquire(blocking=False):
+            try:
+                request.close()  # type: ignore[attr-defined]
+            finally:
+                return
+        try:
+            super().process_request(request, client_address)  # type: ignore[arg-type]
+        except BaseException:
+            self._request_slots.release()
+            raise
+
+    def process_request_thread(self, request: object, client_address: object) -> None:
+        try:
+            super().process_request_thread(request, client_address)  # type: ignore[arg-type]
+        finally:
+            self._request_slots.release()
+
+
+class _ClientRateLimiter:
+    def __init__(self, maximum_requests: int = 120, window_seconds: float = 60) -> None:
+        self.maximum_requests = maximum_requests
+        self.window_seconds = window_seconds
+        self._requests: dict[str, deque[float]] = defaultdict(deque)
+        self._lock = threading.Lock()
+        self._last_cleanup = 0.0
+
+    def allow(self, client: str) -> bool:
+        now = time.monotonic()
+        threshold = now - self.window_seconds
+        with self._lock:
+            if now - self._last_cleanup >= self.window_seconds:
+                for key, history in list(self._requests.items()):
+                    while history and history[0] <= threshold:
+                        history.popleft()
+                    if not history:
+                        self._requests.pop(key, None)
+                self._last_cleanup = now
+            requests = self._requests[client]
+            while requests and requests[0] <= threshold:
+                requests.popleft()
+            if len(requests) >= self.maximum_requests:
+                return False
+            requests.append(now)
+            return True
 
 
 class DealsApiServer:
@@ -36,6 +93,7 @@ class DealsApiServer:
         self.pipeline = pipeline
         self.sync_token = sync_token
         self.allowed_origins = allowed_origins or set()
+        self._rate_limiter = _ClientRateLimiter()
         self._sync_lock = threading.Lock()
         self._stop = threading.Event()
         self._last_sync_report: dict[str, object] | None = None
@@ -45,7 +103,7 @@ class DealsApiServer:
         scheduler = threading.Thread(target=self._schedule, daemon=True)
         scheduler.start()
         handler = self._handler_type()
-        server = ThreadingHTTPServer((self.host, self.port), handler)
+        server = BoundedThreadingHTTPServer((self.host, self.port), handler)
         LOGGER.info("Qesto Deals API listening on http://%s:%s", self.host, self.port)
         try:
             server.serve_forever()
@@ -77,6 +135,8 @@ class DealsApiServer:
 
         class Handler(BaseHTTPRequestHandler):
             def do_OPTIONS(self) -> None:  # noqa: N802
+                if not self._request_is_allowed():
+                    return
                 if not self._origin_is_allowed():
                     self._json(HTTPStatus.FORBIDDEN, {"error": "origin not allowed"})
                     return
@@ -86,6 +146,8 @@ class DealsApiServer:
                 self.end_headers()
 
             def do_GET(self) -> None:  # noqa: N802
+                if not self._request_is_allowed():
+                    return
                 parsed = urlparse(self.path)
                 if parsed.path == "/health":
                     self._json(
@@ -122,6 +184,8 @@ class DealsApiServer:
                 self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
 
             def do_POST(self) -> None:  # noqa: N802
+                if not self._request_is_allowed():
+                    return
                 if urlparse(self.path).path != "/sync":
                     self._json(HTTPStatus.NOT_FOUND, {"error": "not found"})
                     return
@@ -175,6 +239,13 @@ class DealsApiServer:
                     parsed.scheme in {"http", "https"}
                     and parsed.hostname in {"localhost", "127.0.0.1", "::1"}
                 )
+
+            def _request_is_allowed(self) -> bool:
+                client = self.client_address[0] if self.client_address else "unknown"
+                if api._rate_limiter.allow(client):
+                    return True
+                self._json(HTTPStatus.TOO_MANY_REQUESTS, {"error": "rate limited"})
+                return False
 
             def _security_headers(self) -> None:
                 self.send_header("Cache-Control", "no-store")

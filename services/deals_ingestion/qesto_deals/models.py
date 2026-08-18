@@ -4,6 +4,12 @@ from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any
 
+MAX_MESSAGE_TEXT_CHARS = 12_000
+MAX_MESSAGE_URL_CHARS = 2_048
+MAX_LINKS_PER_MESSAGE = 50
+MAX_FORMATTED_CODES_PER_MESSAGE = 50
+MAX_FORMATTED_CODE_CHARS = 256
+
 
 @dataclass(frozen=True)
 class RawMessage:
@@ -15,6 +21,40 @@ class RawMessage:
     original_url: str
     links: tuple[str, ...] = ()
     formatted_codes: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.source_type or len(self.source_type) > 32:
+            raise ValueError("Raw message source type is invalid")
+        if not self.source_id or len(self.source_id) > 128:
+            raise ValueError("Raw message source id is invalid")
+        if not self.message_id or len(self.message_id) > 128:
+            raise ValueError("Raw message id is invalid")
+        object.__setattr__(
+            self,
+            "original_text",
+            self.original_text[:MAX_MESSAGE_TEXT_CHARS],
+        )
+        object.__setattr__(
+            self,
+            "original_url",
+            self.original_url[:MAX_MESSAGE_URL_CHARS],
+        )
+        object.__setattr__(
+            self,
+            "links",
+            tuple(
+                value[:MAX_MESSAGE_URL_CHARS]
+                for value in self.links[:MAX_LINKS_PER_MESSAGE]
+            ),
+        )
+        object.__setattr__(
+            self,
+            "formatted_codes",
+            tuple(
+                value[:MAX_FORMATTED_CODE_CHARS]
+                for value in self.formatted_codes[:MAX_FORMATTED_CODES_PER_MESSAGE]
+            ),
+        )
 
     @property
     def channel(self) -> str:

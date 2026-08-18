@@ -441,6 +441,9 @@ Dependabot еженедельно проверяет Dart/Flutter, Gradle и Git
 ## 12. Проверка перед коммитом и релизом
 
 ```powershell
+python scripts/check_security_invariants.py
+python scripts/check_pub_advisories.py --project apps/qesto_app
+
 cd apps/qesto_app
 flutter analyze
 flutter test
@@ -453,4 +456,30 @@ python -m unittest discover -s tests -v
 
 Дополнительно нужно проверить `git status`, отсутствие `.env`,
 `key.properties`, keystore и реальных выписок, а release APK подписывать только
-приватным production-ключом.
+приватным production-ключом. Windows-релиз нужно создавать только через
+`apps/qesto_app/windows/build_signed_release.ps1`: этот путь требует
+Authenticode-сертификат, подписывает все EXE/DLL приложения, установщик и
+деинсталлятор и проверяет подписи до выдачи артефакта.
+
+## 13. Дополнительное усиление после первого аудита
+
+- `web/_headers` переносит CSP в HTTP-заголовок, запрещает embedding через
+  `frame-ancestors 'none'` и включает HSTS, `nosniff`, Permissions Policy и
+  изоляцию opener/resource. PDF.js запускается с отключёнными scripting/eval.
+- Внешние ссылки повторно валидируются перед platform launch: credentials,
+  localhost, private/link-local IP и служебные доменные суффиксы запрещены.
+- XLSX сначала проверяется по central directory, затем каждый entry фактически
+  распаковывается в считающий поток с общим пределом 100 МБ. Ложный размер в ZIP
+  metadata больше не обходит лимит.
+- Неподдерживаемые банковские уведомления удаляются сразу; распознанные — только
+  после успешного сохранения канонической операции.
+- Telegram/MAX ограничены по фактически прочитанным байтам. MAX требует HTTPS и
+  same-origin redirect, Telegram принимает `data-post` только ожидаемого канала.
+  Текст/ссылки одного сообщения и ответы Deals API дополнительно ограничены как
+  в Python-сервисе, так и в прямом Android-импорте Telegram.
+- Deals API ограничивает одновременные соединения и частоту запросов. Bearer
+  token запрещён на non-loopback HTTP listener.
+- CI запускает analyzer, Flutter/Python tests, security invariants и OSV batch
+  scan. Actions закреплены полными commit SHA, а секреты PFX доступны только
+  шагу импорта сертификата. Отдельный ручной workflow создаёт только подписанный
+  Windows installer.

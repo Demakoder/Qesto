@@ -74,4 +74,14 @@ void main() {
 
     expect(client.fetchOffersJson(), throwsA(isA<DealsApiException>()));
   });
+
+  test('rejects an oversized API response before decoding it', () async {
+    final client = DealsApiClient(
+      baseUrl: 'http://deals.test',
+      maximumResponseBytes: 4,
+      client: MockClient((_) async => http.Response('12345', 200)),
+    );
+
+    expect(client.fetchOffersJson(), throwsA(isA<DealsApiException>()));
+  });
 }

@@ -50,9 +50,7 @@ void main() {
       hasLength(1),
     );
     expect(budget.pendingCandidates, isEmpty);
-    expect(capture.notifications.map((item) => item.notificationKey), [
-      'unsupported',
-    ]);
+    expect(capture.notifications, isEmpty);
   });
 
   test('retry after acknowledgement failure stays idempotent', () async {

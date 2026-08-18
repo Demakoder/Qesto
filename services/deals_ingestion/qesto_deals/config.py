@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from .http_safety import DEFAULT_MAX_RESPONSE_BYTES, validate_https_base_url
+
 
 @dataclass(frozen=True)
 class PromoSourceConfig:
@@ -27,6 +29,7 @@ class DealsConfig:
     promo_sources: tuple[PromoSourceConfig, ...]
     max_provider: MaxProviderConfig
     request_timeout_seconds: int
+    max_response_bytes: int
     visible_confidence_threshold: int
     database_path: Path
     blocked_keywords: tuple[str, ...]
@@ -74,9 +77,9 @@ def load_config(path: str | Path | None = None) -> DealsConfig:
     return DealsConfig(
         promo_sources=sources,
         max_provider=MaxProviderConfig(
-            api_base_url=str(
-                max_payload.get("api_base_url", "https://api.maximeter.ru")
-            ).rstrip("/"),
+            api_base_url=validate_https_base_url(
+                str(max_payload.get("api_base_url", "https://api.maximeter.ru"))
+            ),
             api_token_env=str(
                 max_payload.get("api_token_env", "MAXIMETER_API_TOKEN")
             ),
@@ -86,7 +89,16 @@ def load_config(path: str | Path | None = None) -> DealsConfig:
                 0.0, float(max_payload.get("retry_backoff_seconds", 1))
             ),
         ),
-        request_timeout_seconds=int(payload.get("request_timeout_seconds", 20)),
+        request_timeout_seconds=max(
+            1, min(int(payload.get("request_timeout_seconds", 20)), 60)
+        ),
+        max_response_bytes=max(
+            64 * 1024,
+            min(
+                int(payload.get("max_response_bytes", DEFAULT_MAX_RESPONSE_BYTES)),
+                10 * 1024 * 1024,
+            ),
+        ),
         visible_confidence_threshold=int(
             payload.get("visible_confidence_threshold", 50)
         ),

@@ -4,6 +4,8 @@ import 'package:html/dom.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 
+import 'bounded_http_response.dart';
+
 const telegramDealChannels = <String>[
   'skidki',
   'kuponych',
@@ -11,30 +13,39 @@ const telegramDealChannels = <String>[
   'pepperru',
   'aktsiya_telegram',
 ];
+const _maximumTelegramPageBytes = 2 * 1024 * 1024;
+const _maximumTelegramMessageChars = 12_000;
 
 class TelegramDealsIngestion {
-  TelegramDealsIngestion({http.Client? client})
-    : _client = client ?? http.Client();
+  TelegramDealsIngestion({
+    http.Client? client,
+    this.maximumPageBytes = _maximumTelegramPageBytes,
+  }) : _client = client ?? http.Client();
 
   final http.Client _client;
+  final int maximumPageBytes;
 
   Future<String> fetchOffersJson() async {
     final pages = <String, String>{};
     await Future.wait(
       telegramDealChannels.map((channel) async {
         try {
+          final request = http.Request('GET', Uri.https('t.me', '/s/$channel'))
+            ..headers['User-Agent'] =
+                'Mozilla/5.0 (Linux; Android 14) '
+                'AppleWebKit/537.36 QestoDeals/2.0';
           final response = await _client
-              .get(
-                Uri.https('t.me', '/s/$channel'),
-                headers: const {
-                  'User-Agent':
-                      'Mozilla/5.0 (Linux; Android 14) '
-                      'AppleWebKit/537.36 QestoDeals/2.0',
-                },
-              )
+              .send(request)
               .timeout(const Duration(seconds: 10));
-          if (response.statusCode == 200 && response.body.isNotEmpty) {
-            pages[channel] = response.body;
+          if (response.statusCode == 200) {
+            final body = await readBoundedHttpBody(
+              response,
+              maximumBytes: maximumPageBytes,
+              timeout: const Duration(seconds: 10),
+            );
+            if (body.isNotEmpty) pages[channel] = body;
+          } else {
+            await response.stream.listen((_) {}).cancel();
           }
         } on Object {
           // One unavailable channel must not hide results from the others.
@@ -95,6 +106,7 @@ class TelegramDealsIngestion {
       final sourceId = dataPost.substring(0, slash).replaceFirst('@', '');
       final messageId = dataPost.substring(slash + 1);
       if (sourceId.toLowerCase() != channel.toLowerCase() ||
+          messageId.length > 20 ||
           int.tryParse(messageId) == null) {
         continue;
       }
@@ -102,7 +114,10 @@ class TelegramDealsIngestion {
           card.querySelector('.tgme_widget_message_text') ??
           card.querySelector('.js-message_text');
       if (textNode == null) continue;
-      final text = _normalizeText(_renderText(textNode));
+      final text = _truncate(
+        _normalizeText(_renderText(textNode)),
+        _maximumTelegramMessageChars,
+      );
       if (text.isEmpty) continue;
       final timeValue = card
           .querySelector('time[datetime]')
@@ -113,13 +128,17 @@ class TelegramDealsIngestion {
           .querySelectorAll('a[href]')
           .map((element) => element.attributes['href'])
           .whereType<String>()
+          .map((value) => _truncate(value, 2048))
           .toSet()
+          .take(50)
           .toList(growable: false);
       final formattedCodes = textNode
           .querySelectorAll('code')
           .map((element) => element.text.trim())
           .where((value) => value.isNotEmpty)
+          .map((value) => _truncate(value, 256))
           .toSet()
+          .take(50)
           .toList(growable: false);
       result.add(
         _TelegramMessage(
@@ -230,10 +249,7 @@ class TelegramDealsIngestion {
     for (final candidate in candidates) {
       final value = candidate.value
           .trim()
-          .replaceAll(
-            RegExp(r'^[\s:—–.,!()\[\]{}"-]+|[\s:—–.,!()\[\]{}"-]+$'),
-            ' ',
-          )
+          .replaceAll(_promoCodeTrimPattern, ' ')
           .trim()
           .toUpperCase();
       if (_validCode(value, candidate.formatted) && !result.contains(value)) {
@@ -245,19 +261,19 @@ class TelegramDealsIngestion {
 
   bool _validCode(String value, bool formatted) {
     final folded = _normalized(value);
-    if (!RegExp(r'^[A-Za-zА-Яа-яЁё0-9_-]{4,20}$').hasMatch(value) ||
+    if (!_validPromoCodePattern.hasMatch(value) ||
         _codeStopWords.contains(folded) ||
-        RegExp(r'^\d+$').hasMatch(value) ||
+        _digitsOnlyPattern.hasMatch(value) ||
         folded.startsWith('http') ||
         folded.startsWith('www') ||
         folded.startsWith('erid') ||
         folded.startsWith('инн')) {
       return false;
     }
-    if (RegExp(r'^\d{1,2}[._-]\d{1,2}(?:[._-]\d{2,4})?$').hasMatch(value)) {
+    if (_dateLikeCodePattern.hasMatch(value)) {
       return false;
     }
-    if (RegExp(r'[0-9A-Z]').hasMatch(value)) return true;
+    if (_uppercaseOrDigitPattern.hasMatch(value)) return true;
     return formatted && value == value.toUpperCase();
   }
 
@@ -287,7 +303,7 @@ class TelegramDealsIngestion {
     for (final line in lines.take(indexes.first).toList().reversed) {
       final normalized = _normalized(line);
       if (line.length <= 180 &&
-          RegExp(r'^\d+[.)]\s*').hasMatch(line) &&
+          _numberedHeadingPattern.hasMatch(line) &&
           [
             'промокод',
             'перв',
@@ -406,15 +422,12 @@ class TelegramDealsIngestion {
     for (final raw in links) {
       final uri = Uri.tryParse(raw.replaceAll('&amp;', '&'));
       if (uri == null || !{'http', 'https'}.contains(uri.scheme)) continue;
-      final host = uri.host.toLowerCase().replaceFirst(RegExp(r'^www\.'), '');
+      final host = uri.host.toLowerCase().replaceFirst(_wwwPrefixPattern, '');
       if (host.isEmpty ||
           _blockedHosts.any(
             (blocked) => host == blocked || host.endsWith('.$blocked'),
           ) ||
-          RegExp(
-            r'\.(?:jpe?g|png|gif|webp|svg|mp4)$',
-            caseSensitive: false,
-          ).hasMatch(uri.path)) {
+          _mediaPathPattern.hasMatch(uri.path)) {
         continue;
       }
       return uri.toString();
@@ -526,7 +539,7 @@ String _renderText(Node node) {
 String _normalizeText(String value) => value
     .replaceAll('\r', '')
     .split('\n')
-    .map((line) => line.replaceAll(RegExp(r'\s+'), ' ').trim())
+    .map((line) => line.replaceAll(_whitespacePattern, ' ').trim())
     .where((line) => line.isNotEmpty)
     .join('\n')
     .trim();
@@ -534,7 +547,7 @@ String _normalizeText(String value) => value
 String _cleanDisplayText(String value) {
   final lines = _normalizeText(value).split('\n').where((line) {
     final normalized = _normalized(line);
-    return !RegExp(r'^(реклама\.?|инн\b|erid\b|рид\b)').hasMatch(normalized) &&
+    return !_legalLinePattern.hasMatch(normalized) &&
         ![
           'подписывайтесь',
           'подпишись',
@@ -542,7 +555,7 @@ String _cleanDisplayText(String value) {
           'канал в max',
           'канал в вк',
         ].any(normalized.contains) &&
-        !RegExp(r'^@[-_a-zA-Z0-9]{4,}$').hasMatch(line.trim());
+        !_channelSignaturePattern.hasMatch(line.trim());
   });
   return lines.join('\n').trim();
 }
@@ -551,7 +564,7 @@ String _normalized(String value) => value.toLowerCase().replaceAll('ё', 'е');
 
 int? _digits(String? value) {
   if (value == null) return null;
-  final digits = value.replaceAll(RegExp(r'\D'), '');
+  final digits = value.replaceAll(_nonDigitPattern, '');
   return digits.isEmpty ? null : int.tryParse(digits);
 }
 
@@ -580,8 +593,10 @@ String _dateOnly(DateTime value) =>
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
 
-String _truncate(String value, int length) =>
-    value.length <= length ? value : value.substring(0, length);
+String _truncate(String value, int length) {
+  if (value.length <= length) return value;
+  return String.fromCharCodes(value.runes.take(length));
+}
 
 String _stableId(String value) {
   int hash(int seed) {
@@ -596,6 +611,24 @@ String _stableId(String value) {
   return '${hash(2166136261).toRadixString(16).padLeft(8, '0')}'
       '${hash(3339675911).toRadixString(16).padLeft(8, '0')}';
 }
+
+final _promoCodeTrimPattern = RegExp(
+  r'^[\s:—–.,!()\[\]{}"-]+|[\s:—–.,!()\[\]{}"-]+$',
+);
+final _validPromoCodePattern = RegExp(r'^[A-Za-zА-Яа-яЁё0-9_-]{4,20}$');
+final _digitsOnlyPattern = RegExp(r'^\d+$');
+final _dateLikeCodePattern = RegExp(r'^\d{1,2}[._-]\d{1,2}(?:[._-]\d{2,4})?$');
+final _uppercaseOrDigitPattern = RegExp(r'[0-9A-Z]');
+final _numberedHeadingPattern = RegExp(r'^\d+[.)]\s*');
+final _wwwPrefixPattern = RegExp(r'^www\.');
+final _mediaPathPattern = RegExp(
+  r'\.(?:jpe?g|png|gif|webp|svg|mp4)$',
+  caseSensitive: false,
+);
+final _whitespacePattern = RegExp(r'\s+');
+final _legalLinePattern = RegExp(r'^(реклама\.?|инн\b|erid\b|рид\b)');
+final _channelSignaturePattern = RegExp(r'^@[-_a-zA-Z0-9]{4,}$');
+final _nonDigitPattern = RegExp(r'\D');
 
 final _promoPattern = RegExp(
   r'(?:промокод(?:ом|у)?|промо(?:код)?|код|купон)\s*(?::|—|-|–)?\s*([A-Za-zА-Яа-яЁё0-9_-]{4,20})',

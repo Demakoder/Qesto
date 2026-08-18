@@ -1,3 +1,4 @@
+import 'package:archive/archive.dart';
 import 'package:excel_community/excel_community.dart';
 import 'package:flutter/foundation.dart';
 
@@ -660,6 +661,27 @@ void _validateExcelArchive(Uint8List bytes) {
         'Excel-файл повреждён: неверная структура XLSX',
       );
     }
+    final versionMadeBy = data.getUint16(offset + 4, Endian.little);
+    final generalPurposeFlags = data.getUint16(offset + 8, Endian.little);
+    final compressionMethod = data.getUint16(offset + 10, Endian.little);
+    final externalAttributes = data.getUint32(offset + 38, Endian.little);
+    final creatorSystem = versionMadeBy >> 8;
+    final unixFileType = (externalAttributes >> 16) & 0xf000;
+    if ((generalPurposeFlags & 0x1) != 0) {
+      throw const UnsupportedBankStatementException(
+        'Зашифрованные Excel-архивы не поддерживаются',
+      );
+    }
+    if (compressionMethod != 0 && compressionMethod != 8) {
+      throw const UnsupportedBankStatementException(
+        'Excel-файл использует неподдерживаемый метод ZIP-сжатия',
+      );
+    }
+    if (creatorSystem == 3 && unixFileType == 0xa000) {
+      throw const UnsupportedBankStatementException(
+        'Символические ссылки внутри Excel-архива запрещены',
+      );
+    }
     final uncompressed = data.getUint32(offset + 24, Endian.little);
     if (uncompressed == 0xffffffff) {
       throw const UnsupportedBankStatementException(
@@ -677,6 +699,75 @@ void _validateExcelArchive(Uint8List bytes) {
     final commentLength = data.getUint16(offset + 32, Endian.little);
     offset += 46 + nameLength + extraLength + commentLength;
   }
+
+  try {
+    final archive = ZipDecoder().decodeBytes(bytes);
+    if (archive.length > maximumEntries) {
+      throw const UnsupportedBankStatementException(
+        'Excel-файл содержит слишком много архивных элементов',
+      );
+    }
+    var actualUncompressedTotal = 0;
+    for (final entry in archive) {
+      if (!entry.isFile) continue;
+      final counter = _LimitedArchiveOutput(
+        maximumBytes: maximumUncompressedBytes - actualUncompressedTotal,
+      );
+      entry.writeContent(counter);
+      actualUncompressedTotal += counter.length;
+    }
+  } on UnsupportedBankStatementException {
+    rethrow;
+  } on Object {
+    throw const UnsupportedBankStatementException(
+      'Excel-файл повреждён или использует неподдерживаемое ZIP-сжатие',
+    );
+  }
+}
+
+class _LimitedArchiveOutput extends OutputStream {
+  _LimitedArchiveOutput({required this.maximumBytes})
+    : super(byteOrder: ByteOrder.littleEndian);
+
+  final int maximumBytes;
+
+  @override
+  int length = 0;
+
+  void _add(int count) {
+    if (count < 0 || length + count > maximumBytes) {
+      throw const UnsupportedBankStatementException(
+        'Фактически распакованный Excel-файл не должен превышать 100 МБ',
+      );
+    }
+    length += count;
+  }
+
+  @override
+  void clear() => length = 0;
+
+  @override
+  void flush() {}
+
+  @override
+  Uint8List subset(int start, [int? end]) => Uint8List(0);
+
+  @override
+  void writeByte(int value) => _add(1);
+
+  @override
+  void writeBytes(List<int> bytes, {int? length}) {
+    final count = length ?? bytes.length;
+    if (count > bytes.length) {
+      throw const UnsupportedBankStatementException(
+        'Excel-файл содержит повреждённый поток данных',
+      );
+    }
+    _add(count);
+  }
+
+  @override
+  void writeStream(InputStream stream) => _add(stream.length);
 }
 
 ParsedBankStatement _parseExcelIsolate(Map<String, Object?> input) {

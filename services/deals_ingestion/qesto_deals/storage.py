@@ -9,6 +9,8 @@ from typing import Any
 
 from .models import Offer, RawMessage
 
+MAX_SOURCES_PER_OFFER = 20
+
 
 class DealsStorage:
     def __init__(self, database_path: str | Path) -> None:
@@ -20,7 +22,6 @@ class DealsStorage:
         connection = sqlite3.connect(self.database_path, timeout=15)
         connection.row_factory = sqlite3.Row
         connection.execute("PRAGMA foreign_keys = ON")
-        connection.execute("PRAGMA journal_mode = WAL")
         return connection
 
     @contextmanager
@@ -35,6 +36,7 @@ class DealsStorage:
 
     def _initialize(self) -> None:
         with self._connection() as connection:
+            connection.execute("PRAGMA journal_mode = WAL")
             connection.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS raw_messages (
@@ -233,33 +235,49 @@ class DealsStorage:
         )
         with self._connection() as connection:
             rows = connection.execute(query, values).fetchall()
+            sources_by_offer: dict[str, list[dict[str, Any]]] = {}
+            if rows:
+                offer_ids = [str(row["id"]) for row in rows]
+                placeholders = ", ".join("?" for _ in offer_ids)
+                source_rows = connection.execute(
+                    f"""SELECT offer_id, source_type, source_id,
+                               message_id, source_url
+                        FROM (
+                            SELECT offer_id, source_type, source_id,
+                                   message_id, source_url,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY offer_id
+                                       ORDER BY source_type, source_id, message_id
+                                   ) AS source_rank
+                            FROM offer_sources
+                            WHERE offer_id IN ({placeholders})
+                        )
+                        WHERE source_rank <= ?
+                        ORDER BY offer_id, source_type, source_id, message_id""",
+                    (*offer_ids, MAX_SOURCES_PER_OFFER),
+                ).fetchall()
+                for source in source_rows:
+                    sources_by_offer.setdefault(str(source["offer_id"]), []).append(
+                        {
+                            "type": source["source_type"],
+                            "channel": source["source_id"],
+                            "message_id": source["message_id"],
+                            "url": source["source_url"],
+                        }
+                    )
+
             result = []
             for row in rows:
                 payload = json.loads(str(row["payload_json"]))
-                sources = connection.execute(
-                    """SELECT source_type, source_id, message_id, source_url
-                       FROM offer_sources WHERE offer_id = ?
-                       ORDER BY source_type, source_id, message_id""",
-                    (row["id"],),
-                ).fetchall()
-                payload["sources"] = [
-                    {
-                        "type": source["source_type"],
-                        "channel": source["source_id"],
-                        "message_id": source["message_id"],
-                        "url": source["source_url"],
-                    }
-                    for source in sources
-                ]
+                payload["sources"] = sources_by_offer.get(str(row["id"]), [])
                 result.append(payload)
         return result
 
     def counts(self) -> dict[str, int]:
         with self._connection() as connection:
-            messages = connection.execute(
-                "SELECT COUNT(*) AS value FROM raw_messages"
-            ).fetchone()["value"]
-            offers = connection.execute(
-                "SELECT COUNT(*) AS value FROM offers"
-            ).fetchone()["value"]
-        return {"messages": int(messages), "offers": int(offers)}
+            row = connection.execute(
+                """SELECT
+                       (SELECT COUNT(*) FROM raw_messages) AS messages,
+                       (SELECT COUNT(*) FROM offers) AS offers"""
+            ).fetchone()
+        return {"messages": int(row["messages"]), "offers": int(row["offers"])}

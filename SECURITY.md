@@ -32,6 +32,12 @@ CVV и SMS-коды банка. Open Banking в текущей сборке пр
 - Голос на Android распознаётся только локальным системным движком; облачный
   fallback отключён. На Windows используется локальный Whisper.
 - Архив Whisper и модель проверяются по закреплённым SHA-256 до использования.
+- Windows release собирается отдельным fail-closed скриптом: EXE/DLL приложения,
+  установщик и деинсталлятор подписываются Authenticode и проверяются до выдачи
+  артефакта.
+- Внешние ответы Telegram/MAX, отдельные сообщения и тело Deals API ограничены
+  по размеру; MAX требует HTTPS и не передаёт API-токен при cross-origin
+  redirect.
 
 Шифрование данных на диске не защищает уже разблокированное приложение от
 вредоносного ПО с правами пользователя, root-доступа, чтения памяти процесса
@@ -66,6 +72,28 @@ flutter build apk --release
 
 Такую сборку нельзя распространять.
 
+## Подпись Windows release
+
+Импортируйте Authenticode-сертификат с закрытым ключом в хранилище сертификатов
+Windows и задайте только его SHA-1 thumbprint:
+
+```powershell
+$env:QESTO_WINDOWS_CERT_SHA1='<40 hex characters>'
+./apps/qesto_app/windows/build_signed_release.ps1
+```
+
+Скрипт собирает Windows release, подписывает и проверяет все его EXE/DLL, затем
+передаёт Inno Setup обязательный `SignTool`. Inno Setup подписывает установщик и
+деинсталлятор; итоговый установщик повторно проверяется через `signtool verify`.
+Прямой запуск `ISCC qesto.iss` без настроенного sign tool должен завершиться
+ошибкой.
+
+Для GitHub Actions настройте encrypted secrets
+`WINDOWS_SIGNING_CERTIFICATE_BASE64` и
+`WINDOWS_SIGNING_CERTIFICATE_PASSWORD`, затем запускайте workflow
+`Signed Windows release`. PFX временно импортируется в хранилище runner и
+удаляется после сборки.
+
 ## Сетевой сервис акций
 
 Обычный запуск доступен только локально:
@@ -87,8 +115,10 @@ python scripts/run_qesto.py --allow-lan --device <android-device-id>
 
 ## Требования к публикации Web
 
-Публикуйте только по HTTPS. CSP в `web/index.html` является минимальной защитой;
-на хостинге продублируйте её HTTP-заголовком и добавьте:
+Публикуйте только по HTTPS. `web/_headers` содержит CSP и остальные обязательные
+заголовки в формате Cloudflare Pages/Netlify. На другом хостинге перенесите их
+в конфигурацию сервера без ослабления `frame-ancestors`, `script-src` и
+`connect-src`.
 
 ```text
 Strict-Transport-Security: max-age=31536000; includeSubDomains
@@ -104,9 +134,12 @@ Cross-Origin-Opener-Policy: same-origin
 
 ## Проверка перед релизом
 
-1. `flutter analyze` и `flutter test` проходят полностью.
-2. Python-тесты сервиса: `python -m unittest discover -s tests -v`.
-3. В Git нет `.env`, `key.properties`, `*.jks`, токенов и реальных выписок.
-4. APK подписан release-ключом, а не debug-сертификатом.
-5. Web размещён по HTTPS с заголовками выше.
-6. Зависимости и Android SDK обновлены, результаты Dependabot просмотрены.
+1. `python scripts/check_security_invariants.py` проходит.
+2. `flutter analyze` и `flutter test` проходят полностью.
+3. Python-тесты сервиса: `python -m unittest discover -s tests -v`.
+4. OSV-проверка проходит: `python scripts/check_pub_advisories.py --project apps/qesto_app`.
+5. В Git нет `.env`, `key.properties`, `*.jks`, токенов и реальных выписок.
+6. APK подписан release-ключом, а не debug-сертификатом.
+7. Windows-установщик создан только `build_signed_release.ps1`, подписи EXE/DLL, setup и uninstaller проверены.
+8. Web размещён по HTTPS с заголовками из `web/_headers`.
+9. Зависимости и Android SDK обновлены, результаты Dependabot просмотрены.

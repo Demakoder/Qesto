@@ -1,5 +1,7 @@
 #define AppName "Qesto"
-#define AppVersion "1.0.10"
+#ifndef AppVersion
+#define AppVersion "1.0.12"
+#endif
 #define AppPublisher "Qesto"
 #define AppExeName "qesto.exe"
 
@@ -23,6 +25,10 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 CloseApplications=yes
 RestartApplications=no
+SignTool=qesto
+SignedUninstaller=yes
+SignToolRetryCount=3
+SignToolRetryDelay=2000
 
 [Languages]
 Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"

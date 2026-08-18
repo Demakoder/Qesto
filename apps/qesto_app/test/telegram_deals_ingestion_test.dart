@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:qesto/features/benefits/data/telegram_deals_ingestion.dart';
 
 void main() {
@@ -71,6 +73,33 @@ void main() {
     expect(
       offers.where((offer) => offer['promo_code'] == 'NEW50'),
       hasLength(1),
+    );
+  });
+
+  test('bounds Telegram pages and individual messages', () async {
+    final oversizedClient = TelegramDealsIngestion(
+      maximumPageBytes: 4,
+      client: MockClient((_) async => http.Response('12345', 200)),
+    );
+    await expectLater(
+      oversizedClient.fetchOffersJson(),
+      throwsA(isA<StateError>()),
+    );
+
+    final longText = 'Ozon — скидка 10% ${List.filled(12_100, 'x').join()}';
+    final source = TelegramDealsIngestion().buildOffersJson({
+      'skidki':
+          '<div data-post="skidki/1"><div class="js-message_text">'
+          '$longText</div></div>',
+    });
+    final offer =
+        ((jsonDecode(source) as Map<String, dynamic>)['offers']
+                    as List<dynamic>)
+                .single
+            as Map<String, dynamic>;
+    expect(
+      (offer['original_text'] as String).length,
+      lessThanOrEqualTo(12_000),
     );
   });
 }

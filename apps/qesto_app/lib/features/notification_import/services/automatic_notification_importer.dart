@@ -89,6 +89,13 @@ class AutomaticNotificationImporter {
       final transaction = parser.parse(notification);
       if (transaction == null) {
         unsupported += 1;
+        try {
+          // Unsupported text has no future value to Qesto and may still
+          // contain account fragments or balances. Do not retain it until TTL.
+          await captureService.removeNotification(notification.notificationKey);
+        } on Object {
+          failed += 1;
+        }
         continue;
       }
 
