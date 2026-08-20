@@ -1,6 +1,6 @@
 #define AppName "Qesto"
 #ifndef AppVersion
-#define AppVersion "1.0.13"
+#define AppVersion "1.0.16"
 #endif
 #define AppPublisher "Qesto"
 #define AppExeName "qesto.exe"

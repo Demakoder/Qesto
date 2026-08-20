@@ -12,23 +12,20 @@ enum DesktopProductSection {
   final Color color;
 
   DesktopDestination get landing => switch (this) {
-    DesktopProductSection.budget => DesktopDestination.dashboard,
+    DesktopProductSection.budget => DesktopDestination.expenses,
     DesktopProductSection.benefits => DesktopDestination.benefits,
     DesktopProductSection.savings => DesktopDestination.goals,
   };
 }
 
 enum DesktopDestination {
-  dashboard(
-    'Обзор',
-    Icons.space_dashboard_outlined,
+  dashboard('Обзор', Icons.space_dashboard_outlined, null),
+  expenses(
+    'Расходы',
+    Icons.trending_down_rounded,
     DesktopProductSection.budget,
   ),
-  transactions(
-    'Транзакции',
-    Icons.layers_outlined,
-    DesktopProductSection.budget,
-  ),
+  transactions('Операции', Icons.layers_outlined, DesktopProductSection.budget),
   budget(
     'План бюджета',
     Icons.pie_chart_outline_rounded,
@@ -39,7 +36,21 @@ enum DesktopDestination {
     Icons.swap_vert_circle_outlined,
     DesktopProductSection.budget,
   ),
-  reports('Статистика', Icons.bar_chart_rounded, DesktopProductSection.budget),
+  rhythm(
+    'Ритм жизни',
+    Icons.calendar_view_week_rounded,
+    DesktopProductSection.budget,
+  ),
+  merchants(
+    'Магазины',
+    Icons.storefront_outlined,
+    DesktopProductSection.budget,
+  ),
+  categories(
+    'Категории',
+    Icons.category_outlined,
+    DesktopProductSection.budget,
+  ),
   recurring(
     'Регулярные',
     Icons.event_repeat_outlined,
@@ -48,7 +59,7 @@ enum DesktopDestination {
   accounts(
     'Счета',
     Icons.account_balance_wallet_outlined,
-    DesktopProductSection.budget,
+    null,
   ),
   insights(
     'Наблюдения',

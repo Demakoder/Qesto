@@ -38,11 +38,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
+    await tester.pumpAndSettle();
+
     for (final entry in <String, IconData>{
       'transactions': Icons.layers_outlined,
       'budget': Icons.pie_chart_outline_rounded,
       'cash-flow': Icons.swap_vert_circle_outlined,
-      'accounts': Icons.account_balance_wallet_outlined,
       'recurring': Icons.event_repeat_outlined,
     }.entries) {
       await tester.tap(find.byIcon(entry.value).first);
@@ -154,7 +156,9 @@ void main() {
     expect(find.text('Назначьте бюджет'), findsOneWidget);
     expect(find.textContaining('План превышен'), findsNothing);
 
-    await tester.tap(find.byIcon(Icons.pie_chart_outline_rounded).first);
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desktop-destination-budget')));
     await tester.pumpAndSettle();
     expect(find.text('Бюджет не назначен'), findsWidgets);
     expect(find.textContaining('Лимит превышен'), findsNothing);
@@ -240,6 +244,32 @@ void main() {
     expect(find.byKey(const Key('desktop-section-budget')), findsOneWidget);
     expect(find.byKey(const Key('desktop-section-benefits')), findsOneWidget);
     expect(find.byKey(const Key('desktop-section-savings')), findsOneWidget);
+    expect(
+      find.byKey(const Key('desktop-destination-dashboard')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('desktop-destination-reports')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
+    await tester.pumpAndSettle();
+    expect(find.text('Бюджет · Расходы'), findsOneWidget);
+    expect(find.byKey(const Key('desktop-destination-rhythm')), findsOneWidget);
+    expect(
+      find.byKey(const Key('desktop-destination-merchants')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('desktop-destination-categories')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('desktop-destination-accounts')),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const Key('desktop-destination-dashboard')));
+    await tester.pumpAndSettle();
+    expect(find.text('Обзор'), findsWidgets);
 
     await tester.tap(find.byKey(const Key('desktop-section-benefits')));
     await tester.pumpAndSettle();
@@ -248,7 +278,7 @@ void main() {
       find.byKey(const Key('desktop-section-items-benefits')),
       findsOneWidget,
     );
-    expect(find.text('Транзакции'), findsNothing);
+    expect(find.text('Операции'), findsNothing);
 
     await tester.tap(find.byKey(const Key('desktop-section-savings')));
     await tester.pumpAndSettle();
@@ -275,6 +305,8 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(Icons.swap_vert_circle_outlined).first);
     await tester.pumpAndSettle();
@@ -305,7 +337,9 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.pie_chart_outline_rounded).first);
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desktop-destination-budget')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('desktop-customize-categories')));
     await tester.pumpAndSettle();
@@ -326,7 +360,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop statistics exposes Android analytics sections', (
+  testWidgets('budget exposes unique analytics without a statistics hub', (
     tester,
   ) async {
     await tester.binding.setSurfaceSize(const Size(1440, 900));
@@ -342,27 +376,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.bar_chart_rounded).first);
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('desktop-statistics-page')), findsOneWidget);
-    expect(find.text('Финансовая аналитика'), findsOneWidget);
-    expect(find.text('Финансовая динамика'), findsOneWidget);
     expect(
-      find.byKey(const Key('desktop-statistics-tab-overview')),
+      find.byKey(const Key('desktop-budget-analysis-page')),
       findsOneWidget,
     );
-    expect(
-      find.byKey(const Key('desktop-statistics-tab-recurring')),
-      findsOneWidget,
-    );
-
-    await tester.tap(find.byKey(const Key('desktop-statistics-tab-expenses')));
-    await tester.pumpAndSettle();
+    expect(find.text('Расходы · аналитика'), findsOneWidget);
     expect(find.text('Динамика расходов'), findsOneWidget);
+    expect(find.text('Статистика'), findsNothing);
 
-    await tester.tap(find.byKey(const Key('desktop-statistics-tab-rhythm')));
+    await tester.tap(find.byIcon(Icons.calendar_view_week_rounded).first);
     await tester.pumpAndSettle();
+    expect(find.text('Ритм жизни · аналитика'), findsOneWidget);
     expect(find.text('Календарь расходов'), findsOneWidget);
     await tester.drag(
       find.byKey(const PageStorageKey('statistics-rhythm')),
@@ -371,13 +398,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Дни недели'), findsOneWidget);
 
-    await tester.ensureVisible(
-      find.byKey(const Key('desktop-statistics-tab-categories')),
-    );
-    await tester.tap(
-      find.byKey(const Key('desktop-statistics-tab-categories')),
-    );
+    await tester.tap(find.byIcon(Icons.category_outlined).first);
     await tester.pumpAndSettle();
+    expect(find.text('Категории · аналитика'), findsOneWidget);
     expect(find.text('Структура расходов'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('desktop-statistics-filters')));
@@ -391,7 +414,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop statistics has a genuine empty state', (tester) async {
+  testWidgets('budget analytics has a genuine empty state', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1024, 768));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -400,11 +423,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.bar_chart_rounded).first);
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('desktop-statistics-empty')), findsOneWidget);
-    expect(find.text('Статистика появится после операций'), findsOneWidget);
+    expect(
+      find.byKey(const Key('desktop-budget-analysis-empty')),
+      findsOneWidget,
+    );
+    expect(find.text('Аналитика появится после операций'), findsOneWidget);
     await tester.tap(find.byKey(const Key('desktop-statistics-period')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Всё время').last);
@@ -456,7 +482,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('all desktop statistics sections fit at 1024', (tester) async {
+  testWidgets('all direct budget analytics sections fit at 1024', (
+    tester,
+  ) async {
     await tester.binding.setSurfaceSize(const Size(1024, 768));
     addTearDown(() => tester.binding.setSurfaceSize(null));
 
@@ -469,27 +497,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.bar_chart_rounded).first);
+    await tester.tap(find.byKey(const Key('desktop-section-budget')));
     await tester.pumpAndSettle();
 
-    for (final section in [
-      'overview',
-      'expenses',
-      'rhythm',
-      'merchants',
-      'categories',
-      'cashFlow',
-      'budget',
-      'recurring',
+    for (final icon in [
+      Icons.trending_down_rounded,
+      Icons.calendar_view_week_rounded,
+      Icons.storefront_outlined,
+      Icons.category_outlined,
     ]) {
-      final tab = find.byKey(Key('desktop-statistics-tab-$section'));
-      await tester.ensureVisible(tab);
-      await tester.tap(tab);
+      final destination = find.byIcon(icon).first;
+      await tester.tap(destination);
       await tester.pumpAndSettle();
       expect(
         tester.takeException(),
         isNull,
-        reason: 'overflow in desktop statistics section $section',
+        reason: 'overflow in direct budget analytics section $icon',
       );
     }
   });

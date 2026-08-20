@@ -10,6 +10,7 @@ import '../features/notification_import/presentation/notification_import_screen.
 import '../features/receipt_import/presentation/receipt_import_screen.dart';
 import '../features/statement_import/data/bank_statement_file_models.dart';
 import '../features/statement_import/presentation/statement_import_screen.dart';
+import '../features/statistics/domain/models/statistics_models.dart';
 import '../features/voice_input/data/voice_capture_service.dart';
 import '../features/voice_input/domain/voice_transaction_draft_parser.dart';
 import 'desktop_destination.dart';
@@ -157,6 +158,10 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       onOpenRecurring: () => _select(DesktopDestination.recurring),
       onOpenTransaction: _openTransaction,
     ),
+    DesktopDestination.expenses => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.expenses,
+    ),
     DesktopDestination.transactions => DesktopTransactionsPage(
       controller: widget.controller,
       requestedTransactionId: _requestedTransactionId,
@@ -168,6 +173,18 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     DesktopDestination.cashFlow => DesktopCashFlowPage(
       controller: widget.controller,
     ),
+    DesktopDestination.rhythm => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.rhythm,
+    ),
+    DesktopDestination.merchants => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.merchants,
+    ),
+    DesktopDestination.categories => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.categories,
+    ),
     DesktopDestination.accounts => DesktopAccountsPage(
       controller: widget.controller,
     ),
@@ -178,9 +195,6 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       goals: widget.data.financialData.savingsGoals,
     ),
     DesktopDestination.capital => DesktopAccountsPage(
-      controller: widget.controller,
-    ),
-    DesktopDestination.reports => DesktopStatisticsPage(
       controller: widget.controller,
     ),
     DesktopDestination.insights => DesktopInsightsPage(

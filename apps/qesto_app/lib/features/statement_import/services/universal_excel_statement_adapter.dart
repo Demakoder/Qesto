@@ -61,14 +61,15 @@ class UniversalExcelStatementAdapter {
     }
 
     final fallbackDate = referenceDate ?? DateTime.now();
-    final workbookYear = yearOverride ?? _workbookExplicitYear(workbook);
+    final workbookYear = _workbookExplicitYear(workbook);
     final grids = <_SheetGrid>[
       for (final entry in workbook.tables.entries)
         _SheetGrid.fromSheet(
           entry.key,
           entry.value,
           fallbackDate,
-          forcedYear: workbookYear,
+          forcedYear: yearOverride,
+          defaultYear: workbookYear,
         ),
     ];
     final regular = grids.where((grid) => !grid.isSummaryLike).toList();
@@ -114,6 +115,16 @@ class UniversalExcelStatementAdapter {
     for (final grid in grids) {
       final claimedCells = <String>{};
       result.addAll(
+        _parsePersistentCategoryLedgers(grid, fileName, claimedCells),
+      );
+      result.addAll(_parseBandedCategoryTables(grid, fileName, claimedCells));
+      result.addAll(
+        _parseColumnPeriodMatrices(grid, fileName, fallbackDate, claimedCells),
+      );
+      result.addAll(
+        _parseRowPeriodMatrices(grid, fileName, fallbackDate, claimedCells),
+      );
+      result.addAll(
         _parseVerticalTables(grid, fileName, fallbackDate, claimedCells),
       );
       result.addAll(
@@ -122,6 +133,476 @@ class UniversalExcelStatementAdapter {
       result.addAll(
         _parseCategoryMatrices(grid, fileName, fallbackDate, claimedCells),
       );
+    }
+    return result;
+  }
+
+  /// Parses budget sheets where expense categories are fixed in columns and
+  /// dates appear only when a new group of amounts begins. Some templates
+  /// repeat the category labels for every date, while older revisions keep a
+  /// single header for the entire month. Both are handled by the same stateful
+  /// scan without turning budget totals elsewhere on the sheet into expenses.
+  List<_ExcelDraft> _parsePersistentCategoryLedgers(
+    _SheetGrid grid,
+    String fileName,
+    Set<String> claimedCells,
+  ) {
+    if (grid.monthHint == null) return const <_ExcelDraft>[];
+    final result = <_ExcelDraft>[];
+    final maximum = grid.rows.length < 5000 ? grid.rows.length : 5000;
+    for (
+      var headerRow = 0;
+      headerRow < maximum && headerRow < 80;
+      headerRow++
+    ) {
+      final row = grid.rows[headerRow];
+      final candidates = <int, String>{};
+      for (var column = 0; column < row.length; column++) {
+        final label = _cleanText(row[column]);
+        if (label == null ||
+            _columnRole(label) != null ||
+            _monthNumber(label) != null ||
+            _isSummaryLabel(label)) {
+          continue;
+        }
+        candidates[column] = label;
+      }
+      if (candidates.length < 3) continue;
+
+      final columns = candidates.keys.toList()..sort();
+      var bestStart = 0;
+      var bestEnd = 0;
+      var runStart = 0;
+      for (var index = 1; index <= columns.length; index++) {
+        if (index < columns.length &&
+            columns[index] == columns[index - 1] + 1) {
+          continue;
+        }
+        if (index - runStart > bestEnd - bestStart) {
+          bestStart = runStart;
+          bestEnd = index;
+        }
+        runStart = index;
+      }
+      final contiguous = columns.sublist(bestStart, bestEnd);
+      if (contiguous.length < 3) continue;
+      final distinctCategories = contiguous
+          .map((column) => _normalizeText(candidates[column]))
+          .toSet();
+      final financialCategories = distinctCategories
+          .where(_looksLikeFinancialCategoryLabel)
+          .length;
+      if (distinctCategories.length < 3 || financialCategories < 2) continue;
+      final firstCategory = contiguous.first;
+      final nearbyContext = <String>[
+        grid.name,
+        for (
+          var contextRow = headerRow - 3;
+          contextRow <= headerRow;
+          contextRow++
+        )
+          if (contextRow >= 0)
+            ...grid.rows[contextRow]
+                .take(firstCategory + 1)
+                .map(_cleanText)
+                .whereType<String>(),
+      ].join(' ');
+      final looksLikeExpenses = RegExp(
+        r'трат|расход|покуп',
+      ).hasMatch(_normalizeText(nearbyContext));
+      if (!looksLikeExpenses && financialCategories < 3) continue;
+
+      final categories = <int, String>{
+        for (final column in contiguous) column: candidates[column]!,
+      };
+      var currentDate = DateTime(grid.yearHint, grid.monthHint!);
+      var foundAmount = false;
+      var emptyRun = 0;
+      for (var rowIndex = headerRow + 1; rowIndex < maximum; rowIndex++) {
+        final dataRow = grid.rows[rowIndex];
+        final dateSearchStart = firstCategory > 2 ? firstCategory - 2 : 0;
+        for (var column = dateSearchStart; column < firstCategory; column++) {
+          final parsed = _parseDate(
+            _at(dataRow, column),
+            sheetMonth: grid.monthHint,
+            sheetYear: grid.yearHint,
+          );
+          if (parsed != null) {
+            currentDate = parsed;
+            break;
+          }
+        }
+
+        var populated = 0;
+        for (final entry in categories.entries) {
+          final rawAmount = _parseMoney(_at(dataRow, entry.key));
+          if (rawAmount == null || rawAmount == 0) continue;
+          populated++;
+          final cellKey = '${grid.name}:$rowIndex:${entry.key}';
+          if (!claimedCells.add(cellKey)) continue;
+          foundAmount = true;
+          final direction = _resolveDirection(
+            headerRole: _ColumnRole.amount,
+            rawAmount: rawAmount,
+            sheetName: grid.name,
+            description: entry.value,
+          );
+          result.add(
+            _draft(
+              fileName: fileName,
+              grid: grid,
+              row: rowIndex,
+              column: entry.key,
+              date: currentDate,
+              rawAmount: rawAmount,
+              direction: direction,
+              description: entry.value,
+              category: entry.value,
+              aggregate: false,
+            ),
+          );
+        }
+        if (populated == 0 && dataRow.every(_isBlank)) {
+          emptyRun++;
+        } else {
+          emptyRun = 0;
+        }
+        if (foundAmount && emptyRun >= 40) break;
+      }
+      if (foundAmount) break;
+    }
+    return result;
+  }
+
+  List<_ExcelDraft> _parseBandedCategoryTables(
+    _SheetGrid grid,
+    String fileName,
+    Set<String> claimedCells,
+  ) {
+    final result = <_ExcelDraft>[];
+    final maximum = grid.rows.length < 5000 ? grid.rows.length : 5000;
+    for (var headerRow = 0; headerRow < maximum; headerRow++) {
+      final row = grid.rows[headerRow];
+      final dateEntry = _dateEntryInRow(grid, row);
+      if (dateEntry == null) continue;
+      final categories = <int, String>{};
+      for (var column = dateEntry.column + 1; column < row.length; column++) {
+        final label = _cleanText(row[column]);
+        if (label == null ||
+            _columnRole(label) != null ||
+            _monthNumber(label) != null ||
+            _isSummaryLabel(label)) {
+          continue;
+        }
+        categories[column] = label;
+      }
+      if (categories.length < 3) continue;
+      final distinctCategories = categories.values.map(_normalizeText).toSet();
+      if (distinctCategories.length < 3 ||
+          distinctCategories.where(_looksLikeFinancialCategoryLabel).length <
+              2) {
+        continue;
+      }
+
+      var blockEnd = headerRow + 1;
+      while (blockEnd < maximum && blockEnd <= headerRow + 40) {
+        final next = grid.rows[blockEnd];
+        final nextDate = _dateEntryInRow(grid, next);
+        if (nextDate != null &&
+            nextDate.column == dateEntry.column &&
+            next
+                    .skip(dateEntry.column + 1)
+                    .map(_cleanText)
+                    .whereType<String>()
+                    .length >=
+                3) {
+          break;
+        }
+        blockEnd++;
+      }
+
+      var foundAmount = false;
+      for (var rowIndex = headerRow + 1; rowIndex < blockEnd; rowIndex++) {
+        final dataRow = grid.rows[rowIndex];
+        for (final entry in categories.entries) {
+          final rawAmount = _parseMoney(_at(dataRow, entry.key));
+          if (rawAmount == null || rawAmount == 0) continue;
+          final cellKey = '${grid.name}:$rowIndex:${entry.key}';
+          if (!claimedCells.add(cellKey)) continue;
+          foundAmount = true;
+          final direction = _resolveDirection(
+            headerRole: _ColumnRole.amount,
+            rawAmount: rawAmount,
+            sheetName: grid.name,
+            description: entry.value,
+          );
+          result.add(
+            _draft(
+              fileName: fileName,
+              grid: grid,
+              row: rowIndex,
+              column: entry.key,
+              date: dateEntry.date,
+              rawAmount: rawAmount,
+              direction: direction,
+              description: entry.value,
+              category: entry.value,
+              aggregate: true,
+            ),
+          );
+        }
+      }
+      if (foundAmount) headerRow = blockEnd - 1;
+    }
+    return result;
+  }
+
+  List<_ExcelDraft> _parseColumnPeriodMatrices(
+    _SheetGrid grid,
+    String fileName,
+    DateTime fallbackDate,
+    Set<String> claimedCells,
+  ) {
+    final result = <_ExcelDraft>[];
+    final limit = grid.rows.length < 180 ? grid.rows.length : 180;
+    for (var headerRow = 0; headerRow < limit; headerRow++) {
+      final row = grid.rows[headerRow];
+      final periodColumns = <int, DateTime>{};
+      for (var column = 0; column < row.length; column++) {
+        final date = _columnPeriodDate(
+          row[column],
+          sheetMonth: grid.monthHint,
+          sheetYear: grid.yearHint,
+        );
+        if (date != null) periodColumns[column] = date;
+      }
+      if (periodColumns.length < 2) continue;
+      final firstPeriodColumn = periodColumns.keys.reduce(
+        (left, right) => left < right ? left : right,
+      );
+      final roles = <int, _ColumnRole>{};
+      for (var column = 0; column < row.length; column++) {
+        final role = _columnRole(row[column]);
+        if (role != null) roles[column] = role;
+      }
+      final descriptorCandidates = roles.entries
+          .where(
+            (entry) =>
+                entry.value == _ColumnRole.category ||
+                entry.value == _ColumnRole.description ||
+                entry.value == _ColumnRole.merchant,
+          )
+          .map((entry) => entry.key)
+          .where((column) => column < firstPeriodColumn)
+          .toList();
+      int? descriptorColumn = descriptorCandidates.isEmpty
+          ? null
+          : descriptorCandidates.last;
+      descriptorColumn ??= _nearestTextColumnBefore(row, firstPeriodColumn);
+      if (descriptorColumn == null) continue;
+
+      final section =
+          _cleanText(_at(row, descriptorColumn)) ??
+          _textBefore(row, firstPeriodColumn) ??
+          grid.name;
+      var currentDirection = _resolveDirection(
+        headerRole: _ColumnRole.amount,
+        rawAmount: 1,
+        sheetName: '${grid.name} $section',
+        description: '',
+      );
+      final maximum = grid.rows.length < headerRow + 500
+          ? grid.rows.length
+          : headerRow + 500;
+      var matchedRows = 0;
+      var emptyRun = 0;
+      for (var rowIndex = headerRow + 1; rowIndex < maximum; rowIndex++) {
+        final dataRow = grid.rows[rowIndex];
+        final label = _cleanText(_at(dataRow, descriptorColumn));
+        final rowContext = _normalizeText(
+          dataRow.map(_cleanText).whereType<String>().join(' '),
+        );
+        if (RegExp(
+          r'категори[ия] доход|источник[и]? доход',
+        ).hasMatch(rowContext)) {
+          currentDirection = _Direction.income;
+          continue;
+        }
+        if (RegExp(
+          r'категори[ия] расход|стать[ия] расход',
+        ).hasMatch(rowContext)) {
+          currentDirection = _Direction.expense;
+          continue;
+        }
+        if (_isSummaryLabel(rowContext)) {
+          emptyRun = 0;
+          continue;
+        }
+        final populated = periodColumns.keys
+            .where((column) => _parseMoney(_at(dataRow, column)) != null)
+            .length;
+        if (label == null && populated == 0) {
+          emptyRun++;
+          if (matchedRows > 0 || emptyRun >= 5) break;
+          continue;
+        }
+        emptyRun = 0;
+        if (label == null || _isSummaryLabel(label)) continue;
+        if (populated == 0) continue;
+        matchedRows++;
+        for (final entry in periodColumns.entries) {
+          final rawAmount = _parseMoney(_at(dataRow, entry.key));
+          if (rawAmount == null || rawAmount == 0) continue;
+          final cellKey = '${grid.name}:$rowIndex:${entry.key}';
+          if (!claimedCells.add(cellKey)) continue;
+          result.add(
+            _draft(
+              fileName: fileName,
+              grid: grid,
+              row: rowIndex,
+              column: entry.key,
+              date: entry.value,
+              rawAmount: rawAmount,
+              direction: currentDirection,
+              description: label,
+              category: label,
+              aggregate: true,
+            ),
+          );
+        }
+        for (final role in roles.entries.where(
+          (entry) => _isAmountRole(entry.value),
+        )) {
+          if (_parseMoney(_at(dataRow, role.key)) != null) {
+            claimedCells.add('${grid.name}:$rowIndex:${role.key}');
+          }
+        }
+      }
+      if (matchedRows > 0) break;
+    }
+    return result;
+  }
+
+  List<_ExcelDraft> _parseRowPeriodMatrices(
+    _SheetGrid grid,
+    String fileName,
+    DateTime fallbackDate,
+    Set<String> claimedCells,
+  ) {
+    final result = <_ExcelDraft>[];
+    final limit = grid.rows.length < 160 ? grid.rows.length : 160;
+    for (var headerRow = 0; headerRow < limit; headerRow++) {
+      final row = grid.rows[headerRow];
+      int? periodColumn;
+      for (var column = 0; column < row.length; column++) {
+        final text = _normalizeText(row[column]);
+        if (RegExp(r'(^|\s)(месяц|период)(\s|$)').hasMatch(text)) {
+          periodColumn = column;
+          break;
+        }
+      }
+      if (periodColumn == null) continue;
+
+      final candidates = <_RowPeriodColumn>[];
+      for (var column = 0; column < row.length; column++) {
+        if (column == periodColumn) continue;
+        final context = _matrixHeaderContext(grid, headerRow, column);
+        final normalized = _normalizeText(context);
+        if (normalized.isEmpty ||
+            RegExp(
+              r'(^|\s)(план|дельта|отклонен|процент|%|остаток|баланс|целевая|курс|колич|avg|floor)(\s|$)',
+            ).hasMatch(normalized)) {
+          continue;
+        }
+        final hasIncome = RegExp(
+          r'доход|заработ|зарплат|зачислен|оклад|преми|начислен|источник',
+        ).hasMatch(normalized);
+        final hasExpense = RegExp(
+          r'расход|трат|покуп|списан|еда|коммун|интернет|маркетплейс|супермаркет|переводы другим|услуг',
+        ).hasMatch(normalized);
+        final capital = _capitalKind(normalized);
+        if (!hasIncome && !hasExpense && capital == null) continue;
+        final direction = hasIncome && !hasExpense
+            ? _Direction.income
+            : _Direction.expense;
+        candidates.add(
+          _RowPeriodColumn(
+            column: column,
+            description: _matrixHeaderLabel(grid, headerRow, column),
+            direction: direction,
+            capitalKind: capital,
+            isTotal: RegExp(r'итог|суммар|общ').hasMatch(normalized),
+          ),
+        );
+      }
+      if (candidates.length < 2) continue;
+
+      final selected = <_RowPeriodColumn>[];
+      final income = candidates
+          .where((item) => item.direction == _Direction.income)
+          .toList();
+      final expense = candidates
+          .where(
+            (item) =>
+                item.direction == _Direction.expense &&
+                item.capitalKind == null,
+          )
+          .toList();
+      final capital = candidates
+          .where((item) => item.capitalKind != null)
+          .toList();
+      final incomeTotals = income.where((item) => item.isTotal).toList();
+      selected.addAll(incomeTotals.isNotEmpty ? incomeTotals : income);
+      final expenseDetails = expense.where((item) => !item.isTotal).toList();
+      selected.addAll(expenseDetails.length >= 2 ? expenseDetails : expense);
+      selected.addAll(capital.where((item) => !item.isTotal));
+      if (selected.isEmpty) continue;
+
+      final maximum = grid.rows.length < headerRow + 180
+          ? grid.rows.length
+          : headerRow + 180;
+      var matchedRows = 0;
+      for (var rowIndex = headerRow + 1; rowIndex < maximum; rowIndex++) {
+        final dataRow = grid.rows[rowIndex];
+        final date = _parseMonthHeader(
+          _at(dataRow, periodColumn),
+          sheetYear: grid.yearHint,
+          fallbackYear: fallbackDate.year,
+          preferSheetYear: grid.yearIsExplicit,
+        );
+        if (date == null) continue;
+        var rowHasAmount = false;
+        for (final item in selected) {
+          final rawAmount = _parseMoney(_at(dataRow, item.column));
+          if (rawAmount == null || rawAmount == 0) continue;
+          final cellKey = '${grid.name}:$rowIndex:${item.column}';
+          if (!claimedCells.add(cellKey)) continue;
+          rowHasAmount = true;
+          result.add(
+            _draft(
+              fileName: fileName,
+              grid: grid,
+              row: rowIndex,
+              column: item.column,
+              date: date,
+              rawAmount: rawAmount,
+              direction: item.direction,
+              description: item.description,
+              category: item.description,
+              aggregate: true,
+            ),
+          );
+        }
+        if (rowHasAmount) {
+          matchedRows++;
+          for (final item in candidates) {
+            if (_parseMoney(_at(dataRow, item.column)) != null) {
+              claimedCells.add('${grid.name}:$rowIndex:${item.column}');
+            }
+          }
+        }
+      }
+      if (matchedRows > 0) break;
     }
     return result;
   }
@@ -211,13 +692,10 @@ class UniversalExcelStatementAdapter {
 
   int _verticalBlockEnd(Map<int, _ColumnRole> roles, int start, int rowLength) {
     var last = start;
-    var seenAmount = false;
     for (var column = start + 1; column < rowLength; column++) {
       final role = roles[column];
       if (role == _ColumnRole.date) break;
       if (role != null) last = column;
-      if (role != null && _isAmountRole(role)) seenAmount = true;
-      if (seenAmount && column - last >= 3) break;
     }
     return last < start ? start : last;
   }
@@ -271,6 +749,7 @@ class UniversalExcelStatementAdapter {
     final maximum = grid.rows.length < headerRow + 5000
         ? grid.rows.length
         : headerRow + 5000;
+    DateTime? carriedDate;
     for (var rowIndex = headerRow + 1; rowIndex < maximum; rowIndex++) {
       final row = grid.rows[rowIndex];
       final relevant = <Object?>[
@@ -285,13 +764,23 @@ class UniversalExcelStatementAdapter {
       emptyRun = 0;
       if (_looksLikeHeader(relevant)) break;
 
-      final date = dateColumn == null
-          ? fallbackDate
-          : _parseDate(
-              _at(row, dateColumn),
-              sheetMonth: grid.monthHint,
-              sheetYear: grid.yearHint,
-            );
+      if (dateColumn != null) {
+        final rawDate = _at(row, dateColumn);
+        final explicitDate = _parseDate(
+          rawDate,
+          sheetMonth: grid.monthHint,
+          sheetYear: grid.yearHint,
+        );
+        if (explicitDate != null) {
+          carriedDate = explicitDate;
+        } else if (!_isBlank(rawDate)) {
+          // A balance/formula in the date column marks the end of a ledger
+          // run. Blank cells inherit the preceding date; non-date values do
+          // not, otherwise analytical blocks become fake transactions.
+          carriedDate = null;
+        }
+      }
+      final date = dateColumn == null ? fallbackDate : carriedDate;
       if (date == null) continue;
       final descriptors = <String>[];
       String? category;
@@ -337,7 +826,8 @@ class UniversalExcelStatementAdapter {
         final direction = _resolveDirection(
           headerRole: roles[amountColumn]!,
           rawAmount: rawAmount,
-          sheetName: grid.name,
+          sheetName:
+              '${grid.name} ${_matrixHeaderContext(grid, headerRow, amountColumn)}',
           typeText: typeText,
           description: description,
         );
@@ -378,6 +868,7 @@ class UniversalExcelStatementAdapter {
           row[column],
           sheetYear: grid.yearHint,
           fallbackYear: fallbackDate.year,
+          preferSheetYear: grid.yearIsExplicit,
         );
         if (date != null) monthColumns[column] = date;
       }
@@ -485,6 +976,14 @@ class UniversalExcelStatementAdapter {
         categoryColumns[column] = label;
       }
       if (categoryColumns.length < 3) continue;
+      final distinctCategories = categoryColumns.values
+          .map(_normalizeText)
+          .toSet();
+      if (distinctCategories.length < 3 ||
+          distinctCategories.where(_looksLikeFinancialCategoryLabel).length <
+              2) {
+        continue;
+      }
       final nextRow = headerRow + 1 < grid.rows.length
           ? grid.rows[headerRow + 1]
           : const <Object?>[];
@@ -790,31 +1289,38 @@ int? _workbookExplicitYear(Excel workbook) {
   }
 
   for (final entry in workbook.tables.entries) {
-    add(
-      _plausibleYear(RegExp(r'\b(20\d{2})\b').firstMatch(entry.key)?.group(1)),
-    );
+    add(_yearNumber(entry.key));
     for (final row in entry.value.rows.take(160)) {
       for (final cell in row.take(40)) {
         final value = _excelValue(cell?.value);
-        if (value is DateTime) {
-          add(_plausibleYear(value.year));
-        } else if (value is String) {
-          add(
-            _plausibleYear(
-              RegExp(r'\b(20\d{2})\b').firstMatch(value)?.group(1),
-            ),
-          );
-        }
+        if (value is String) add(_yearNumber(value));
       }
     }
   }
   if (counts.isEmpty) return null;
-  final ranked = counts.entries.toList()
-    ..sort((a, b) {
-      final byCount = b.value.compareTo(a.value);
-      return byCount != 0 ? byCount : b.key.compareTo(a.key);
-    });
-  return ranked.first.key;
+  if (counts.length > 1) return null;
+  return counts.keys.single;
+}
+
+int? _yearNumber(Object? value) {
+  final text = _normalizeText(value);
+  final full = RegExp(r'\b(20\d{2})\b').firstMatch(text);
+  final fullYear = _plausibleYear(full?.group(1));
+  if (fullYear != null) return fullYear;
+  final numericSuffix = RegExp(
+    r'(?:^|\D)(?:0?[1-9]|1[0-2])[.\-_/](\d{2})(?:\D|$)',
+  ).firstMatch(text);
+  final suffix = int.tryParse(numericSuffix?.group(1) ?? '');
+  if (suffix != null) return 2000 + suffix;
+  if (_monthNumber(text) != null) {
+    final shortMatches = RegExp(
+      r'(?:^|\D)(\d{2})(?:\D|$)',
+    ).allMatches(text).toList();
+    final short = shortMatches.isEmpty ? null : shortMatches.last;
+    final year = int.tryParse(short?.group(1) ?? '');
+    if (year != null) return 2000 + year;
+  }
+  return null;
 }
 
 int? _plausibleYear(Object? value) {
@@ -879,6 +1385,29 @@ class _ExcelDraft {
   final String? capitalAccountName;
 }
 
+class _DateEntry {
+  const _DateEntry(this.column, this.date);
+
+  final int column;
+  final DateTime date;
+}
+
+class _RowPeriodColumn {
+  const _RowPeriodColumn({
+    required this.column,
+    required this.description,
+    required this.direction,
+    required this.capitalKind,
+    required this.isTotal,
+  });
+
+  final int column;
+  final String description;
+  final _Direction direction;
+  final StatementCapitalKind? capitalKind;
+  final bool isTotal;
+}
+
 class _SheetGrid {
   const _SheetGrid({
     required this.name,
@@ -893,6 +1422,7 @@ class _SheetGrid {
     Sheet sheet,
     DateTime fallbackDate, {
     int? forcedYear,
+    int? defaultYear,
   }) {
     final rows = <List<Object?>>[];
     final maximumRows = sheet.maxRows < 10000 ? sheet.maxRows : 10000;
@@ -916,9 +1446,7 @@ class _SheetGrid {
       rows.removeLast();
     }
     final normalizedName = _normalizeText(name);
-    final nameYear = _plausibleYear(
-      RegExp(r'\b(20\d{2})\b').firstMatch(normalizedName)?.group(1),
-    );
+    final nameYear = _yearNumber(normalizedName);
     int? contentYear;
     for (final row in rows.take(80)) {
       for (final value in row.take(30)) {
@@ -938,7 +1466,7 @@ class _SheetGrid {
       if (contentYear != null) break;
     }
     final explicitYear = forcedYear ?? nameYear ?? contentYear;
-    final year = explicitYear ?? fallbackDate.year;
+    final year = explicitYear ?? defaultYear ?? fallbackDate.year;
     return _SheetGrid(
       name: name,
       rows: rows,
@@ -961,7 +1489,7 @@ class _SheetGrid {
 
 Object? _excelValue(CellValue? value) => switch (value) {
   null => null,
-  TextCellValue() => value.value,
+  TextCellValue() => value.value.toString(),
   IntCellValue() => value.value,
   DoubleCellValue() => value.value,
   DateCellValue() => value.asDateTimeLocal(),
@@ -1083,6 +1611,7 @@ _ColumnRole? _columnRole(Object? value) {
   }
   if (text.contains('подкатегор') ||
       text.contains('категор') ||
+      text.contains('вид актива') ||
       text == 'статья') {
     return _ColumnRole.category;
   }
@@ -1142,7 +1671,7 @@ _ResolvedKind _kindFor(
     _Direction.expense => rawAmount < 0,
     _Direction.signed => rawAmount >= 0,
   };
-  if (normalized.contains('перевод')) {
+  if (normalized.contains('перевод') && direction == _Direction.signed) {
     return _ResolvedKind(StatementTransactionKind.transfer, incoming);
   }
   return incoming
@@ -1166,6 +1695,124 @@ StatementCapitalKind? _capitalKind(String context) {
   return null;
 }
 
+bool _looksLikeFinancialCategoryLabel(String value) {
+  final normalized = _normalizeText(value).replaceAll('ё', 'е');
+  if (_capitalKind(normalized) != null) return true;
+  return RegExp(
+    r'продукт|еда|кафе|ресторан|достав|транспорт|такси|проезд|авто|бенз|здоров|лекар|аптек|гигиен|кредит|ипотек|аренд|жиль|коммун|связ|интернет|телефон|подпис|развлеч|путеше|отдых|шоп|одеж|подар|маркетплейс|дом|быт|образован|дети|родител|налог|страхов|спорт|зарплат|фриланс|кэшб|перевод',
+  ).hasMatch(normalized);
+}
+
+_DateEntry? _dateEntryInRow(_SheetGrid grid, List<Object?> row) {
+  for (var column = 0; column < row.length; column++) {
+    final value = row[column];
+    if (value is DateTime) return _DateEntry(column, value);
+    if (value is! String || !RegExp(r'\d{1,2}[.\-/]\d{1,2}').hasMatch(value)) {
+      continue;
+    }
+    final parsed = _parseDate(
+      value,
+      sheetMonth: grid.monthHint,
+      sheetYear: grid.yearHint,
+    );
+    if (parsed != null) return _DateEntry(column, parsed);
+  }
+  return null;
+}
+
+DateTime? _columnPeriodDate(
+  Object? value, {
+  required int? sheetMonth,
+  required int sheetYear,
+}) {
+  if (sheetMonth == null) return null;
+  if (value is DateTime) {
+    final year = _plausibleYear(value.year) ?? sheetYear;
+    return DateTime(year, value.month, value.day);
+  }
+  if (value is num && value == value.roundToDouble()) {
+    final day = value.toInt();
+    final maximum = DateTime(sheetYear, sheetMonth + 1, 0).day;
+    if (day >= 1 && day <= maximum) {
+      return DateTime(sheetYear, sheetMonth, day);
+    }
+  }
+  final text = _cleanText(value);
+  if (text == null || _monthNumber(text) != null) return null;
+  final week = RegExp(
+    r'(?:^|\s)(?:с\s*)?(\d{1,2})\s*(?:по|[-–—])\s*(\d{1,2})(?:\s|$)',
+  ).firstMatch(_normalizeText(text));
+  if (week != null) {
+    final day = int.parse(week.group(1)!);
+    final maximum = DateTime(sheetYear, sheetMonth + 1, 0).day;
+    if (day >= 1 && day <= maximum) {
+      return DateTime(sheetYear, sheetMonth, day);
+    }
+  }
+  final exactDay = int.tryParse(text);
+  if (exactDay != null) {
+    final maximum = DateTime(sheetYear, sheetMonth + 1, 0).day;
+    if (exactDay >= 1 && exactDay <= maximum) {
+      return DateTime(sheetYear, sheetMonth, exactDay);
+    }
+  }
+  if (RegExp(r'\d{1,2}[.\-/]\d{1,2}').hasMatch(text)) {
+    return _parseDate(text, sheetMonth: sheetMonth, sheetYear: sheetYear);
+  }
+  return null;
+}
+
+int? _nearestTextColumnBefore(List<Object?> row, int beforeColumn) {
+  for (var column = beforeColumn - 1; column >= 0; column--) {
+    final label = _cleanText(_at(row, column));
+    if (label == null || _isSummaryLabel(label)) continue;
+    return column;
+  }
+  return null;
+}
+
+String _matrixHeaderContext(_SheetGrid grid, int headerRow, int column) {
+  final parts = <String>[];
+  final seen = <String>{};
+  final start = headerRow < 4 ? 0 : headerRow - 4;
+  for (var rowIndex = start; rowIndex <= headerRow; rowIndex++) {
+    final row = grid.rows[rowIndex];
+    String? value;
+    for (
+      var candidate = column;
+      candidate >= 0 && candidate >= column - 10;
+      candidate--
+    ) {
+      value = _cleanText(_at(row, candidate));
+      if (value != null) break;
+    }
+    if (value == null) continue;
+    final normalized = _normalizeText(value);
+    if (seen.add(normalized)) parts.add(value);
+  }
+  return parts.join(' · ');
+}
+
+String _matrixHeaderLabel(_SheetGrid grid, int headerRow, int column) {
+  final direct = _cleanText(_at(grid.rows[headerRow], column));
+  if (direct != null &&
+      !RegExp(
+        r'^(факт|сумма|итог|итого|за месяц|за период)$',
+      ).hasMatch(_normalizeText(direct))) {
+    return direct;
+  }
+  final context = _matrixHeaderContext(grid, headerRow, column);
+  final parts = context.split(' · ').reversed;
+  for (final part in parts) {
+    if (!RegExp(
+      r'^(факт|сумма|итог|итого|за месяц|за период|доход|расходы?)$',
+    ).hasMatch(_normalizeText(part))) {
+      return part;
+    }
+  }
+  return direct ?? 'Операция из Excel';
+}
+
 DateTime? _parseDate(
   Object? value, {
   required int? sheetMonth,
@@ -1185,8 +1832,15 @@ DateTime? _parseDate(
   if (numeric != null) {
     var year = int.tryParse(numeric.group(3) ?? '') ?? sheetYear;
     if (year < 100) year += 2000;
-    final month = int.parse(numeric.group(2)!);
-    final day = int.parse(numeric.group(1)!);
+    final first = int.parse(numeric.group(1)!);
+    final second = int.parse(numeric.group(2)!);
+    // Budget templates exported from different locales may contain both
+    // dd/mm/yyyy and mm/dd/yyyy. The month encoded in the sheet title is the
+    // reliable discriminator when only one side matches it.
+    final firstIsSheetMonth = sheetMonth != null && first == sheetMonth;
+    final secondIsSheetMonth = sheetMonth != null && second == sheetMonth;
+    final month = firstIsSheetMonth && !secondIsSheetMonth ? first : second;
+    final day = firstIsSheetMonth && !secondIsSheetMonth ? second : first;
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
       final maximum = DateTime(year, month + 1, 0).day;
       if (day <= maximum) return DateTime(year, month, day);
@@ -1205,9 +1859,12 @@ DateTime? _parseMonthHeader(
   Object? value, {
   required int sheetYear,
   required int fallbackYear,
+  bool preferSheetYear = false,
 }) {
   if (value is DateTime) {
-    final year = _plausibleYear(value.year) ?? sheetYear;
+    final year = preferSheetYear
+        ? sheetYear
+        : (_plausibleYear(value.year) ?? sheetYear);
     return DateTime(year, value.month);
   }
   final text = _cleanText(value);
@@ -1223,6 +1880,10 @@ DateTime? _parseMonthHeader(
 
 int? _monthNumber(Object? value) {
   final text = _normalizeText(value).replaceAll('ё', 'е');
+  final numericMonth = RegExp(
+    r'(?:^|\D)(0?[1-9]|1[0-2])[.\-/](?:20)?\d{2}(?:\D|$)',
+  ).firstMatch(text);
+  if (numericMonth != null) return int.parse(numericMonth.group(1)!);
   const names = <String, int>{
     'январ': 1,
     'феврал': 2,
@@ -1345,7 +2006,7 @@ bool _isSummaryLabel(Object? value) {
   final text = _normalizeText(value);
   if (text.isEmpty) return false;
   return RegExp(
-    r'(^|\s)(итого|всего|total|grand total|сальдо|остаток|средн|план|бюджет|прогноз|проверка|дельта|начальная сумма|конечный капитал)(\s|:|$)',
+    r'(^|\s)(итого|всего|total|grand total|сальдо|остаток|средн|план|бюджет|прогноз|проверка|дельта|начальная сумма|конечный капитал|предполагаемые|фактические|разница|доля,?\s*%|№|п/п|срок)(\s|:|$)',
   ).hasMatch(text);
 }
 
@@ -1360,7 +2021,8 @@ String? _cleanText(Object? value) {
   if (value == null || value is bool || value is Duration) return null;
   if (value is num || value is DateTime) return null;
   final text = '$value'.replaceAll(RegExp(r'\s+'), ' ').trim();
-  return text.isEmpty ? null : text;
+  if (text.isEmpty || RegExp(r'^[-–—?]+$').hasMatch(text)) return null;
+  return text;
 }
 
 String _normalizeText(Object? value) => '$value'

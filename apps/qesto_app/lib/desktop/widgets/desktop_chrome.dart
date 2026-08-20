@@ -25,8 +25,7 @@ class DesktopSidebar extends StatefulWidget {
 }
 
 class _DesktopSidebarState extends State<DesktopSidebar> {
-  late DesktopProductSection _expandedSection =
-      widget.selected.section ?? DesktopProductSection.budget;
+  late DesktopProductSection? _expandedSection = widget.selected.section;
 
   @override
   void didUpdateWidget(covariant DesktopSidebar oldWidget) {
@@ -136,6 +135,14 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 children: [
+                  _SidebarItem(
+                    destination: DesktopDestination.dashboard,
+                    selected: widget.selected == DesktopDestination.dashboard,
+                    collapsed: widget.collapsed,
+                    onTap: () =>
+                        widget.onSelected(DesktopDestination.dashboard),
+                  ),
+                  const SizedBox(height: 5),
                   if (!widget.collapsed)
                     const Padding(
                       padding: EdgeInsets.fromLTRB(10, 7, 10, 7),
@@ -307,6 +314,7 @@ class _SidebarItem extends StatelessWidget {
           color: selected ? QestoColors.primarySoft : Colors.transparent,
           borderRadius: BorderRadius.circular(11),
           child: InkWell(
+            key: Key('desktop-destination-${destination.name}'),
             borderRadius: BorderRadius.circular(11),
             onTap: onTap,
             child: SizedBox(
