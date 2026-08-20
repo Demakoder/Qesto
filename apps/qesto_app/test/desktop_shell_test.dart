@@ -21,7 +21,9 @@ void main() {
 
     expect(find.text('DEMO · отдельно от данных'), findsNothing);
     expect(find.text('Starbucks'), findsNothing);
-    expect(find.text('Здесь появится финансовая картина'), findsOneWidget);
+    expect(find.text('Добрый день'), findsOneWidget);
+    expect(find.byKey(const Key('overview-expense-trend')), findsOneWidget);
+    expect(find.byKey(const Key('overview-expense-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -64,7 +66,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Здесь появится финансовая картина'), findsOneWidget);
+    expect(find.byKey(const Key('desktop-overview-scroll')), findsOneWidget);
     expect(
       find.byIcon(Icons.keyboard_double_arrow_right_rounded),
       findsOneWidget,
@@ -148,8 +150,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Не назначен'), findsOneWidget);
-    expect(find.text('Выберите бюджет'), findsOneWidget);
+    expect(find.text('Не рассчитаны'), findsOneWidget);
+    expect(find.text('Назначьте бюджет'), findsOneWidget);
     expect(find.textContaining('План превышен'), findsNothing);
 
     await tester.tap(find.byIcon(Icons.pie_chart_outline_rounded).first);
@@ -170,6 +172,54 @@ void main() {
     expect(find.text('Изменить'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'overview metrics, period and transaction sorting are interactive',
+    (tester) async {
+      await tester.binding.setSurfaceSize(const Size(1440, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(
+        QestoApp(
+          repository: MockQestoRepository(
+            delay: Duration.zero,
+            financialData: sampleUserFinancialData,
+          ),
+          preferenceStore: MemoryKeyValueStore(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Кэшфлоу'), findsOneWidget);
+      expect(find.byKey(const Key('desktop-overview-period')), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Выбрать доходы или расходы'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Доходы').last);
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('overview-primary-metric')),
+          matching: find.text('Доходы'),
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('desktop-overview-period')));
+      await tester.pumpAndSettle();
+      expect(find.text('Период обзора'), findsOneWidget);
+      await tester.tap(find.text('Июнь 2026'));
+      await tester.pumpAndSettle();
+      expect(find.text('Июнь 2026'), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('overview-recent-transactions')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Сумма'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('desktop is organised into Budget, Benefits and Savings', (
     tester,

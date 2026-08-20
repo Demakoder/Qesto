@@ -468,12 +468,16 @@ class DesktopTopBar extends StatelessWidget {
     required this.onAdd,
     required this.onNotifications,
     this.period,
+    this.onPeriodPressed,
+    this.compactSearch = false,
     this.contextualActions = const [],
     super.key,
   });
 
   final String title;
   final String? period;
+  final VoidCallback? onPeriodPressed;
+  final bool compactSearch;
   final VoidCallback onSearch;
   final VoidCallback onAdd;
   final VoidCallback onNotifications;
@@ -513,19 +517,45 @@ class DesktopTopBar extends StatelessWidget {
                     ),
                     if (period != null && !compact) ...[
                       const SizedBox(width: 14),
-                      DesktopPill(
-                        label: period!,
-                        icon: Icons.calendar_month_outlined,
-                        color: QestoColors.secondaryText,
-                        background: QestoColors.surfaceSecondary,
-                      ),
+                      if (onPeriodPressed == null)
+                        DesktopPill(
+                          label: period!,
+                          icon: Icons.calendar_month_outlined,
+                          color: QestoColors.secondaryText,
+                          background: QestoColors.surfaceSecondary,
+                        )
+                      else
+                        OutlinedButton.icon(
+                          key: const Key('desktop-overview-period'),
+                          onPressed: onPeriodPressed,
+                          icon: const Icon(
+                            Icons.calendar_month_outlined,
+                            size: 16,
+                          ),
+                          label: Text(period!),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: QestoColors.text,
+                            side: const BorderSide(color: QestoColors.border),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 9,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                     ],
                   ],
                 ),
               ),
               if (!compact) ...contextualActions,
               const SizedBox(width: 8),
-              if (compact)
+              if (compact || compactSearch)
                 IconButton.outlined(
                   tooltip: 'Поиск · Ctrl K',
                   onPressed: onSearch,
