@@ -10,6 +10,7 @@ import '../features/notification_import/presentation/notification_import_screen.
 import '../features/receipt_import/presentation/receipt_import_screen.dart';
 import '../features/statement_import/data/bank_statement_file_models.dart';
 import '../features/statement_import/presentation/statement_import_screen.dart';
+import '../features/statistics/domain/models/statistics_models.dart';
 import '../features/voice_input/data/voice_capture_service.dart';
 import '../features/voice_input/domain/voice_transaction_draft_parser.dart';
 import 'desktop_destination.dart';
@@ -44,6 +45,7 @@ class DesktopAppShell extends StatefulWidget {
 class _DesktopAppShellState extends State<DesktopAppShell> {
   var _destination = DesktopDestination.dashboard;
   var _sidebarCollapsed = false;
+  String? _dashboardPeriodId;
   String? _requestedTransactionId;
   var _transactionRequestSerial = 0;
 
@@ -92,10 +94,18 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
                     child: Column(
                       children: [
                         DesktopTopBar(
-                          title: _destination.section == null
+                          title: _destination == DesktopDestination.dashboard
+                              ? _destination.label
+                              : _destination.section == null
                               ? _destination.label
                               : '${_destination.section!.label} · ${_destination.label}',
                           period: _periodLabel,
+                          compactSearch:
+                              _destination == DesktopDestination.dashboard,
+                          onPeriodPressed:
+                              _destination == DesktopDestination.dashboard
+                              ? _chooseDashboardPeriod
+                              : null,
                           onSearch: _openGlobalSearch,
                           onAdd: _openAddData,
                           onNotifications: _openNotifications,
@@ -113,10 +123,23 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     );
   }
 
+  BudgetPeriod get _dashboardPeriod => widget.controller.periods.firstWhere(
+    (item) => item.id == _dashboardPeriodId,
+    orElse: () => widget.controller.periods.firstWhere(
+      (item) => item.contains(widget.controller.referenceDate),
+      orElse: () => widget.controller.periods.last,
+    ),
+  );
+
   String? get _periodLabel => switch (_destination) {
-    DesktopDestination.dashboard ||
-    DesktopDestination.budget ||
-    DesktopDestination.cashFlow => capitalize(
+    DesktopDestination.dashboard => capitalize(
+      formatBudgetPeriod(
+        _dashboardPeriod.month,
+        _dashboardPeriod.year,
+        includeYear: true,
+      ),
+    ),
+    DesktopDestination.budget || DesktopDestination.cashFlow => capitalize(
       formatBudgetPeriod(
         widget.controller.referenceDate.month,
         widget.controller.referenceDate.year,
@@ -129,10 +152,15 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   Widget _pageFor(DesktopDestination destination) => switch (destination) {
     DesktopDestination.dashboard => DesktopDashboardPage(
       controller: widget.controller,
+      period: _dashboardPeriod,
       onOpenTransactions: () => _select(DesktopDestination.transactions),
       onOpenBudget: () => _select(DesktopDestination.budget),
       onOpenRecurring: () => _select(DesktopDestination.recurring),
       onOpenTransaction: _openTransaction,
+    ),
+    DesktopDestination.expenses => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.expenses,
     ),
     DesktopDestination.transactions => DesktopTransactionsPage(
       controller: widget.controller,
@@ -145,6 +173,18 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     DesktopDestination.cashFlow => DesktopCashFlowPage(
       controller: widget.controller,
     ),
+    DesktopDestination.rhythm => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.rhythm,
+    ),
+    DesktopDestination.merchants => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.merchants,
+    ),
+    DesktopDestination.categories => DesktopBudgetAnalysisPage(
+      controller: widget.controller,
+      section: StatisticsSection.categories,
+    ),
     DesktopDestination.accounts => DesktopAccountsPage(
       controller: widget.controller,
     ),
@@ -155,9 +195,6 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       goals: widget.data.financialData.savingsGoals,
     ),
     DesktopDestination.capital => DesktopAccountsPage(
-      controller: widget.controller,
-    ),
-    DesktopDestination.reports => DesktopStatisticsPage(
       controller: widget.controller,
     ),
     DesktopDestination.insights => DesktopInsightsPage(
@@ -188,6 +225,48 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       _requestedTransactionId = id;
       _transactionRequestSerial++;
     });
+  }
+
+  Future<void> _chooseDashboardPeriod() async {
+    final selected = await showDialog<BudgetPeriod>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.18),
+      builder: (context) => SimpleDialog(
+        title: const Text('Период обзора'),
+        children: [
+          for (final period
+              in widget.controller.periods.toList(growable: false).reversed)
+            SimpleDialogOption(
+              onPressed: () => Navigator.of(context).pop(period),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 26,
+                    child: period.id == _dashboardPeriod.id
+                        ? const Icon(
+                            Icons.check_rounded,
+                            size: 18,
+                            color: QestoColors.primary,
+                          )
+                        : null,
+                  ),
+                  Text(
+                    capitalize(
+                      formatBudgetPeriod(
+                        period.month,
+                        period.year,
+                        includeYear: true,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _dashboardPeriodId = selected.id);
   }
 
   Future<void> _openGlobalSearch() async {

@@ -25,8 +25,7 @@ class DesktopSidebar extends StatefulWidget {
 }
 
 class _DesktopSidebarState extends State<DesktopSidebar> {
-  late DesktopProductSection _expandedSection =
-      widget.selected.section ?? DesktopProductSection.budget;
+  late DesktopProductSection? _expandedSection = widget.selected.section;
 
   @override
   void didUpdateWidget(covariant DesktopSidebar oldWidget) {
@@ -136,6 +135,14 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(10, 0, 10, 10),
                 children: [
+                  _SidebarItem(
+                    destination: DesktopDestination.dashboard,
+                    selected: widget.selected == DesktopDestination.dashboard,
+                    collapsed: widget.collapsed,
+                    onTap: () =>
+                        widget.onSelected(DesktopDestination.dashboard),
+                  ),
+                  const SizedBox(height: 5),
                   if (!widget.collapsed)
                     const Padding(
                       padding: EdgeInsets.fromLTRB(10, 7, 10, 7),
@@ -307,6 +314,7 @@ class _SidebarItem extends StatelessWidget {
           color: selected ? QestoColors.primarySoft : Colors.transparent,
           borderRadius: BorderRadius.circular(11),
           child: InkWell(
+            key: Key('desktop-destination-${destination.name}'),
             borderRadius: BorderRadius.circular(11),
             onTap: onTap,
             child: SizedBox(
@@ -468,12 +476,16 @@ class DesktopTopBar extends StatelessWidget {
     required this.onAdd,
     required this.onNotifications,
     this.period,
+    this.onPeriodPressed,
+    this.compactSearch = false,
     this.contextualActions = const [],
     super.key,
   });
 
   final String title;
   final String? period;
+  final VoidCallback? onPeriodPressed;
+  final bool compactSearch;
   final VoidCallback onSearch;
   final VoidCallback onAdd;
   final VoidCallback onNotifications;
@@ -513,19 +525,45 @@ class DesktopTopBar extends StatelessWidget {
                     ),
                     if (period != null && !compact) ...[
                       const SizedBox(width: 14),
-                      DesktopPill(
-                        label: period!,
-                        icon: Icons.calendar_month_outlined,
-                        color: QestoColors.secondaryText,
-                        background: QestoColors.surfaceSecondary,
-                      ),
+                      if (onPeriodPressed == null)
+                        DesktopPill(
+                          label: period!,
+                          icon: Icons.calendar_month_outlined,
+                          color: QestoColors.secondaryText,
+                          background: QestoColors.surfaceSecondary,
+                        )
+                      else
+                        OutlinedButton.icon(
+                          key: const Key('desktop-overview-period'),
+                          onPressed: onPeriodPressed,
+                          icon: const Icon(
+                            Icons.calendar_month_outlined,
+                            size: 16,
+                          ),
+                          label: Text(period!),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: QestoColors.text,
+                            side: const BorderSide(color: QestoColors.border),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 9,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(11),
+                            ),
+                            textStyle: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
                     ],
                   ],
                 ),
               ),
               if (!compact) ...contextualActions,
               const SizedBox(width: 8),
-              if (compact)
+              if (compact || compactSearch)
                 IconButton.outlined(
                   tooltip: 'Поиск · Ctrl K',
                   onPressed: onSearch,

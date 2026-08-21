@@ -19,7 +19,9 @@ Windows data entry:
   structured draft, Synoball candidate and explicit confirmation;
 - manual expense: the shared canonical manual-input adapter.
 
-The Statistics destination reuses the same calculation controller and chart
-sections as Android: overview, expenses, rhythm, merchants, categories, cash
-flow, budget quality and recurring payments. Desktop adds period/comparison
-menus, filters and a wide constrained canvas without duplicating finance logic.
+Overview is the standalone first destination. Budget owns operational pages and
+the unique Android analytics for expenses, rhythm, merchants and categories.
+The former Statistics hub is intentionally absent: cash flow, budget planning
+and recurring payments use their stronger dedicated desktop pages instead of
+showing duplicate analytics tabs. All analytical pages still share the same
+statistics controller, period/comparison menus and filters.

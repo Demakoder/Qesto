@@ -12,16 +12,22 @@ import '../../features/statistics/presentation/state/statistics_controller.dart'
 import '../../features/statistics/presentation/widgets/statistics_components.dart';
 import '../widgets/desktop_components.dart';
 
-class DesktopStatisticsPage extends StatefulWidget {
-  const DesktopStatisticsPage({required this.controller, super.key});
+class DesktopBudgetAnalysisPage extends StatefulWidget {
+  const DesktopBudgetAnalysisPage({
+    required this.controller,
+    required this.section,
+    super.key,
+  });
 
   final BudgetController controller;
+  final StatisticsSection section;
 
   @override
-  State<DesktopStatisticsPage> createState() => _DesktopStatisticsPageState();
+  State<DesktopBudgetAnalysisPage> createState() =>
+      _DesktopBudgetAnalysisPageState();
 }
 
-class _DesktopStatisticsPageState extends State<DesktopStatisticsPage> {
+class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
   late final StatisticsController _statistics;
   late final Map<StatisticsSection, ScrollController> _scrollControllers;
 
@@ -29,10 +35,19 @@ class _DesktopStatisticsPageState extends State<DesktopStatisticsPage> {
   void initState() {
     super.initState();
     _statistics = StatisticsController(budgetController: widget.controller);
+    _statistics.selectSection(widget.section);
     _scrollControllers = {
       for (final section in StatisticsSection.values)
         section: ScrollController(),
     };
+  }
+
+  @override
+  void didUpdateWidget(covariant DesktopBudgetAnalysisPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.section != widget.section) {
+      _statistics.selectSection(widget.section);
+    }
   }
 
   @override
@@ -51,7 +66,7 @@ class _DesktopStatisticsPageState extends State<DesktopStatisticsPage> {
       builder: (context, _) {
         final hasTransactions = widget.controller.transactions.isNotEmpty;
         return Column(
-          key: const Key('desktop-statistics-page'),
+          key: const Key('desktop-budget-analysis-page'),
           children: [
             _StatisticsToolbar(
               controller: _statistics,
@@ -59,7 +74,6 @@ class _DesktopStatisticsPageState extends State<DesktopStatisticsPage> {
               onOpenFilters: _openFilters,
             ),
             if (hasTransactions) ...[
-              _StatisticsTabs(controller: _statistics),
               if (_statistics.snapshot.dataQuality.issues.isNotEmpty)
                 _DataQualityNotice(snapshot: _statistics.snapshot),
             ],
@@ -75,8 +89,8 @@ class _DesktopStatisticsPageState extends State<DesktopStatisticsPage> {
                       ),
                     )
                   : const DesktopEmptyState(
-                      key: Key('desktop-statistics-empty'),
-                      title: 'Статистика появится после операций',
+                      key: Key('desktop-budget-analysis-empty'),
+                      title: 'Аналитика появится после операций',
                       message:
                           'Загрузите выписку, чек или добавьте операцию — графики будут рассчитаны только из реальных данных.',
                       icon: Icons.query_stats_rounded,
@@ -186,9 +200,9 @@ class _StatisticsToolbar extends StatelessWidget {
     final title = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Финансовая аналитика',
-          style: TextStyle(
+        Text(
+          '${controller.section.label} · аналитика',
+          style: const TextStyle(
             color: QestoColors.text,
             fontSize: 21,
             fontWeight: FontWeight.w900,
@@ -323,50 +337,6 @@ ButtonStyle _toolbarButtonStyle() => OutlinedButton.styleFrom(
   textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
 );
-
-class _StatisticsTabs extends StatelessWidget {
-  const _StatisticsTabs({required this.controller});
-
-  final StatisticsController controller;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    color: QestoColors.background,
-    padding: const EdgeInsets.fromLTRB(26, 11, 26, 9),
-    child: SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final section in StatisticsSection.values) ...[
-            ChoiceChip(
-              key: Key('desktop-statistics-tab-${section.name}'),
-              label: Text(section.label),
-              selected: controller.section == section,
-              onSelected: (_) => controller.selectSection(section),
-              showCheckmark: false,
-              side: BorderSide(
-                color: controller.section == section
-                    ? QestoColors.primary
-                    : QestoColors.border,
-              ),
-              selectedColor: QestoColors.primarySoft,
-              backgroundColor: QestoColors.surface,
-              labelStyle: TextStyle(
-                color: controller.section == section
-                    ? QestoColors.primary
-                    : QestoColors.secondaryText,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-            const SizedBox(width: 7),
-          ],
-        ],
-      ),
-    ),
-  );
-}
 
 class _DataQualityNotice extends StatelessWidget {
   const _DataQualityNotice({required this.snapshot});
