@@ -55,6 +55,68 @@ class _DesktopBudgetPageState extends State<DesktopBudgetPage> {
             ? summary.currentExpense
             : forecast.projectedPoints.last.amount.round();
         final unallocated = period.totalPlan - planned;
+        if (MediaQuery.sizeOf(context).width < 600) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _periodIndex > 0
+                        ? () => setState(() => _periodIndex--)
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  Expanded(
+                    child: Text(
+                      capitalize(
+                        formatBudgetPeriod(
+                          period.month,
+                          period.year,
+                          includeYear: true,
+                        ),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed:
+                        _periodIndex < widget.controller.periods.length - 1
+                        ? () => setState(() => _periodIndex++)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                key: const Key('desktop-customize-categories'),
+                onPressed: _openCategoryAppearance,
+                icon: const Icon(Icons.palette_outlined),
+                label: const Text('Вид категорий'),
+              ),
+              _BudgetSummaryCard(
+                currency: period.currency,
+                hasBudget: period.hasAssignedBudget,
+                income:
+                    widget.controller.financialState.monthlyIncome.minorUnits ~/
+                    100,
+                totalPlan: period.totalPlan,
+                planned: planned,
+                spent: summary.currentExpense,
+                forecast: forecastTotal,
+                unallocated: unallocated,
+                onEditBudget: () => _editTotalBudget(period),
+              ),
+              const SizedBox(height: 16),
+              for (final status in statuses)
+                _BudgetRow(
+                  controller: widget.controller,
+                  period: period,
+                  status: status,
+                ),
+            ],
+          );
+        }
         return Padding(
           padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
           child: Column(
@@ -625,6 +687,40 @@ class _BudgetRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Color(status.category.colorValue);
     final hasBudget = status.hasAssignedBudget;
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Card(
+        child: ListTile(
+          onTap: () => _editBudget(context),
+          title: Text(status.category.name),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Факт: ${formatMoney(status.spentAmount, period.currency)}',
+                ),
+                Text(
+                  hasBudget
+                      ? 'План: ${formatMoney(status.plannedAmount, period.currency)} · Осталось: ${formatMoney(status.remaining, period.currency)}'
+                      : 'Бюджет не назначен',
+                ),
+                const SizedBox(height: 8),
+                DesktopProgressBar(
+                  value: status.progress,
+                  color: !hasBudget
+                      ? QestoColors.secondaryText
+                      : status.isExceeded
+                      ? QestoColors.negative
+                      : color,
+                ),
+              ],
+            ),
+          ),
+          trailing: const Icon(Icons.edit_outlined, size: 18),
+        ),
+      );
+    }
     return InkWell(
       onTap: () => _editBudget(context),
       child: SizedBox(
@@ -836,7 +932,10 @@ class _BudgetSummaryCard extends StatelessWidget {
           strong: true,
           valueLabel: hasBudget ? null : 'Без бюджета',
         ),
-        const Spacer(),
+        if (MediaQuery.sizeOf(context).width >= 600)
+          const Spacer()
+        else
+          const SizedBox(height: 12),
         DesktopProgressBar(
           value: totalPlan <= 0 ? 0 : spent / totalPlan,
           color: hasBudget && spent > totalPlan

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
+import '../../../core/safety/financial_write_guard.dart';
 
 import '../../../data/models/qesto_models.dart';
 import '../services/budget_calculation_service.dart';
@@ -9,7 +10,10 @@ import '../services/budget_forecast_service.dart';
 import '../services/cash_flow_calculation_service.dart';
 import '../services/category_budget_calculation_service.dart';
 import '../../../synoball/synoball.dart';
+import '../../../synoball/adapters/notification_identity.dart';
+import '../../../synoball/adapters/source_identity.dart';
 import '../../bank_screenshot_import/domain/bank_screenshot_models.dart';
+import '../../bank_screenshot_import/services/bank_screenshot_identity.dart';
 import '../../bank_browser/sber/sber_connector_models.dart';
 import '../../transaction_import/services/transaction_category_resolver.dart';
 
@@ -37,7 +41,7 @@ String _sberIdentityMoment(DateTime value) =>
 
 String _sberFactIdentity(SberTransactionFact value) => [
   _sberIdentityMoment(value.date),
-  value.amount.abs(),
+  value.amountMinor.abs(),
   value.currency.toUpperCase(),
   value.isIncome ? 'in' : 'out',
   _sberIdentityText(value.merchant ?? value.description),
@@ -45,7 +49,7 @@ String _sberFactIdentity(SberTransactionFact value) => [
 
 String _storedSberIdentity(BudgetTransaction value) => [
   _sberIdentityMoment(value.date),
-  value.amount.abs(),
+  value.amountMinor.abs(),
   value.currency.toUpperCase(),
   value.type == TransactionType.income ||
           value.type == TransactionType.refund ||
@@ -57,10 +61,40 @@ String _storedSberIdentity(BudgetTransaction value) => [
   ),
 ].join('|');
 
+String _candidateSberIdentity(TransactionCandidate value) => [
+  _sberIdentityMoment(value.occurredAt),
+  value.amount.minorUnits.abs(),
+  value.amount.currency.toUpperCase(),
+  value.direction == FinancialDirection.inflow ? 'in' : 'out',
+  _sberIdentityText(
+    value.merchantGuess ?? value.normalizedDescription ?? value.rawDescription,
+  ),
+].join('|');
+
 bool _sameStringSet(List<String> left, List<String> right) =>
     left.length == right.length && left.toSet().containsAll(right);
 
 class BudgetController extends ChangeNotifier {
+  int _dataGeneration = 0;
+  bool _disposed = false;
+  int get dataGeneration => _dataGeneration;
+  void _checkWrite([int? expectedGeneration]) {
+    FinancialWriteGuard.check();
+    if (_disposed ||
+        (expectedGeneration != null && expectedGeneration != _dataGeneration)) {
+      throw StateError(
+        'Financial data changed while the operation was running',
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _dataGeneration++;
+    super.dispose();
+  }
+
   BudgetController({
     required BudgetConfiguration configuration,
     required UserFinancialData financialData,
@@ -261,7 +295,12 @@ class BudgetController extends ChangeNotifier {
           transaction.type == TransactionType.transfer ||
           transaction.tags.contains(qestoInternalTransferTag) ||
           transaction.tags.contains(qestoExternalTransferTag);
-      if (hasTransferSemantics) {
+      // Legacy data needs textual repair, but a current source classification
+      // must not be re-decided from a shortened UI description. That text can
+      // omit "между своими", while the original bank row states it explicitly.
+      if (hasTransferSemantics &&
+          !transaction.tags.contains('user-field:type') &&
+          !transaction.tags.contains('sber-classification:v2')) {
         final tags = transaction.tags.toSet();
         if (ownAccountMovement || cashMovement) {
           tags
@@ -303,6 +342,7 @@ class BudgetController extends ChangeNotifier {
         );
       }
       if (compatible.tags.contains('sber-status-refund') &&
+          !transaction.tags.contains('user-field:type') &&
           compatible.type != TransactionType.refund) {
         yield compatible.copyWith(type: TransactionType.refund);
         continue;
@@ -352,6 +392,15 @@ class BudgetController extends ChangeNotifier {
   final AiContextService _aiContextService = const AiContextService();
 
   List<BudgetTransaction> get transactions => List.unmodifiable(_transactions);
+  List<CanonicalTransaction> get trashedTransactions {
+    final items =
+        _synoball.state.transactions
+            .where((item) => item.status == CanonicalTransactionStatus.deleted)
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return List.unmodifiable(items);
+  }
+
   List<UpcomingExpense> get upcomingExpenses =>
       List.unmodifiable(_upcomingExpenses);
   List<FinancialAction> get actions => List.unmodifiable(_actions);
@@ -440,8 +489,10 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> _changed() async {
-    notifyListeners();
+    _checkWrite();
     await onChanged?.call();
+    _checkWrite();
+    notifyListeners();
   }
 
   BudgetSummary summaryFor(BudgetPeriod period) =>
@@ -594,7 +645,10 @@ class BudgetController extends ChangeNotifier {
   }) async {
     final createdIds = <String>[];
     for (final transaction in transactions) {
-      if (hasTransaction(transaction.id)) continue;
+      if (hasTransaction(transaction.id)) {
+        if (confirmedVoiceInput) await updateTransaction(transaction);
+        continue;
+      }
       final receipt = transaction.receipt;
       final outcome = receipt != null
           ? _ingestReceipt(
@@ -634,6 +688,15 @@ class BudgetController extends ChangeNotifier {
               ),
             );
       createdIds.addAll(outcome.createdTransactionIds);
+      // This command comes from a preview the user has already confirmed.
+      // Keep the adapter's safe pending default for unconfirmed speech.
+      if (confirmedVoiceInput && receipt == null) {
+        for (final candidateId in outcome.pendingCandidateIds) {
+          createdIds.add(
+            _synoball.confirmCandidate(candidateId, actorId: _userId),
+          );
+        }
+      }
     }
     if (createdIds.isEmpty) {
       _syncFromSynoball();
@@ -653,6 +716,9 @@ class BudgetController extends ChangeNotifier {
     await _changed();
   }
 
+  String? rememberedStatementAccount(String sourceKey) => _synoball
+      .sourceAccountMapping(_legacyBridge.entityIdFor(_userId), sourceKey);
+
   Future<int> importStatement({
     required QestoAccount account,
     required Iterable<BudgetTransaction> transactions,
@@ -661,9 +727,23 @@ class BudgetController extends ChangeNotifier {
     String? rawPayload,
     Map<String, int> exactMinorById = const {},
     Map<String, String> providerTransactionIdsByTransactionId = const {},
+    Map<String, String> externalAccountIdsById = const {},
     List<QestoAccount> additionalAccounts = const [],
     bool bankWebSource = false,
+    String? connectionId,
+    String? institutionId,
+    String? confirmedSourceAccountKey,
+    void Function(IngestionOutcome)? onIngestion,
   }) async {
+    _checkWrite();
+    if (confirmedSourceAccountKey != null) {
+      final linked = rememberedStatementAccount(confirmedSourceAccountKey);
+      if (linked != null && linked != account.id) {
+        throw StateError(
+          'Statement account is already linked to another account',
+        );
+      }
+    }
     final incoming = transactions.toList(growable: false);
     final previousTransactions = <BudgetTransaction>[];
     for (final transaction in incoming) {
@@ -697,19 +777,45 @@ class BudgetController extends ChangeNotifier {
       }
     }
     final entityId = _legacyBridge.entityIdFor(_userId);
-    final synoballAccount = _legacyBridge.accountFromQesto(account);
+    // Stage the entire source replay in isolation: account updates and identity
+    // commands must not partially mutate the live ledger if validation throws.
+    final stagedCore = SynoballCore(initialState: _synoball.state);
+    SynoballAccount sourceAccount(QestoAccount value) {
+      final fresh = _legacyBridge.accountFromQesto(value);
+      final previous = stagedCore.state.accounts
+          .where((a) => a.id == value.id)
+          .firstOrNull;
+      return SynoballAccount(
+        id: fresh.id,
+        entityId: fresh.entityId,
+        name: fresh.name,
+        type: fresh.type,
+        currency: fresh.currency,
+        balance: fresh.balance,
+        isVirtual: previous?.isVirtual ?? fresh.isVirtual,
+        connectionId:
+            previous?.connectionId ??
+            (bankWebSource && !fresh.isVirtual ? connectionId : null),
+        institutionId: previous?.institutionId ?? institutionId,
+        externalId: previous?.externalId ?? externalAccountIdsById[value.id],
+      );
+    }
+
+    final synoballAccount = sourceAccount(account);
     for (final additional in importedAccounts.values.where(
       (item) => item.id != account.id,
     )) {
-      _synoball.upsertAccount(_legacyBridge.accountFromQesto(additional));
+      stagedCore.upsertAccount(sourceAccount(additional));
     }
     final SynoballAdapter<StatementInput> adapter = bankWebSource
         ? BankWebAdapter()
         : StatementAdapter();
-    final outcome = _synoball.ingest(
+    final outcome = stagedCore.ingest(
       adapter,
       StatementInput(
         entityId: entityId,
+        connectionId: connectionId,
+        institutionId: institutionId,
         receivedAt: DateTime.now(),
         rawPayload:
             rawPayload ??
@@ -731,20 +837,18 @@ class BudgetController extends ChangeNotifier {
         account: synoballAccount,
       ),
     );
-    final incomingById = {for (final item in incoming) item.id: item};
-    for (final matchedId in outcome.matchedTransactionIds) {
-      final updated = incomingById[matchedId];
-      final canonical = _synoball.transactionById(matchedId);
-      if (updated == null || canonical == null) continue;
-      // A re-import is an explicit adapter refresh. Replace the old legacy
-      // type tag instead of leaving both `expense` and `investment` on the
-      // same canonical operation after Synoball merges its evidence.
-      _synoball.updateTransaction(
-        _legacyBridge.canonicalFromQesto(updated, previous: canonical),
+    if (confirmedSourceAccountKey != null) {
+      stagedCore.linkSourceAccount(
+        entityId: entityId,
+        sourceKey: confirmedSourceAccountKey,
+        accountId: account.id,
         actorId: _userId,
-        purpose: 'Refresh a statement operation through its source adapter',
       );
     }
+    _checkWrite();
+    _synoball = stagedCore;
+    // Source refresh is reconciled by Synoball. Never write a rounded UI
+    // projection back as if the user had edited every field.
     if (accounts.any((item) => item.id == 'local-default-account') &&
         account.id != 'local-default-account') {
       final placeholder = accounts.firstWhere(
@@ -759,6 +863,9 @@ class BudgetController extends ChangeNotifier {
     _syncFromSynoball();
     if (outcome.createdTransactionIds.isEmpty &&
         outcome.matchedTransactionIds.isEmpty &&
+        outcome.pendingCandidateIds.isEmpty &&
+        outcome.failedCandidateIds.isEmpty &&
+        outcome.suppressedTransactionIds.isEmpty &&
         previousTransactions.isEmpty &&
         !accountChanged) {
       return 0;
@@ -777,6 +884,7 @@ class BudgetController extends ChangeNotifier {
       ),
     );
     await _changed();
+    onIngestion?.call(outcome);
     return outcome.createdTransactionIds.length;
   }
 
@@ -784,23 +892,34 @@ class BudgetController extends ChangeNotifier {
   /// Synoball bank-web adapter. The connector never writes raw HTML or banking
   /// credentials into this payload.
   Future<SberImportSummary> importSberSnapshot(
-    SberSyncSnapshot snapshot,
-  ) async {
+    SberSyncSnapshot snapshot, {
+    int? expectedGeneration,
+  }) async {
+    _checkWrite(expectedGeneration);
     final accountsBeforeImport = List<QestoAccount>.of(accounts);
-    final accountReconciliation = _reconcileSberAccounts(snapshot.accounts);
+    final accountReconciliation = _reconcileSberAccounts(
+      snapshot.accounts,
+      connectionId: snapshot.connectionId,
+    );
     final importedAccountsById = <String, QestoAccount>{};
     for (final value in snapshot.accounts) {
       final canonicalId = accountReconciliation.sourceToCanonical[value.id]!;
       final linkedCards = value.linkedCardLastFours
           .map((suffix) => '•• $suffix')
           .join(', ');
+      final accountName =
+          value.lastFour != null &&
+              !_sberAccountSuffixes(value.name).contains(value.lastFour)
+          ? '${value.name} •• ${value.lastFour}'
+          : value.name;
       importedAccountsById[canonicalId] = QestoAccount(
         id: canonicalId,
         userId: _userId,
         title: linkedCards.isEmpty
-            ? value.name
-            : '${value.name} · карта $linkedCards',
+            ? accountName
+            : '$accountName · карта $linkedCards',
         balance: value.balance,
+        exactBalanceMinor: value.balanceMinor,
         currency: value.currency,
         type: value.type,
       );
@@ -808,25 +927,100 @@ class BudgetController extends ChangeNotifier {
     final importedAccounts = importedAccountsById.values.toList(
       growable: false,
     );
-    final accountIds = importedAccounts.map((item) => item.id).toSet();
-    // A parser mismatch in the products screen must not discard operations
-    // that were successfully read from the history screen. Keep the existing
-    // account as a safe target until the next complete product refresh.
-    final fallbackAccountId = importedAccounts.isNotEmpty
-        ? importedAccounts.first.id
-        : (accounts.isNotEmpty ? accounts.first.id : 'local-default-account');
+    final availableAccounts = <String, QestoAccount>{
+      for (final account in accounts) account.id: account,
+      ...importedAccountsById,
+    };
+    final unassignedAccounts = <String, QestoAccount>{};
+    String resolveAccount(
+      SberTransactionFact value,
+      BudgetTransaction? previous,
+    ) {
+      final mapped =
+          accountReconciliation.sourceToCanonical[value.accountId] ??
+          value.accountId;
+      final known = availableAccounts[mapped];
+      if (known != null &&
+          known.currency == value.currency &&
+          known.id.startsWith('sber-account-')) {
+        return known.id;
+      }
+      // Product discovery can fail independently of history extraction. Resolve
+      // retained provider identifiers only within the same connection scope.
+      final retained = synoballState.accounts
+          .where(
+            (account) =>
+                value.accountId.isNotEmpty &&
+                snapshot.connectionId != null &&
+                account.connectionId == snapshot.connectionId &&
+                account.institutionId == 'sberbank' &&
+                account.externalId == value.accountId &&
+                account.currency == value.currency &&
+                !account.isVirtual &&
+                availableAccounts.containsKey(account.id),
+          )
+          .toList();
+      if (retained.length == 1) return retained.single.id;
+      // A temporarily absent account reference must not move a known operation
+      // to another account. Conflicting explicit references remain unresolved.
+      final old = availableAccounts[previous?.accountId];
+      if (value.accountId.isEmpty &&
+          old != null &&
+          old.currency == value.currency &&
+          old.id.startsWith('sber-account-')) {
+        return old.id;
+      }
+      final defaultAccount = availableAccounts['local-default-account'];
+      if (defaultAccount != null && defaultAccount.currency == value.currency) {
+        return defaultAccount.id;
+      }
+      final id = 'sber-unassigned-${value.currency}';
+      unassignedAccounts.putIfAbsent(
+        id,
+        () => QestoAccount(
+          id: id,
+          userId: _userId,
+          title: 'Сбер · счёт не определён, остаток неизвестен',
+          balance: 0,
+          currency: value.currency,
+          type: AccountType.other,
+        ),
+      );
+      return id;
+    }
+
     final existingById = {for (final item in _transactions) item.id: item};
     final proposedIds = {
       for (final value in snapshot.transactions)
-        value.fingerprint: 'sber-${value.fingerprint}',
+        value.fingerprint: snapshot.connectionId == null
+            ? 'sber-${value.fingerprint}'
+            : sourceIdentity('sber-operation-v2', [
+                snapshot.connectionId,
+                value.sourceId.isEmpty ? value.fingerprint : value.sourceId,
+              ]),
     };
+    final compatibleExistingIdByProposedId = <String, String>{};
+    for (final value in snapshot.transactions) {
+      final legacy = existingById['sber-${value.fingerprint}'];
+      if (legacy == null) continue;
+      final profiles = legacy.tags.where((t) => t.startsWith('sber-profile:'));
+      if (profiles.isEmpty ||
+          profiles.contains('sber-profile:${snapshot.connectionId}')) {
+        compatibleExistingIdByProposedId[proposedIds[value.fingerprint]!] =
+            legacy.id;
+      }
+    }
     final exactMatchedIds = proposedIds.values
         .where(existingById.containsKey)
+        .followedBy(compatibleExistingIdByProposedId.values)
         .toSet();
     final unmatchedIncomingBySignature = <String, List<SberTransactionFact>>{};
     for (final value in snapshot.transactions) {
       final proposedId = proposedIds[value.fingerprint]!;
-      if (existingById.containsKey(proposedId)) continue;
+      if (existingById.containsKey(proposedId) ||
+          compatibleExistingIdByProposedId.containsKey(proposedId)) {
+        continue;
+      }
       unmatchedIncomingBySignature
           .putIfAbsent(_sberFactIdentity(value), () => <SberTransactionFact>[])
           .add(value);
@@ -834,13 +1028,38 @@ class BudgetController extends ChangeNotifier {
     final unmatchedExistingBySignature = <String, List<BudgetTransaction>>{};
     for (final value in existingById.values.where(
       (item) =>
-          item.tags.contains('sber-live') && !exactMatchedIds.contains(item.id),
+          item.tags.contains('sber-live') &&
+          !item.tags.contains('sber-identity:v2') &&
+          !exactMatchedIds.contains(item.id),
     )) {
-      unmatchedExistingBySignature
-          .putIfAbsent(_storedSberIdentity(value), () => <BudgetTransaction>[])
-          .add(value);
+      final sourceEvidence = synoballState.evidence
+          .where(
+            (e) =>
+                e.transactionId == value.id &&
+                e.sourceType == SynoballSourceType.bankWeb,
+          )
+          .toList();
+      final sourceFacts = synoballState.candidates
+          .where(
+            (c) =>
+                (c.status == CandidateStatus.confirmed ||
+                    c.status == CandidateStatus.merged) &&
+                sourceEvidence.any(
+                  (e) =>
+                      e.ingestionRecordId == c.ingestionRecordId &&
+                      e.providerTransactionId == c.providerTransactionId,
+                ),
+          )
+          .toList();
+      final signatures = sourceFacts.isEmpty
+          ? {_storedSberIdentity(value)}
+          : sourceFacts.map(_candidateSberIdentity).toSet();
+      for (final signature in signatures) {
+        unmatchedExistingBySignature
+            .putIfAbsent(signature, () => <BudgetTransaction>[])
+            .add(value);
+      }
     }
-    final compatibleExistingIdByProposedId = <String, String>{};
     for (final entry in unmatchedIncomingBySignature.entries) {
       final oldMatches = unmatchedExistingBySignature[entry.key];
       // Provider IDs introduced by a connector upgrade can replace an old
@@ -848,16 +1067,42 @@ class BudgetController extends ChangeNotifier {
       // Repeated equal payments must remain separate.
       if (entry.value.length != 1 || oldMatches?.length != 1) continue;
       final incoming = entry.value.single;
+      final previousProfiles = oldMatches!.single.tags.where(
+        (t) => t.startsWith('sber-profile:'),
+      );
+      if (previousProfiles.isNotEmpty &&
+          !previousProfiles.contains('sber-profile:${snapshot.connectionId}')) {
+        continue;
+      }
+      final oldAccount = oldMatches.single.accountId;
+      final incomingAccount =
+          accountReconciliation.sourceToCanonical[incoming.accountId] ??
+          incoming.accountId;
+      // A signature is not proof across two known accounts.
+      if (incomingAccount.isNotEmpty &&
+          oldAccount.startsWith('sber-account-') &&
+          incomingAccount != oldAccount) {
+        continue;
+      }
       compatibleExistingIdByProposedId[proposedIds[incoming.fingerprint]!] =
-          oldMatches!.single.id;
+          oldMatches.single.id;
     }
     final providerTransactionIdsByTransactionId = <String, String>{};
     final importedTransactions = snapshot.transactions
         .map((value) {
           final providerId = proposedIds[value.fingerprint]!;
           final id = compatibleExistingIdByProposedId[providerId] ?? providerId;
-          providerTransactionIdsByTransactionId[id] = providerId;
+          // DOM labels, balances and status may change between observations.
+          // The bank's operation ID must survive these presentation changes.
+          providerTransactionIdsByTransactionId[id] =
+              value.sourceId.isNotEmpty && value.sourceId != value.fingerprint
+              ? sourceIdentity('sber-provider-v1', [
+                  snapshot.connectionId,
+                  value.sourceId,
+                ])
+              : providerId;
           final existing = existingById[id];
+          final resolvedAccountId = resolveAccount(value, existing);
           final manualCategory =
               existing?.tags.contains(qestoManualCategoryTag) == true;
           final automaticCategory = value.isIncome
@@ -876,6 +1121,13 @@ class BudgetController extends ChangeNotifier {
           final tags = <String>{
             'sberbank',
             'sber-live',
+            'sber-identity:v2',
+            if (snapshot.connectionId != null)
+              'sber-profile:${snapshot.connectionId}',
+            'sber-classification:v2',
+            if (resolvedAccountId == 'local-default-account' ||
+                resolvedAccountId.startsWith('sber-unassigned-'))
+              'sber-account-unresolved',
             'sber-status-${value.status.toLowerCase()}',
             if (value.isTransfer && value.isInternalTransfer)
               qestoInternalTransferTag,
@@ -890,16 +1142,10 @@ class BudgetController extends ChangeNotifier {
           return BudgetTransaction(
             id: id,
             userId: _userId,
-            accountId:
-                accountIds.contains(
-                  accountReconciliation.sourceToCanonical[value.accountId] ??
-                      value.accountId,
-                )
-                ? accountReconciliation.sourceToCanonical[value.accountId] ??
-                      value.accountId
-                : fallbackAccountId,
+            accountId: resolvedAccountId,
             date: value.date,
             amount: value.amount,
+            exactAmountMinor: value.amountMinor,
             currency: value.currency,
             type: type,
             categoryId: manualCategory
@@ -968,11 +1214,13 @@ class BudgetController extends ChangeNotifier {
       BudgetTransaction existing,
       BudgetTransaction incoming,
     ) {
-      return existing.amount != incoming.amount ||
+      return existing.amountMinor != incoming.amountMinor ||
+          existing.accountId != incoming.accountId ||
           existing.currency != incoming.currency ||
           existing.date != incoming.date ||
           existing.type != incoming.type ||
           existing.categoryId != incoming.categoryId ||
+          existing.subcategoryId != incoming.subcategoryId ||
           existing.title != incoming.title ||
           existing.merchant != incoming.merchant ||
           existing.description != incoming.description ||
@@ -981,49 +1229,21 @@ class BudgetController extends ChangeNotifier {
           existing.isConfirmed != incoming.isConfirmed;
     }
 
-    final recategorizedCount = importedTransactions.where((incoming) {
-      final existing = existingById[incoming.id];
-      return existing != null &&
-          !existing.tags.contains(qestoManualCategoryTag) &&
-          existing.categoryId != incoming.categoryId;
-    }).length;
-
-    final updatedBeforeImport = importedTransactions.where((incoming) {
-      final existing = existingById[incoming.id];
-      if (existing == null) return false;
-      return transactionChanged(existing, incoming);
-    }).length;
-    final transactionItems = importedTransactions
-        .map((incoming) {
-          final existing = existingById[incoming.id];
-          final change = existing == null
-              ? SberImportChange.created
-              : transactionChanged(existing, incoming)
-              ? SberImportChange.updated
-              : SberImportChange.unchanged;
-          return SberTransactionImportItem(
-            title: incoming.title ?? incoming.description ?? 'Операция Сбера',
-            date: incoming.date,
-            amount: incoming.amount,
-            currency: incoming.currency,
-            isIncome:
-                incoming.type == TransactionType.income ||
-                incoming.type == TransactionType.refund,
-            isTransfer: incoming.type == TransactionType.transfer,
-            change: change,
-          );
-        })
-        .toList(growable: false);
     final periods = <String>{};
     for (final transaction in importedTransactions) {
       periods.add(periodForOrCreate(transaction.date).id);
     }
-    final primaryAccount = importedAccounts.isNotEmpty
-        ? importedAccounts.first
+    final accountsToWrite = <QestoAccount>[
+      ...importedAccounts,
+      ...unassignedAccounts.values,
+    ];
+    final primaryAccount = accountsToWrite.isNotEmpty
+        ? accountsToWrite.first
         : accounts.first;
+    IngestionOutcome? ingestion;
     final created = await importStatement(
       account: primaryAccount,
-      additionalAccounts: importedAccounts.skip(1).toList(growable: false),
+      additionalAccounts: accountsToWrite.skip(1).toList(growable: false),
       transactions: importedTransactions,
       createdPeriodIds: periods,
       actionTitle: 'Синхронизация Сбера',
@@ -1035,8 +1255,16 @@ class BudgetController extends ChangeNotifier {
       providerTransactionIdsByTransactionId:
           providerTransactionIdsByTransactionId,
       bankWebSource: true,
+      connectionId: snapshot.connectionId,
+      institutionId: 'sberbank',
+      externalAccountIdsById: {
+        for (final value in snapshot.accounts)
+          accountReconciliation.sourceToCanonical[value.id]!: value.id,
+      },
+      onIngestion: (value) => ingestion = value,
     );
     var accountsMerged = 0;
+    _checkWrite(expectedGeneration);
     for (final entry in accountReconciliation.duplicateToPrimary.entries) {
       if (entry.key == entry.value) continue;
       final duplicateExists = _synoball.state.accounts.any(
@@ -1059,15 +1287,69 @@ class BudgetController extends ChangeNotifier {
       _syncFromSynoball();
       await _changed();
     }
-    final updated = updatedBeforeImport.clamp(0, importedTransactions.length);
+    // Report accepted, persisted canonical rows, not the adapter's proposed
+    // IDs/values. In particular, fuzzy matches and protected user edits may
+    // result in a different target or no visible change at all.
+    final afterById = {for (final item in _transactions) item.id: item};
+    final createdIds = ingestion?.createdTransactionIds.toSet() ?? <String>{};
+    final suppressedIds =
+        ingestion?.suppressedTransactionIds.toSet() ?? <String>{};
+    final resolvedIds = ingestion?.resolvedTransactionIds ?? const <String?>[];
+    final reported = <String>{};
+    var recategorizedCount = 0;
+    final transactionItems = <SberTransactionImportItem>[];
+    for (var index = 0; index < importedTransactions.length; index++) {
+      final incoming = importedTransactions[index];
+      final targetId = index < resolvedIds.length ? resolvedIds[index] : null;
+      final saved = afterById[targetId];
+      final previous = existingById[targetId];
+      var change = suppressedIds.contains(targetId)
+          ? SberImportChange.deleted
+          : SberImportChange.needsReview;
+      if (saved != null) {
+        if (!reported.add(saved.id)) {
+          change = SberImportChange.unchanged;
+        } else if (createdIds.contains(saved.id)) {
+          change = SberImportChange.created;
+        } else {
+          change = previous != null && transactionChanged(previous, saved)
+              ? SberImportChange.updated
+              : SberImportChange.unchanged;
+          if (previous != null && previous.categoryId != saved.categoryId) {
+            recategorizedCount += 1;
+          }
+        }
+      }
+      final display = saved ?? incoming;
+      transactionItems.add(
+        SberTransactionImportItem(
+          title: display.title ?? display.description ?? 'Операция Сбера',
+          date: display.date,
+          amount: display.amount,
+          currency: display.currency,
+          isIncome:
+              display.type == TransactionType.income ||
+              display.type == TransactionType.refund,
+          isTransfer: display.type == TransactionType.transfer,
+          change: change,
+        ),
+      );
+    }
+    int count(SberImportChange change) =>
+        transactionItems.where((item) => item.change == change).length;
     return SberImportSummary(
       found: importedTransactions.length,
       newCount: created,
-      updatedCount: updated,
-      unchangedCount: (importedTransactions.length - created - updated).clamp(
-        0,
-        importedTransactions.length,
-      ),
+      updatedCount: count(SberImportChange.updated),
+      unresolvedCount: count(SberImportChange.needsReview),
+      deletedCount: count(SberImportChange.deleted),
+      unassignedAccountCount: reported
+          .where(
+            (id) =>
+                afterById[id]?.tags.contains('sber-account-unresolved') == true,
+          )
+          .length,
+      unchangedCount: count(SberImportChange.unchanged),
       accountsFound: importedAccounts.length,
       accountsUpdated: accountsUpdated,
       accountsMerged: accountsMerged,
@@ -1078,8 +1360,10 @@ class BudgetController extends ChangeNotifier {
   }
 
   _SberAccountReconciliation _reconcileSberAccounts(
-    List<SberAccountFact> facts,
-  ) {
+    List<SberAccountFact> facts, {
+    String? connectionId,
+  }) {
+    final metadata = {for (final a in synoballState.accounts) a.id: a};
     final sourceToCanonical = <String, String>{};
     final duplicateToPrimary = <String, String>{};
     final alreadyAssigned = <String>{};
@@ -1088,11 +1372,20 @@ class BudgetController extends ChangeNotifier {
           .where(
             (account) =>
                 account.id.startsWith('sber-account-') &&
+                (metadata[account.id]?.connectionId == null ||
+                    metadata[account.id]?.connectionId == connectionId) &&
                 account.currency == fact.currency &&
                 _sberAccountTypesCompatible(account.type, fact.type),
           )
           .toList(growable: false);
-      final exact = eligible.where((account) => account.id == fact.id).toList();
+      final exact = eligible
+          .where(
+            (account) =>
+                account.id == fact.id ||
+                (metadata[account.id]?.connectionId == connectionId &&
+                    metadata[account.id]?.externalId == fact.id),
+          )
+          .toList();
       final suffixes = <String>{
         if (fact.lastFour != null) fact.lastFour!,
         ...fact.linkedCardLastFours,
@@ -1106,35 +1399,55 @@ class BudgetController extends ChangeNotifier {
                   ).intersection(suffixes).isNotEmpty,
                 )
                 .toList(growable: false);
-      final normalizedName = _normalizedSberAccountName(fact.name);
-      final nameMatches = eligible
+      // A last-four collision or equal name is not account ownership evidence.
+      // Only a bank-observed card -> account relationship may bridge old IDs.
+      final linkedMatches = suffixMatches
           .where(
             (account) =>
-                normalizedName.isNotEmpty &&
-                _normalizedSberAccountName(account.title) == normalizedName,
+                fact.linkedCardLastFours.isNotEmpty &&
+                RegExp(r'карт', caseSensitive: false).hasMatch(account.title) &&
+                _sberAccountSuffixes(
+                  account.title,
+                ).intersection(fact.linkedCardLastFours.toSet()).isNotEmpty &&
+                !facts.any(
+                  (other) =>
+                      other.id != fact.id &&
+                      other.linkedCardLastFours
+                          .toSet()
+                          .intersection(fact.linkedCardLastFours.toSet())
+                          .isNotEmpty,
+                ),
           )
           .toList(growable: false);
-      final candidates = exact.isNotEmpty
-          ? exact
-          : suffixMatches.isNotEmpty
-          ? suffixMatches
-          : nameMatches.length == 1
-          ? nameMatches
-          : const <QestoAccount>[];
+      final candidates = exact.isNotEmpty ? exact : linkedMatches;
       final unassigned = candidates
           .where((account) => !alreadyAssigned.contains(account.id))
           .toList(growable: false);
-      final primary = _mostUsedSberAccount(
-        unassigned.isNotEmpty ? unassigned : candidates,
-      );
-      final canonicalId = primary?.id ?? fact.id;
+      final primary = _mostUsedSberAccount(unassigned);
+      final canonicalId =
+          primary?.id ??
+          (connectionId == null
+              ? fact.id
+              : sourceIdentity('sber-account-v2', [connectionId, fact.id]));
       sourceToCanonical[fact.id] = canonicalId;
+      for (final alias in fact.sourceAliases) {
+        // Ambiguous aliases must not be resolved by list order.
+        if (facts
+                .where(
+                  (other) =>
+                      other.id == alias || other.sourceAliases.contains(alias),
+                )
+                .length ==
+            1) {
+          sourceToCanonical[alias] = canonicalId;
+        }
+      }
       alreadyAssigned.add(canonicalId);
 
       // Only suffix-linked accounts are safe to merge automatically. Equal
       // display names alone are insufficient because a user may own several
       // savings accounts with the same provider label.
-      for (final duplicate in suffixMatches) {
+      for (final duplicate in linkedMatches) {
         if (duplicate.id != canonicalId) {
           duplicateToPrimary[duplicate.id] = canonicalId;
         }
@@ -1166,16 +1479,6 @@ class BudgetController extends ChangeNotifier {
     r'(?:\*{2,}|x{2,}|•{2,})\s*(\d{4})',
     caseSensitive: false,
   ).allMatches(value).map((match) => match.group(1)!).toSet();
-
-  static String _normalizedSberAccountName(String value) => value
-      .toLowerCase()
-      .replaceAll('ё', 'е')
-      .replaceAll(RegExp(r'(?:\*{2,}|x{2,}|•{2,})\s*\d{4}'), ' ')
-      .replaceAll(RegExp(r'\bкарта\b'), ' ')
-      .replaceAll(RegExp(r'\bсбер(?:банк)?\b'), ' ')
-      .replaceAll(RegExp(r'[^a-zа-я0-9]+'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
 
   static bool _sberAccountTypesCompatible(
     AccountType existing,
@@ -1259,6 +1562,7 @@ class BudgetController extends ChangeNotifier {
     String? subcategoryId,
     double confidence = 0.8,
   }) async {
+    _checkWrite();
     return addNotificationTransaction(
       period: period,
       amountMinor: amountMinor,
@@ -1323,7 +1627,7 @@ class BudgetController extends ChangeNotifier {
     );
     final outcome = isSmsNotification
         ? _synoball.ingest(
-            SmsNotificationAdapter(),
+            SmsNotificationAdapter(history: synoballState),
             SmsNotificationInput(
               entityId: _legacyBridge.entityIdFor(_userId),
               receivedAt: DateTime.now(),
@@ -1335,7 +1639,7 @@ class BudgetController extends ChangeNotifier {
             ),
           )
         : _synoball.ingest(
-            AndroidNotificationAdapter(),
+            AndroidNotificationAdapter(history: synoballState),
             AndroidNotificationInput(
               entityId: _legacyBridge.entityIdFor(_userId),
               receivedAt: DateTime.now(),
@@ -1361,9 +1665,48 @@ class BudgetController extends ChangeNotifier {
     return outcome;
   }
 
+  /// Resolves only an explicitly reviewed notification-slot revision.
+  /// Retrying persistence after a failed save does not confirm a second time.
+  Future<CanonicalTransaction> confirmNotificationRevision(
+    String candidateId,
+  ) async {
+    _checkWrite();
+    final state = synoballState;
+    final candidate = state.candidates.firstWhere((c) => c.id == candidateId);
+    final record = state.ingestionRecords.firstWhere(
+      (r) => r.id == candidate.ingestionRecordId,
+    );
+    if (!candidate.tags.contains(notificationIdentityReviewTag) ||
+        (record.sourceType != SynoballSourceType.androidNotification &&
+            record.sourceType != SynoballSourceType.smsNotification)) {
+      throw StateError('Not a notification identity review');
+    }
+    final String transactionId;
+    if (candidate.status == CandidateStatus.pending) {
+      transactionId = _synoball.confirmCandidate(candidateId, actorId: _userId);
+    } else {
+      final targets = state.evidence
+          .where(
+            (e) =>
+                e.ingestionRecordId == record.id &&
+                e.providerTransactionId == candidate.providerTransactionId,
+          )
+          .map((e) => e.transactionId)
+          .toSet();
+      if (targets.length != 1) {
+        throw StateError('Unresolved notification identity');
+      }
+      transactionId = targets.single;
+    }
+    _syncFromSynoball();
+    await _changed();
+    return _synoball.transactionById(transactionId)!;
+  }
+
   Future<IngestionOutcome> importBankScreenshotCandidates(
     Iterable<BankScreenshotCandidate> values,
   ) async {
+    _checkWrite();
     final candidates = values
         .where((candidate) => candidate.selected && candidate.accountId != null)
         .toList(growable: false);
@@ -1386,6 +1729,10 @@ class BudgetController extends ChangeNotifier {
               ? FinancialDirection.inflow
               : FinancialDirection.outflow;
           return TransactionSeed(
+            canonicalId: resolveScreenshotIdentity(
+              candidate,
+              synoballState,
+            ).canonicalId,
             accountId: candidate.accountId!,
             amount: Money(
               minorUnits: candidate.amountMinor.abs(),
@@ -1404,6 +1751,8 @@ class BudgetController extends ChangeNotifier {
               'legacy-type-${type.name}',
               'bank-screenshot',
               'bank-screenshot-parser:${candidate.parserId}',
+              if (candidate.legacyProviderId != null)
+                'bank-screenshot-image:${candidate.imageHash}',
               if (candidate.dateOnly) 'date-precision:day',
               if (type == TransactionType.transfer) qestoExternalTransferTag,
               if (type == TransactionType.refund) 'refund',
@@ -1530,7 +1879,8 @@ class BudgetController extends ChangeNotifier {
     }
     for (final previous in action.previousTransactions) {
       final canonical = _synoball.transactionById(previous.id);
-      if (canonical != null) {
+      if (canonical != null &&
+          canonical.status != CanonicalTransactionStatus.deleted) {
         _synoball.restoreTransaction(
           _legacyBridge.canonicalFromQesto(previous, previous: canonical),
         );
@@ -1562,7 +1912,7 @@ class BudgetController extends ChangeNotifier {
       left.id == right.id &&
       left.userId == right.userId &&
       left.title == right.title &&
-      left.balance == right.balance &&
+      left.balanceMinor == right.balanceMinor &&
       left.currency == right.currency &&
       left.type == right.type;
 
@@ -1728,15 +2078,29 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> deleteTransaction(String id) async {
+    _checkWrite();
     if (!hasTransaction(id)) return;
     _synoball.deleteTransaction(id, actorId: _userId);
     _syncFromSynoball();
     await _changed();
   }
 
+  Future<int> restoreTrashedTransactions(Iterable<String> ids) async {
+    _checkWrite();
+    var restored = 0;
+    for (final id in ids.toSet()) {
+      if (_synoball.restoreDeletedTransaction(id, actorId: _userId)) restored++;
+    }
+    _syncFromSynoball();
+    // Persist even an idempotent retry after a failed save.
+    await _changed();
+    return restored;
+  }
+
   /// Clears user financial content while retaining only the minimum local
   /// profile/account scaffold required for the UI to remain operational.
   Future<void> clearAllFinancialData() async {
+    _dataGeneration++;
     _synoball = SynoballCore();
     final entityId = _legacyBridge.entityIdFor(_userId);
     _synoball.upsertEntity(
@@ -2549,7 +2913,7 @@ class BudgetController extends ChangeNotifier {
       canonicalId: transaction.id,
       accountId: transaction.accountId,
       amount: Money(
-        minorUnits: exactMinor?.abs() ?? transaction.amount.abs() * 100,
+        minorUnits: exactMinor?.abs() ?? transaction.amountMinor.abs(),
         currency: transaction.currency,
       ),
       direction: direction,

@@ -90,6 +90,8 @@ class BankScreenshotCandidate {
     this.balanceAfterMinor,
     this.dateOnly = true,
     this.selected = true,
+    this.legacyProviderId,
+    this.possibleDuplicateReason,
   });
 
   final String id;
@@ -107,6 +109,8 @@ class BankScreenshotCandidate {
   final int? balanceAfterMinor;
   final bool dateOnly;
   final bool selected;
+  final String? legacyProviderId;
+  final String? possibleDuplicateReason;
 
   TransactionType get transactionType => switch (kind) {
     BankScreenshotTransactionKind.expense => TransactionType.expense,
@@ -116,6 +120,9 @@ class BankScreenshotCandidate {
   };
 
   BankScreenshotCandidate copyWith({
+    String? id,
+    String? legacyProviderId,
+    String? possibleDuplicateReason,
     String? merchant,
     int? amountMinor,
     String? currency,
@@ -130,7 +137,7 @@ class BankScreenshotCandidate {
     bool? dateOnly,
     bool? selected,
   }) => BankScreenshotCandidate(
-    id: id,
+    id: id ?? this.id,
     imageHash: imageHash,
     parserId: parserId,
     merchant: merchant ?? this.merchant,
@@ -145,6 +152,9 @@ class BankScreenshotCandidate {
     balanceAfterMinor: balanceAfterMinor ?? this.balanceAfterMinor,
     dateOnly: dateOnly ?? this.dateOnly,
     selected: selected ?? this.selected,
+    legacyProviderId: legacyProviderId ?? this.legacyProviderId,
+    possibleDuplicateReason:
+        possibleDuplicateReason ?? this.possibleDuplicateReason,
   );
 }
 

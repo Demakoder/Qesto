@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/app/qesto_app.dart';
-import 'package:qesto/core/widgets/qesto_elements.dart';
 import 'package:qesto/mocks/mock_qesto_repository.dart';
 
 void main() {
@@ -35,7 +34,7 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.byType(MaterialApp), findsOneWidget);
-    expect(find.byType(QestoButton), findsNWidgets(4));
-    expect(find.byKey(const Key('voice-transaction-button')), findsOneWidget);
+    expect(find.byKey(const Key('mobile-add-data')), findsOneWidget);
+    expect(find.text('Добрый день'), findsOneWidget);
   });
 }

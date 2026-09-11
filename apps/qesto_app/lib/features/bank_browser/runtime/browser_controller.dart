@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../core/safety/financial_write_guard.dart';
 
 import 'package:flutter/material.dart';
 import 'package:webview_cef/webview_cef.dart';
@@ -44,14 +45,18 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   BankBrowserState _state;
   WebViewController? _webView;
   BrowserMode _mode = BrowserMode.auth;
+  BrowserPresentationMode _presentationMode = BrowserPresentationMode.visible;
   String? _title;
   bool _runtimeReady = false;
   bool _disposed = false;
+  bool _closed = false;
+  Future<void>? _closeFuture;
   bool _certificateProblem = false;
 
   BankBrowserState get state => _state;
   BankProfile get profile => _profile;
   BrowserMode get mode => _mode;
+  BrowserPresentationMode get presentationMode => _presentationMode;
   bool get isRuntimeReady => _runtimeReady && _webView != null;
   bool get hasCertificateProblem => _certificateProblem;
 
@@ -65,18 +70,24 @@ class BrowserController extends ChangeNotifier implements PageObserver {
         : bank.startUrl;
   }
 
-  Future<void> open() async {
+  Future<void> open({
+    BrowserPresentationMode presentationMode = BrowserPresentationMode.visible,
+  }) async {
+    if (_disposed || _closed) throw StateError('Browser closed');
+    _presentationMode = presentationMode;
     _setState(
       lifecycle: BankBrowserLifecycle.opening,
       loadState: BankBrowserLoadState.idle,
     );
     try {
       _profile = await profileManager.openProfile(_profile);
+      if (_disposed || _closed) return;
       final profileDirectory = profileManager.cefDataDirectory(_profile.id);
-      await profileDirectory.create(recursive: true);
+      await profileManager.prepareCefProfile(_profile.id);
       await WebviewManager().initialize(
         rootCachePath: profileManager.rootDirectory.absolute.path,
       );
+      if (_disposed || _closed) return;
 
       final webView = WebviewManager().createWebView(
         loading: const Center(child: CircularProgressIndicator()),
@@ -99,14 +110,25 @@ class BrowserController extends ChangeNotifier implements PageObserver {
             !const bool.fromEnvironment('dart.vm.product') &&
             _devToolsRequested,
       );
+      if (_disposed || _closed) return;
+      if (presentationMode == BrowserPresentationMode.background) {
+        await webView.setSurfaceSize();
+        await webView.setClientFocus(false);
+      }
+      if (_disposed || _closed) return;
       _runtimeReady = true;
       _setState(
-        lifecycle: BankBrowserLifecycle.loading,
-        loadState: BankBrowserLoadState.started,
-        currentUrl: initialUrl,
+        lifecycle: _state.loadState == BankBrowserLoadState.finished
+            ? BankBrowserLifecycle.ready
+            : BankBrowserLifecycle.loading,
+        loadState: _state.loadState == BankBrowserLoadState.idle
+            ? BankBrowserLoadState.started
+            : _state.loadState,
+        currentUrl: _state.currentUrl ?? initialUrl,
       );
       await _refreshNavigationCapabilities();
     } on Object {
+      if (_closed || _disposed) return;
       _runtimeReady = false;
       _setState(
         lifecycle: BankBrowserLifecycle.error,
@@ -123,6 +145,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   }
 
   Future<void> navigate(Uri uri) async {
+    _checkOpen();
     if (securityPolicy.decide(uri, bank) != NavigationDecision.allow) {
       onNotice('Переход за пределы официальных адресов банка заблокирован');
       return;
@@ -165,6 +188,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
     String script, {
     BrowserMode mode = BrowserMode.read,
   }) async {
+    _checkOpen();
     if (_webView == null || !_runtimeReady || script.length > 64 * 1024) {
       return null;
     }
@@ -220,25 +244,36 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   }
 
   Future<Uri> waitForNavigation() {
+    _checkOpen();
     final completer = Completer<Uri>();
     _navigationWaiters.add(completer);
     return completer.future;
   }
 
   Future<void> waitForLoadState(BankBrowserLoadState state) {
+    _checkOpen();
     if (_state.loadState == state) return Future.value();
     final completer = Completer<void>();
     _loadWaiters.putIfAbsent(state, () => []).add(completer);
     return completer.future;
   }
 
-  Future<void> close() async {
+  void _checkOpen() {
+    FinancialWriteGuard.check();
+    if (_disposed || _closed) throw StateError('Browser closed');
+  }
+
+  Future<void> close() => _closeFuture ??= _closeNative();
+
+  Future<void> _closeNative() async {
+    _closed = true;
+    _cancelWaiters();
     final webView = _webView;
     _webView = null;
     _runtimeReady = false;
     if (webView != null) {
-      await webView.stopLoading();
-      await webView.setClientFocus(false);
+      // dispose also handles a create that is still in flight. Don't call
+      // initialized-only commands while startup is being cancelled.
       await webView.dispose();
     }
     _setState(
@@ -255,6 +290,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   }
 
   void _onLoadStart(String value) {
+    if (_disposed || _closed) return;
     // CEF creates the off-screen browser on an internal about:blank document
     // before loading the bank URL. It never leaves the browser process and is
     // not a user navigation, so do not surface it as a blocked transition.
@@ -273,6 +309,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   }
 
   Future<void> _onLoadEnd(String value) async {
+    if (_disposed || _closed) return;
     final uri = Uri.tryParse(value);
     if (uri == null ||
         securityPolicy.decide(uri, bank) != NavigationDecision.allow) {
@@ -294,6 +331,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   }
 
   void _onUrlChanged(String value) {
+    if (_disposed || _closed) return;
     final uri = Uri.tryParse(value);
     if (uri == null ||
         securityPolicy.decide(uri, bank) != NavigationDecision.allow) {
@@ -307,6 +345,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   }
 
   void _onCertificateError(String origin) {
+    if (_disposed || _closed) return;
     _certificateProblem = true;
     _setState(
       lifecycle: BankBrowserLifecycle.error,
@@ -318,7 +357,9 @@ class BrowserController extends ChangeNotifier implements PageObserver {
 
   Future<void> _refreshNavigationCapabilities() async {
     final webView = _webView;
-    if (webView == null) return;
+    // Native load events may arrive before the Flutter wrapper finishes
+    // initialize(). open() refreshes these controls once it is ready.
+    if (webView == null || !_runtimeReady || _closed || _disposed) return;
     _setState(
       canGoBack: await webView.canGoBack(),
       canGoForward: await webView.canGoForward(),
@@ -334,6 +375,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
     DateTime? lastSuccessfulLoad,
     String? errorMessage,
   }) {
+    if (_disposed) return;
     final nextUrl = currentUrl ?? _state.currentUrl;
     _state = BankBrowserState(
       lifecycle: lifecycle ?? _state.lifecycle,
@@ -374,16 +416,13 @@ class BrowserController extends ChangeNotifier implements PageObserver {
   void dispose() {
     if (_disposed) return;
     _disposed = true;
-    final webView = _webView;
-    _webView = null;
-    _runtimeReady = false;
-    if (webView != null) {
-      unawaited(() async {
-        await webView.stopLoading();
-        await webView.setClientFocus(false);
-        await webView.dispose();
-      }());
-    }
+    unawaited(close().catchError((Object _) {}));
+    _cancelWaiters();
+    unawaited(_observations.close());
+    super.dispose();
+  }
+
+  void _cancelWaiters() {
     for (final completer in _navigationWaiters) {
       if (!completer.isCompleted) {
         completer.completeError(StateError('Browser closed'));
@@ -396,7 +435,7 @@ class BrowserController extends ChangeNotifier implements PageObserver {
         }
       }
     }
-    unawaited(_observations.close());
-    super.dispose();
+    _navigationWaiters.clear();
+    _loadWaiters.clear();
   }
 }

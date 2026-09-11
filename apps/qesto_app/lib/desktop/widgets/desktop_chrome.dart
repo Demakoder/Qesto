@@ -12,6 +12,7 @@ class DesktopSidebar extends StatefulWidget {
     required this.user,
     required this.onSelected,
     required this.onToggle,
+    this.bankConnectionsAvailable = true,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class DesktopSidebar extends StatefulWidget {
   final QestoUser user;
   final ValueChanged<DesktopDestination> onSelected;
   final VoidCallback onToggle;
+  final bool bankConnectionsAvailable;
   @override
   State<DesktopSidebar> createState() => _DesktopSidebarState();
 }
@@ -148,13 +150,15 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                     collapsed: widget.collapsed,
                     onTap: () => widget.onSelected(DesktopDestination.insights),
                   ),
-                  _SidebarItem(
-                    destination: DesktopDestination.connections,
-                    selected: widget.selected == DesktopDestination.connections,
-                    collapsed: widget.collapsed,
-                    onTap: () =>
-                        widget.onSelected(DesktopDestination.connections),
-                  ),
+                  if (widget.bankConnectionsAvailable)
+                    _SidebarItem(
+                      destination: DesktopDestination.connections,
+                      selected:
+                          widget.selected == DesktopDestination.connections,
+                      collapsed: widget.collapsed,
+                      onTap: () =>
+                          widget.onSelected(DesktopDestination.connections),
+                    ),
                   const SizedBox(height: 5),
                   if (!widget.collapsed)
                     const Padding(

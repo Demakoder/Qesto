@@ -3,39 +3,87 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../domain/bank_browser_models.dart';
+import '../data/browser_profile_manager.dart';
 import '../runtime/browser_controller.dart';
 import 'sber_connector_models.dart';
 import 'sber_page_detector.dart';
 
 class SberPinVault {
-  const SberPinVault({this._storage = const FlutterSecureStorage()});
+  const SberPinVault({
+    this.profileId,
+    this._storage = const FlutterSecureStorage(),
+  });
 
   static const key = 'qesto.sber.quick-pin.v1';
+  final String? profileId;
   final FlutterSecureStorage _storage;
+  String get _key => profileId == null ? key : '$key.profile.$profileId';
 
-  Future<String?> read() => _storage.read(key: key);
+  Future<String?> read() => _storage.read(key: _key);
+
+  /// A legacy device-wide PIN can only be assigned when its owner is unique.
+  /// Consume it after migration; never reuse it for a newly created profile.
+  Future<void> migrateLegacy(BrowserProfileManager profiles) async {
+    if (profileId == null) return;
+    final sber = (await profiles.listProfiles())
+        .where((p) => p.bankId == 'sber')
+        .toList();
+    if (sber.length != 1 || sber.single.id != profileId) return;
+    final legacy = await _storage.read(key: key);
+    if (legacy == null) return;
+    if (await read() == null) await write(legacy);
+    await _storage.delete(key: key);
+  }
 
   Future<void> write(String pin) async {
     final normalized = pin.trim();
     if (!RegExp(r'^\d{4,8}$').hasMatch(normalized)) {
       throw const FormatException('PIN должен содержать от 4 до 8 цифр');
     }
-    await _storage.write(key: key, value: normalized);
+    await _storage.write(key: _key, value: normalized);
   }
 
-  Future<void> delete() => _storage.delete(key: key);
+  Future<void> delete() => _storage.delete(key: _key);
 }
 
 class SberAuthManager {
-  const SberAuthManager({this.pinVault = const SberPinVault()});
+  const SberAuthManager({
+    this.pinVault,
+    this.allowStoredPin = true,
+    this.pause = Future<void>.delayed,
+  });
 
-  final SberPinVault pinVault;
+  final SberPinVault? pinVault;
+  final bool allowStoredPin;
+  final Future<void> Function(Duration) pause;
+
+  Future<SberPageSnapshot?> _readyPage(
+    BrowserController browser,
+    SberPageDetector detector,
+  ) async {
+    SberPageSnapshot? page;
+    var loginObservations = 0;
+    for (var attempt = 0; attempt < 24; attempt++) {
+      page = await detector.inspect(browser);
+      final type = page == null ? SberPageType.unknown : detector.detect(page);
+      if (type == SberPageType.login) {
+        // A PIN page can briefly render the generic login heading first.
+        loginObservations++;
+        if (loginObservations >= 4 && page!.pinMarkers.isEmpty) return page;
+      } else {
+        loginObservations = 0;
+        if (type != SberPageType.unknown) return page;
+      }
+      if (attempt < 23) await pause(const Duration(milliseconds: 500));
+    }
+    return page;
+  }
 
   Future<SberSyncReport> ensureAuthenticated(
     BrowserController browser,
     SberPageDetector detector,
   ) async {
-    var page = await detector.inspect(browser);
+    var page = await _readyPage(browser, detector);
     if (page == null) {
       return const SberSyncReport(
         state: SberConnectorState.error,
@@ -48,9 +96,6 @@ class SberAuthManager {
     // return through the bank's official start route so the saved quick PIN
     // flow can resume instead of asking for a full manual login.
     if (type == SberPageType.unknown && page.url.path.startsWith('/app/')) {
-      await Future<void>.delayed(const Duration(milliseconds: 2000));
-      page = await detector.inspect(browser);
-      type = page == null ? SberPageType.unknown : detector.detect(page);
       if (type == SberPageType.unknown) {
         await browser.navigate(browser.bank.startUrl);
         try {
@@ -60,18 +105,26 @@ class SberAuthManager {
         } on Object {
           // The next bounded inspection remains authoritative for SPA loads.
         }
-        await Future<void>.delayed(const Duration(milliseconds: 1500));
-        page = await detector.inspect(browser);
+        page = await _readyPage(browser, detector);
         type = page == null ? SberPageType.unknown : detector.detect(page);
       }
     }
     if (type == SberPageType.dashboard ||
         type == SberPageType.accounts ||
+        type == SberPageType.accountDetails ||
         type == SberPageType.transactions ||
         type == SberPageType.savings ||
         type == SberPageType.deposit ||
         type == SberPageType.investments) {
       return const SberSyncReport(state: SberConnectorState.authenticated);
+    }
+    if (type == SberPageType.unknown) {
+      return const SberSyncReport(
+        state: SberConnectorState.error,
+        message:
+            'Страница Сбера не завершила загрузку. Повторите обновление позже.',
+        failureCode: 'BANK_PAGE_NOT_READY',
+      );
     }
     if (type != SberPageType.pinLogin ||
         page == null ||
@@ -83,7 +136,15 @@ class SberAuthManager {
             : 'Страница авторизации Сбера не распознана. Войдите вручную.',
       );
     }
-    final pin = await pinVault.read();
+    if (!allowStoredPin) {
+      return const SberSyncReport(
+        state: SberConnectorState.pinRequired,
+        message: 'Сбер попросил повторно подтвердить вход.',
+      );
+    }
+    final vault = pinVault ?? SberPinVault(profileId: browser.profile.id);
+    await vault.migrateLegacy(browser.profileManager);
+    final pin = await vault.read();
     if (pin == null || pin.isEmpty) {
       return const SberSyncReport(
         state: SberConnectorState.pinRequired,

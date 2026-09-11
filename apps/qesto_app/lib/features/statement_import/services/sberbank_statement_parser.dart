@@ -1,6 +1,7 @@
 import '../../notification_import/domain/parsed_bank_transaction.dart';
 import '../../notification_import/services/merchant_category_classifier.dart';
 import '../domain/bank_statement_models.dart';
+import '../../../synoball/adapters/source_identity.dart';
 
 class SberbankStatementParser {
   const SberbankStatementParser({
@@ -63,7 +64,52 @@ class SberbankStatementParser {
       periodStart: _parseDate(period.group(1)!),
       periodEnd: _parseDate(period.group(2)!),
       accountLastFour: _accountLastFour(text),
+      sourceAccountKey: _sourceAccountKey(text),
       transactions: transactions,
+      controlTotals: _controlTotals(text, period.group(1)!, period.group(2)!),
+      sourceRowCount: RegExp(
+        r'^\s*\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}\s',
+        multiLine: true,
+      ).allMatches(text).length,
+    );
+  }
+
+  StatementControlTotals? _controlTotals(
+    String text,
+    String start,
+    String end,
+  ) {
+    // Only read the bank's printed summary, never amounts from operation rows.
+    final header = text
+        .split(RegExp('Расшифровка операций', caseSensitive: false))
+        .first;
+    final balances = RegExp(
+      r'Остаток на\s+(\d{2}\.\d{2}\.\d{4})\s+([+\-−]?\d[\d\s\u00a0]*,\d{2})',
+      caseSensitive: false,
+    ).allMatches(header).toList();
+    final opening = balances.where((m) => m.group(1) == start).firstOrNull;
+    final closing = balances.where((m) => m.group(1) == end).lastOrNull;
+    final inflow = RegExp(
+      r'Пополнение\s+([\d\s\u00a0]+,\d{2})',
+      caseSensitive: false,
+    ).firstMatch(header);
+    final outflow = RegExp(
+      r'Списание\s+([\d\s\u00a0]+,\d{2})',
+      caseSensitive: false,
+    ).firstMatch(header);
+    if (balances.length != 2 ||
+        opening == null ||
+        closing == null ||
+        inflow == null ||
+        outflow == null ||
+        identical(opening, closing)) {
+      return null;
+    }
+    return StatementControlTotals(
+      openingMinor: _parseMoneyMinor(opening.group(2)!),
+      closingMinor: _parseMoneyMinor(closing.group(2)!),
+      inflowsMinor: _parseMoneyMinor(inflow.group(1)!),
+      outflowsMinor: _parseMoneyMinor(outflow.group(1)!),
     );
   }
 
@@ -349,6 +395,15 @@ class SberbankStatementParser {
     return digits.length < 4 ? null : digits.substring(digits.length - 4);
   }
 
+  String? _sourceAccountKey(String text) {
+    final digits = _accountPattern
+        .firstMatch(text)
+        ?.group(1)
+        ?.replaceAll(RegExp(r'\D'), '');
+    if (digits == null || digits.length != 20) return null;
+    return sourceIdentity('sber-statement-account-v1', [digits]);
+  }
+
   bool _isBoilerplate(String line) {
     final normalized = line.toLowerCase();
     return normalized.startsWith('выписка по') ||
@@ -383,7 +438,14 @@ class SberbankStatementParser {
         .replaceAll('−', '-')
         .replaceAll(RegExp(r'[\s\u00A0]'), '')
         .replaceAll(',', '.');
-    return (double.parse(normalized) * 100).round();
+    final match = RegExp(
+      r'^([+-]?)(\d+)(?:\.(\d{1,2}))?$',
+    ).firstMatch(normalized);
+    if (match == null) throw const FormatException('Invalid statement money');
+    final minor =
+        int.parse(match.group(2)!) * 100 +
+        int.parse((match.group(3) ?? '').padRight(2, '0'));
+    return match.group(1) == '-' ? -minor : minor;
   }
 }
 

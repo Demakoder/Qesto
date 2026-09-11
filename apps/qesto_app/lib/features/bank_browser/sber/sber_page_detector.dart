@@ -73,6 +73,11 @@ class SberPageDetector {
     if (_containsAny(text, const ['идёт загрузка', 'идет загрузка'])) {
       return SberPageType.unknown;
     }
+    if (value.text.trim().isEmpty &&
+        value.pinMarkers.isEmpty &&
+        value.loginMarkers.isEmpty) {
+      return SberPageType.unknown;
+    }
     // The main dashboard contains cards titled "Накопления", "Кредиты"
     // and other product names. Route identity is stronger than those shared
     // labels, otherwise /app/main is misclassified as a product page. Keep it

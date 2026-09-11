@@ -139,7 +139,11 @@ class _DesktopDebtsPageState extends State<DesktopDebtsPage> {
           const SizedBox(height: 11),
           LayoutBuilder(
             builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 1180 ? 3 : 2;
+              final columns = constraints.maxWidth >= 1180
+                  ? 3
+                  : constraints.maxWidth >= 600
+                  ? 2
+                  : 1;
               final width =
                   (constraints.maxWidth - (columns - 1) * 14) / columns;
               return Wrap(
@@ -646,8 +650,7 @@ class _DebtOverviewCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          DesktopAdaptiveRow(
             children: [
               Expanded(
                 child: Column(

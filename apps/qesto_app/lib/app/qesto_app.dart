@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -61,11 +63,24 @@ class _QestoAppState extends State<QestoApp> {
                 builder: (context, constraints) => ColoredBox(
                   color: const Color(0xFFEFF2F7),
                   child: constraints.maxWidth >= 900
-                      ? content
+                      ? MediaQuery(
+                          data: MediaQuery.of(
+                            context,
+                          ).copyWith(size: constraints.biggest),
+                          child: content,
+                        )
                       : Center(
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 520),
-                            child: content,
+                            child: MediaQuery(
+                              data: MediaQuery.of(context).copyWith(
+                                size: Size(
+                                  constraints.maxWidth.clamp(0, 520).toDouble(),
+                                  constraints.maxHeight,
+                                ),
+                              ),
+                              child: content,
+                            ),
                           ),
                         ),
                 ),
@@ -92,6 +107,9 @@ class _AppDataLoaderState extends State<_AppDataLoader>
     with WidgetsBindingObserver {
   late Future<QestoAppData> _future;
   var _refreshOnResume = false;
+  int _dealsGeneration = 0;
+  List<Deal>? _coupons;
+  List<Deal>? _promotions;
 
   @override
   void initState() {
@@ -115,13 +133,36 @@ class _AppDataLoaderState extends State<_AppDataLoader>
     }
     if (state == AppLifecycleState.resumed && _refreshOnResume) {
       _refreshOnResume = false;
+      unawaited(_refreshPublicDeals());
+    }
+  }
+
+  Future<void> _refreshPublicDeals() async {
+    final generation = ++_dealsGeneration;
+    try {
       widget.repository.resetPublicDeals();
-      _retry();
+      final deals = await Future.wait([
+        widget.repository.getCoupons(),
+        widget.repository.getPromotions(),
+      ]);
+      if (!mounted || generation != _dealsGeneration) return;
+      setState(() {
+        _coupons = deals[0];
+        _promotions = deals[1];
+      });
+    } on Object {
+      // Public content is optional. Keep the financial controller and every
+      // route holding it alive, including an open/hidden bank sync session.
     }
   }
 
   void _retry() {
-    setState(() => _future = widget.repository.loadAppData());
+    ++_dealsGeneration;
+    setState(() {
+      _coupons = null;
+      _promotions = null;
+      _future = widget.repository.loadAppData();
+    });
   }
 
   Future<void> _deleteAllData() async {
@@ -147,7 +188,12 @@ class _AppDataLoaderState extends State<_AppDataLoader>
             return ErrorState(onRetry: _retry);
           }
           return QestoAppShell(
-            data: snapshot.requireData,
+            data: QestoAppData(
+              budgetConfiguration: snapshot.requireData.budgetConfiguration,
+              financialData: snapshot.requireData.financialData,
+              coupons: _coupons ?? snapshot.requireData.coupons,
+              promotions: _promotions ?? snapshot.requireData.promotions,
+            ),
             repository: widget.repository,
             onAllDataDeleted: _deleteAllData,
           );

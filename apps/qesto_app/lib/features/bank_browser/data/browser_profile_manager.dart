@@ -1,8 +1,9 @@
-import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import '../../../data/persistence/recoverable_json_file.dart';
 
 import '../domain/bank_browser_models.dart';
+import '../domain/bank_sync_models.dart';
 
 class BrowserProfileManager {
   BrowserProfileManager({Directory? rootDirectory})
@@ -13,9 +14,28 @@ class BrowserProfileManager {
   Directory profileDirectory(String profileId) =>
       Directory('${rootDirectory.path}${Platform.pathSeparator}$profileId');
 
-  Directory cefDataDirectory(String profileId) => Directory(
-    '${profileDirectory(profileId).path}${Platform.pathSeparator}cef',
-  );
+  // Chrome Runtime requires an immediate child of root_cache_path. A nested
+  // <id>/cef path silently becomes an OffTheRecord profile in CEF 149.
+  Directory cefDataDirectory(String profileId) {
+    if (!_validId(profileId)) throw ArgumentError.value(profileId, 'profileId');
+    return profileDirectory(profileId);
+  }
+
+  Future<void> prepareCefProfile(String profileId) async {
+    final target = cefDataDirectory(profileId);
+    _assertInsideRoot(target);
+    if (await FileSystemEntity.isLink(target.path)) {
+      throw StateError('Linked browser profiles are not supported');
+    }
+    final legacy = Directory('${target.path}${Platform.pathSeparator}cef');
+    // Never silently discard a nonempty legacy profile from another runtime.
+    // Empty legacy folders (the affected Windows case) may remain as-is.
+    if (await legacy.exists() &&
+        !await legacy.list(followLinks: false).isEmpty) {
+      throw StateError('Legacy browser profile requires explicit migration');
+    }
+    await target.create(recursive: true);
+  }
 
   Future<BankProfile> createProfile(BankConnectorConfig bank) async {
     await rootDirectory.create(recursive: true);
@@ -29,6 +49,10 @@ class BrowserProfileManager {
       createdAt: now,
       lastOpenedAt: now,
       lastKnownUrl: bank.startUrl,
+      syncMetadata: BankSyncMetadata(
+        backgroundSyncEnabled: bank.supportsBackgroundSync,
+        state: BankConnectionSyncState.disconnected,
+      ),
     );
     await cefDataDirectory(id).create(recursive: true);
     await _writeProfile(profile);
@@ -38,10 +62,12 @@ class BrowserProfileManager {
   Future<BankProfile?> getProfile(String id) async {
     if (!_validId(id)) return null;
     final file = _metadataFile(id);
-    if (!await file.exists()) return null;
+    if (!await profileDirectory(id).exists()) return null;
     try {
-      final decoded = jsonDecode(await file.readAsString());
-      return BankProfile.fromJson((decoded as Map).cast<String, Object?>());
+      final decoded = await RecoverableJsonFile(file).read();
+      return decoded == null
+          ? null
+          : BankProfile.fromJson(decoded.cast<String, Object?>());
     } on Object {
       return null;
     }
@@ -63,31 +89,86 @@ class BrowserProfileManager {
   }
 
   Future<bool> profileExists(String id) async =>
-      _validId(id) && await _metadataFile(id).exists();
+      _validId(id) && await getProfile(id) != null;
 
   Future<BankProfile> openProfile(BankProfile profile) async {
-    final updated = profile.copyWith(lastOpenedAt: DateTime.now());
-    await _writeProfile(updated);
-    return updated;
+    // BrowserController may hold a profile captured before the sync manager
+    // persisted scheduling metadata. Merge into the newest disk revision so
+    // opening hidden CEF cannot roll back attempt, mode or retry state.
+    return _updateProfile(
+      profile.id,
+      (latest) => latest.copyWith(lastOpenedAt: DateTime.now()),
+    );
   }
 
   Future<BankProfile> updateLastKnownUrl(
     BankProfile profile,
     Uri sanitizedUrl,
   ) async {
-    final updated = profile.copyWith(lastKnownUrl: sanitizedUrl);
-    await _writeProfile(updated);
-    return updated;
+    return _updateProfile(
+      profile.id,
+      (latest) => latest.copyWith(lastKnownUrl: sanitizedUrl),
+    );
   }
 
   Future<BankProfile> updateLastSync(
     BankProfile profile,
     DateTime syncedAt,
   ) async {
-    final updated = profile.copyWith(lastSyncAt: syncedAt);
-    await _writeProfile(updated);
+    return _updateProfile(
+      profile.id,
+      (latest) => latest.copyWith(
+        lastSyncAt: syncedAt,
+        syncMetadata: latest.syncMetadata.copyWith(
+          state: BankConnectionSyncState.connected,
+          lastResult: BankSyncResult.success,
+          lastSuccessfulSyncAt: syncedAt,
+          consecutiveFailures: 0,
+          clearLastFailureReason: true,
+        ),
+      ),
+    );
+  }
+
+  Future<BankProfile> updateSyncMetadata(
+    String profileId,
+    BankSyncMetadata metadata,
+  ) async {
+    return _updateProfile(
+      profileId,
+      (profile) => profile.copyWith(
+        lastSyncAt: metadata.lastSuccessfulSyncAt,
+        syncMetadata: metadata,
+      ),
+    );
+  }
+
+  Future<BankProfile> _updateProfile(
+    String id,
+    BankProfile Function(BankProfile) transform,
+  ) async {
+    if (!_validId(id)) throw ArgumentError.value(id, 'id');
+    late BankProfile updated;
+    await RecoverableJsonFile(_metadataFile(id)).update((current) {
+      if (current == null) throw StateError('Bank profile no longer exists');
+      updated = transform(
+        BankProfile.fromJson(current.cast<String, Object?>()),
+      );
+      return updated.toJson();
+    });
     return updated;
   }
+
+  Future<BankProfile> mutateSyncMetadata(
+    String id,
+    BankSyncMetadata Function(BankSyncMetadata) transform,
+  ) => _updateProfile(id, (profile) {
+    final metadata = transform(profile.syncMetadata);
+    return profile.copyWith(
+      lastSyncAt: metadata.lastSuccessfulSyncAt,
+      syncMetadata: metadata,
+    );
+  });
 
   /// Call only after the CEF browser and its RequestContext have closed.
   Future<void> deleteProfile(String id) async {
@@ -128,10 +209,7 @@ class BrowserProfileManager {
     _assertInsideRoot(directory);
     await directory.create(recursive: true);
     final target = _metadataFile(profile.id);
-    final temporary = File('${target.path}.tmp');
-    await temporary.writeAsString(jsonEncode(profile.toJson()), flush: true);
-    if (await target.exists()) await target.delete();
-    await temporary.rename(target.path);
+    await RecoverableJsonFile(target).write(profile.toJson());
   }
 
   void _assertInsideRoot(Directory directory) {

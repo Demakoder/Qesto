@@ -162,7 +162,7 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
       key: const Key('investment-account-details'),
       padding: const EdgeInsets.fromLTRB(26, 16, 26, 30),
       children: [
-        Row(
+        DesktopAdaptiveRow(
           children: [
             IconButton(
               tooltip: 'Назад к инвестициям',
@@ -955,7 +955,7 @@ class _InvestmentValueCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
+        DesktopAdaptiveRow(
           children: [
             Expanded(
               child: Text(

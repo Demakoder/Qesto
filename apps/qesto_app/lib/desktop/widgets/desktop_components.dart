@@ -2,6 +2,56 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/qesto_theme.dart';
 
+/// Card contents stack on phones; desktop keeps its original flex layout.
+class DesktopAdaptiveRow extends StatelessWidget {
+  const DesktopAdaptiveRow({
+    required this.children,
+    this.wrapOnMobile = false,
+    super.key,
+  });
+  final List<Widget> children;
+  final bool wrapOnMobile;
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= 600) return Row(children: children);
+    if (wrapOnMobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final child in children)
+            if (child is! Spacer) child is Expanded ? child.child : child,
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final child in children)
+          if (child is! Spacer)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: child is Expanded
+                  ? child.child
+                  : child is SizedBox && child.child == null
+                  ? const SizedBox.shrink()
+                  : child,
+            ),
+      ],
+    );
+  }
+}
+
+class DesktopCollapsibleFilters extends StatelessWidget {
+  const DesktopCollapsibleFilters({required this.child, super.key});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width < 600
+      ? ExpansionTile(title: const Text('Поиск и фильтры'), children: [child])
+      : child;
+}
+
 class DesktopCard extends StatelessWidget {
   const DesktopCard({
     required this.child,

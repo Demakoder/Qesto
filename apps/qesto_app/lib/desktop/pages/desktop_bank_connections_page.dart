@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
+import '../../core/safety/financial_write_guard.dart';
 import '../../core/platform/qesto_command_line.dart';
 import '../../core/theme/qesto_theme.dart';
 import '../../core/platform/external_url_launcher.dart';
@@ -11,11 +12,14 @@ import '../../data/models/qesto_models.dart';
 import '../../features/bank_browser/config/bank_connector_registry.dart';
 import '../../features/bank_browser/data/browser_profile_manager.dart';
 import '../../features/bank_browser/domain/bank_browser_models.dart';
+import '../../features/bank_browser/domain/bank_sync_models.dart';
 import '../../features/bank_browser/runtime/browser_controller.dart';
 import '../../features/bank_browser/dev/dev_browser_bridge.dart';
 import '../../features/bank_browser/sber/sber_auth_manager.dart';
 import '../../features/bank_browser/sber/sber_connector.dart';
 import '../../features/bank_browser/sber/sber_connector_models.dart';
+import '../../features/bank_browser/sber/sber_page_detector.dart';
+import '../../features/bank_browser/sync/bank_sync_scheduler.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/budget/services/cash_flow_calculation_service.dart';
 import '../widgets/desktop_components.dart';
@@ -25,10 +29,12 @@ class DesktopBankConnectionsPage extends StatefulWidget {
     super.key,
     this.profileManager,
     this.controller,
+    this.bankSyncScheduler,
   });
 
   final BrowserProfileManager? profileManager;
   final BudgetController? controller;
+  final BankSyncScheduler? bankSyncScheduler;
 
   @override
   State<DesktopBankConnectionsPage> createState() =>
@@ -42,12 +48,17 @@ class _DesktopBankConnectionsPageState
   List<BankProfile> _items = const [];
   var _loading = true;
   var _busy = false;
-  var _sberPinStored = false;
+  final _pinProfiles = <String>{};
 
   @override
   void initState() {
     super.initState();
+    widget.bankSyncScheduler?.addListener(_onSchedulerChanged);
     unawaited(_initialize());
+  }
+
+  void _onSchedulerChanged() {
+    if (mounted) unawaited(_reload());
   }
 
   Future<void> _initialize() async {
@@ -55,7 +66,7 @@ class _DesktopBankConnectionsPageState
     if (hasQestoCommandLineArgument('--qesto-bank-browser-open-sber')) {
       await _addSber();
     }
-    if (hasQestoCommandLineArgument('--qesto-bank-browser-dev')) {
+    if (hasQestoCommandLineArgument('--qesto-bank-browser-open-dev')) {
       for (final profile in _items) {
         if (profile.bankId == 'sber' && mounted) {
           await _openDev(profile, confirm: false);
@@ -67,9 +78,15 @@ class _DesktopBankConnectionsPageState
 
   Future<void> _reload() async {
     final values = await _profiles.listProfiles();
-    String? pin;
+    final pinProfiles = <String>{};
     try {
-      pin = await const SberPinVault().read();
+      for (final profile in values.where((p) => p.bankId == 'sber')) {
+        final vault = SberPinVault(profileId: profile.id);
+        await vault.migrateLegacy(_profiles);
+        if ((await vault.read())?.isNotEmpty == true) {
+          pinProfiles.add(profile.id);
+        }
+      }
     } on MissingPluginException {
       // Secure storage is provided by the Windows host; widget tests and
       // unsupported hosts simply render the PIN as not configured.
@@ -78,7 +95,9 @@ class _DesktopBankConnectionsPageState
     setState(() {
       _items = values;
       _loading = false;
-      _sberPinStored = pin?.isNotEmpty == true;
+      _pinProfiles
+        ..clear()
+        ..addAll(pinProfiles);
     });
   }
 
@@ -87,6 +106,7 @@ class _DesktopBankConnectionsPageState
     setState(() => _busy = true);
     try {
       final profile = await _profiles.createProfile(BankConnectorRegistry.sber);
+      await widget.bankSyncScheduler?.refresh();
       if (!mounted) return;
       await _open(profile);
     } finally {
@@ -98,40 +118,98 @@ class _DesktopBankConnectionsPageState
   Future<void> _open(BankProfile profile) async {
     final config = BankConnectorRegistry.byId(profile.bankId);
     if (config == null || !mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => BankBrowserPage(
-          profile: profile,
-          bank: config,
-          profileManager: _profiles,
-          budgetController: widget.controller,
+    if (!_beginInteractive(profile)) return;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => BankBrowserPage(
+            profile: profile,
+            bank: config,
+            profileManager: _profiles,
+            budgetController: widget.controller,
+            bankSyncScheduler: widget.bankSyncScheduler,
+          ),
         ),
-      ),
-    );
-    await _reload();
+      );
+    } finally {
+      _endInteractive(profile);
+      await _reload();
+    }
   }
 
   Future<void> _syncProfile(BankProfile profile) async {
     final config = BankConnectorRegistry.byId(profile.bankId);
     if (config == null || !mounted || _busy) return;
+    final latest = await _profiles.getProfile(profile.id);
+    if (!mounted || latest == null) return;
     final range = profile.bankId == 'sber'
-        ? await _showSberSyncRangeDialog(context)
+        ? await _showSberSyncRangeDialog(
+            context,
+            coveredThrough: latest.syncMetadata.lastHistorySyncThrough,
+          )
         : null;
     if (profile.bankId == 'sber' && range == null) return;
     if (!mounted) return;
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => BankBrowserPage(
-          profile: profile,
-          bank: config,
-          profileManager: _profiles,
-          budgetController: widget.controller,
-          autoSyncOnOpen: profile.bankId == 'sber',
-          initialSyncRange: range,
+    final scheduler = widget.bankSyncScheduler;
+    if (scheduler == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Фоновая синхронизация недоступна. Перезапустите Qesto.',
+          ),
         ),
-      ),
-    );
-    await _reload();
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      final execution = await scheduler.refreshNow(profile.id, range: range);
+      if (!mounted) return;
+      final result = execution.result;
+      final message = switch (execution.decision) {
+        BankSyncStartDecision.busy =>
+          'Браузер банка уже открыт или идёт синхронизация. Закройте страницу банка и повторите обновление.',
+        BankSyncStartDecision.unavailable => 'Подключение больше недоступно.',
+        BankSyncStartDecision.unsupported =>
+          'Фоновое обновление этого банка недоступно.',
+        _ => switch (result?.result) {
+          BankSyncResult.cancelled => 'Синхронизация отменена',
+          BankSyncResult.success => 'Сбер обновлён в фоне',
+          BankSyncResult.partial =>
+            'Данные сохранены частично — нужна проверка полноты или привязки счетов',
+          BankSyncResult.authRequired =>
+            'Сбер требует вход. Откройте банк кнопкой «Открыть», войдите и повторите обновление.',
+          BankSyncResult.timeout =>
+            'Истекло время ожидания банка. Повторите позже.',
+          BankSyncResult.networkError => 'Нет соединения с банком.',
+          _ =>
+            'Синхронизация не завершена. ${result?.failureReason ?? "Попробуйте позже."}',
+        },
+      };
+      await showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(message),
+          content: result == null
+              ? null
+              : Text(
+                  'Новых операций: ${result.importedCount}\n'
+                  'Обновлено операций и счетов: ${result.updatedCount}\n'
+                  'Без изменений: ${result.deduplicatedCount}'
+                  '${result.failureReason == null ? "" : "\nДиагностика: ${result.failureReason}"}',
+                ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Готово'),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      await _reload();
+    }
   }
 
   Future<void> _openDev(BankProfile profile, {bool confirm = true}) async {
@@ -160,21 +238,47 @@ class _DesktopBankConnectionsPageState
       );
       if (enabled != true || !mounted) return;
     }
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (_) => BankBrowserPage(
-          profile: profile,
-          bank: config,
-          profileManager: _profiles,
-          budgetController: widget.controller,
-          devMode: true,
+    if (!_beginInteractive(profile)) return;
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => BankBrowserPage(
+            profile: profile,
+            bank: config,
+            profileManager: _profiles,
+            budgetController: widget.controller,
+            bankSyncScheduler: widget.bankSyncScheduler,
+            devMode: true,
+          ),
+        ),
+      );
+    } finally {
+      _endInteractive(profile);
+      await _reload();
+    }
+  }
+
+  bool _beginInteractive(BankProfile profile) {
+    final scheduler = widget.bankSyncScheduler;
+    if (scheduler == null || scheduler.beginInteractiveSession(profile.id)) {
+      return true;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Банк уже обновляется в фоне. Дождитесь завершения текущей синхронизации.',
         ),
       ),
     );
-    await _reload();
+    return false;
   }
 
-  Future<void> _saveSberPin() async {
+  void _endInteractive(BankProfile profile) {
+    widget.bankSyncScheduler?.endInteractiveSession(profile.id);
+  }
+
+  Future<void> _saveSberPin(BankProfile profile) async {
+    final vault = SberPinVault(profileId: profile.id);
     final input = TextEditingController();
     final pin = await showDialog<String>(
       context: context,
@@ -192,7 +296,7 @@ class _DesktopBankConnectionsPageState
           ),
         ),
         actions: [
-          if (_sberPinStored)
+          if (_pinProfiles.contains(profile.id))
             TextButton(
               onPressed: () => Navigator.pop(context, '__delete__'),
               child: const Text('Удалить PIN'),
@@ -211,9 +315,9 @@ class _DesktopBankConnectionsPageState
     input.dispose();
     if (pin == null || pin.isEmpty) return;
     if (pin == '__delete__') {
-      await const SberPinVault().delete();
+      await vault.delete();
       if (mounted) {
-        setState(() => _sberPinStored = false);
+        setState(() => _pinProfiles.remove(profile.id));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PIN удалён с этого компьютера.')),
         );
@@ -221,9 +325,9 @@ class _DesktopBankConnectionsPageState
       return;
     }
     try {
-      await const SberPinVault().write(pin);
+      await vault.write(pin);
       if (mounted) {
-        setState(() => _sberPinStored = true);
+        setState(() => _pinProfiles.add(profile.id));
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PIN сохранён на этом компьютере.')),
         );
@@ -261,16 +365,18 @@ class _DesktopBankConnectionsPageState
       ),
     );
     if (confirmed != true) return;
+    if (!_beginInteractive(profile)) return;
     setState(() => _busy = true);
     try {
       await _profiles.deleteProfile(profile.id);
       if (profile.bankId == 'sber') {
         // The PIN belongs to this device connection, not to the financial
         // history. Remove it together with the CEF profile on disconnect.
-        await const SberPinVault().delete();
-        _sberPinStored = false;
+        await SberPinVault(profileId: profile.id).delete();
+        _pinProfiles.remove(profile.id);
       }
       await _reload();
+      await widget.bankSyncScheduler?.refresh();
     } on Object {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -282,8 +388,15 @@ class _DesktopBankConnectionsPageState
         );
       }
     } finally {
+      _endInteractive(profile);
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  @override
+  void dispose() {
+    widget.bankSyncScheduler?.removeListener(_onSchedulerChanged);
+    super.dispose();
   }
 
   @override
@@ -375,14 +488,38 @@ class _DesktopBankConnectionsPageState
           for (final profile in _items) ...[
             _BankProfileCard(
               profile: profile,
+              syncing:
+                  widget.bankSyncScheduler?.manager.isSyncing(profile.id) ??
+                  profile.syncMetadata.isSyncing,
+              cancelling:
+                  widget.bankSyncScheduler?.manager.isCancelling(profile.id) ??
+                  false,
+              onCancel: widget.bankSyncScheduler == null
+                  ? null
+                  : () =>
+                        widget.bankSyncScheduler!.cancelCurrentSync(profile.id),
               onOpen: () => _open(profile),
               onSync: profile.bankId == 'sber'
                   ? () => _syncProfile(profile)
                   : null,
               onDev: profile.bankId == 'sber' ? () => _openDev(profile) : null,
-              onSavePin: profile.bankId == 'sber' ? _saveSberPin : null,
-              pinStored: profile.bankId == 'sber' && _sberPinStored,
+              onSavePin: profile.bankId == 'sber'
+                  ? () => _saveSberPin(profile)
+                  : null,
+              pinStored:
+                  profile.bankId == 'sber' && _pinProfiles.contains(profile.id),
               onDelete: _busy ? null : () => _delete(profile),
+              onBackgroundSyncChanged:
+                  BankConnectorRegistry.byId(
+                        profile.bankId,
+                      )?.supportsBackgroundSync ==
+                      true
+                  ? (enabled) => widget.bankSyncScheduler
+                        ?.setBackgroundSyncEnabled(profile.id, enabled)
+                  : null,
+              devDiagnostics: hasQestoCommandLineArgument(
+                '--qesto-bank-browser-dev',
+              ),
             ),
             const SizedBox(height: 10),
           ],
@@ -410,6 +547,7 @@ class _DesktopBankConnectionsPageState
 }
 
 enum _SberPeriodChoice {
+  sinceLastSync,
   currentMonth,
   last7Days,
   last30Days,
@@ -417,8 +555,13 @@ enum _SberPeriodChoice {
   custom,
 }
 
-Future<SberSyncRange?> _showSberSyncRangeDialog(BuildContext context) async {
-  var choice = _SberPeriodChoice.currentMonth;
+Future<SberSyncRange?> _showSberSyncRangeDialog(
+  BuildContext context, {
+  DateTime? coveredThrough,
+}) async {
+  var choice = coveredThrough == null
+      ? _SberPeriodChoice.currentMonth
+      : _SberPeriodChoice.sinceLastSync;
   DateTimeRange? custom;
   final now = DateTime.now();
   return showDialog<SberSyncRange>(
@@ -438,6 +581,9 @@ Future<SberSyncRange?> _showSberSyncRangeDialog(BuildContext context) async {
               const SizedBox(height: 14),
               for (final item in _SberPeriodChoice.values)
                 ListTile(
+                  enabled:
+                      item != _SberPeriodChoice.sinceLastSync ||
+                      coveredThrough != null,
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                   leading: Icon(
@@ -449,7 +595,13 @@ Future<SberSyncRange?> _showSberSyncRangeDialog(BuildContext context) async {
                         : QestoColors.secondaryText,
                   ),
                   title: Text(_sberPeriodChoiceLabel(item)),
-                  subtitle: item == _SberPeriodChoice.custom && custom != null
+                  subtitle: item == _SberPeriodChoice.sinceLastSync
+                      ? Text(
+                          coveredThrough == null
+                              ? 'Сначала нужна полная синхронизация периода'
+                              : 'Проверено до ${_formatProfileDate(coveredThrough)}. Повторно проверим также предыдущий день.',
+                        )
+                      : item == _SberPeriodChoice.custom && custom != null
                       ? Text(
                           '${_sberShortDate(custom!.start)}—${_sberShortDate(custom!.end)}',
                         )
@@ -494,7 +646,12 @@ Future<SberSyncRange?> _showSberSyncRangeDialog(BuildContext context) async {
                 ? null
                 : () => Navigator.pop(
                     dialogContext,
-                    _sberRangeFor(choice, now: now, custom: custom),
+                    _sberRangeFor(
+                      choice,
+                      now: now,
+                      custom: custom,
+                      coveredThrough: coveredThrough,
+                    ),
                   ),
             child: const Text('Начать синхронизацию'),
           ),
@@ -505,6 +662,7 @@ Future<SberSyncRange?> _showSberSyncRangeDialog(BuildContext context) async {
 }
 
 String _sberPeriodChoiceLabel(_SberPeriodChoice value) => switch (value) {
+  _SberPeriodChoice.sinceLastSync => 'С последней успешной синхронизации',
   _SberPeriodChoice.currentMonth => 'Текущий месяц',
   _SberPeriodChoice.last7Days => 'Последние 7 дней',
   _SberPeriodChoice.last30Days => 'Последние 30 дней',
@@ -516,10 +674,15 @@ SberSyncRange _sberRangeFor(
   _SberPeriodChoice value, {
   required DateTime now,
   DateTimeRange? custom,
+  DateTime? coveredThrough,
 }) {
   final today = DateTime(now.year, now.month, now.day);
   final toExclusive = today.add(const Duration(days: 1));
   return switch (value) {
+    _SberPeriodChoice.sinceLastSync => SberSyncRange.sinceLastSync(
+      coveredThrough,
+      now,
+    ),
     _SberPeriodChoice.currentMonth => SberSyncRange(
       from: DateTime(now.year, now.month),
       toExclusive: toExclusive,
@@ -566,7 +729,12 @@ class _BankProfileCard extends StatelessWidget {
     this.onSync,
     this.onSavePin,
     this.onDev,
+    this.onBackgroundSyncChanged,
+    this.onCancel,
+    this.syncing = false,
+    this.cancelling = false,
     this.pinStored = false,
+    this.devDiagnostics = false,
   });
 
   final BankProfile profile;
@@ -575,89 +743,342 @@ class _BankProfileCard extends StatelessWidget {
   final VoidCallback? onSync;
   final VoidCallback? onSavePin;
   final VoidCallback? onDev;
+  final ValueChanged<bool>? onBackgroundSyncChanged;
+  final VoidCallback? onCancel;
+  final bool syncing;
+  final bool cancelling;
   final bool pinStored;
+  final bool devDiagnostics;
 
   @override
   Widget build(BuildContext context) {
     final date = profile.lastOpenedAt;
+    final metadata = profile.syncMetadata;
     final opened =
         '${date.day.toString().padLeft(2, '0')}.${date.month.toString().padLeft(2, '0')}.${date.year}';
     return DesktopCard(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.lock_rounded, color: Color(0xFF16A05D), size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
+            children: [
+              const Icon(
+                Icons.lock_rounded,
+                color: Color(0xFF16A05D),
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            profile.displayName,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 9),
+                        _BankSyncStateBadge(metadata: metadata),
+                      ],
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      'Последний вход: $opened · данные только на устройстве',
+                      style: const TextStyle(
+                        color: QestoColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                    ),
+                    if (metadata.lastSuccessfulSyncAt case final syncedAt?)
+                      Text(
+                        'Обновлено: ${_formatProfileDate(syncedAt)}',
+                        style: const TextStyle(
+                          color: QestoColors.secondaryText,
+                          fontSize: 10,
+                        ),
+                      )
+                    else if (profile.lastSyncAt case final syncedAt?)
+                      Text(
+                        'Последняя синхронизация: ${_formatProfileDate(syncedAt)}',
+                        style: const TextStyle(
+                          color: QestoColors.secondaryText,
+                          fontSize: 10,
+                        ),
+                      ),
+                    if (profile.bankId == 'sber')
+                      Text(
+                        'PIN быстрого входа: ${pinStored ? 'сохранён' : 'не сохранён'}',
+                        style: const TextStyle(
+                          color: QestoColors.secondaryText,
+                          fontSize: 10,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: onOpen,
+                icon: const Icon(Icons.login_rounded, size: 17),
+                label: Text(metadata.needsAuthentication ? 'Войти' : 'Открыть'),
+              ),
+              if (onSavePin != null)
+                IconButton(
+                  tooltip: 'Сохранить или изменить PIN Сбера',
+                  onPressed: onSavePin,
+                  icon: const Icon(Icons.password_rounded, size: 18),
+                ),
+              if (onSync != null)
+                FilledButton.icon(
+                  key: const Key('bank-sync-now'),
+                  onPressed: syncing ? null : onSync,
+                  icon: syncing
+                      ? const SizedBox.square(
+                          dimension: 15,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.sync_rounded, size: 17),
+                  label: Text(syncing ? 'Обновляется…' : 'Обновить сейчас'),
+                ),
+              if (syncing && onCancel != null)
+                TextButton.icon(
+                  key: const Key('bank-sync-cancel'),
+                  onPressed: cancelling ? null : onCancel,
+                  icon: const Icon(Icons.stop_circle_outlined, size: 17),
+                  label: Text(cancelling ? 'Отменяется…' : 'Отменить'),
+                ),
+              if (onDev != null)
+                IconButton(
+                  tooltip: 'Открыть локальный DEV Inspector',
+                  onPressed: onDev,
+                  icon: const Icon(Icons.developer_mode_rounded, size: 18),
+                ),
+              IconButton(
+                tooltip: 'Отключить и удалить локальную сессию',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded, size: 19),
+              ),
+            ],
+          ),
+          if (onBackgroundSyncChanged != null) ...[
+            const Divider(height: 24),
+            Row(
               children: [
-                Text(
-                  profile.displayName,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
+                const Icon(
+                  Icons.schedule_rounded,
+                  size: 18,
+                  color: QestoColors.primary,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Автоматическая синхронизация',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      Text(
+                        !metadata.backgroundSyncEnabled
+                            ? 'Выключена'
+                            : metadata.needsAuthentication
+                            ? 'Приостановлена до повторного входа'
+                            : metadata.nextScheduledSyncAt == null
+                            ? 'Примерно каждый час'
+                            : 'Следующее обновление: ${_formatProfileDate(metadata.nextScheduledSyncAt!)}',
+                        style: const TextStyle(
+                          color: QestoColors.secondaryText,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  'Последний вход: $opened · данные только на устройстве',
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
-                    fontSize: 10,
-                  ),
+                Switch.adaptive(
+                  key: const Key('bank-background-sync-toggle'),
+                  value: metadata.backgroundSyncEnabled,
+                  onChanged: onBackgroundSyncChanged,
                 ),
-                if (profile.lastSyncAt != null)
-                  Text(
-                    'Последняя синхронизация: ${_formatProfileDate(profile.lastSyncAt!)}',
-                    style: const TextStyle(
-                      color: QestoColors.secondaryText,
-                      fontSize: 10,
-                    ),
-                  ),
-                if (profile.bankId == 'sber')
-                  Text(
-                    'PIN быстрого входа: ${pinStored ? 'сохранён' : 'не сохранён'}',
-                    style: const TextStyle(
-                      color: QestoColors.secondaryText,
-                      fontSize: 10,
-                    ),
-                  ),
               ],
             ),
-          ),
-          TextButton.icon(
-            onPressed: onOpen,
-            icon: const Icon(Icons.login_rounded, size: 17),
-            label: const Text('Открыть'),
-          ),
-          if (onSavePin != null)
-            IconButton(
-              tooltip: 'Сохранить или изменить PIN Сбера',
-              onPressed: onSavePin,
-              icon: const Icon(Icons.password_rounded, size: 18),
+          ],
+          if (metadata.lastAttemptAt != null && !metadata.isSyncing) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Последняя попытка: новых ${metadata.importedCount}, '
+              'обновлено ${metadata.updatedCount}, без изменений ${metadata.deduplicatedCount}',
+              style: const TextStyle(
+                fontSize: 11,
+                color: QestoColors.secondaryText,
+              ),
             ),
-          if (onSync != null)
-            FilledButton.icon(
-              onPressed: onSync,
-              icon: const Icon(Icons.sync_rounded, size: 17),
-              label: const Text('Синхронизировать'),
+            if (metadata.lastResult == BankSyncResult.partial)
+              const Text(
+                'Получены частичные данные. Полная синхронизация ещё не подтверждена.',
+                style: TextStyle(fontSize: 11, color: QestoColors.warning),
+              ),
+            if (metadata.lastFailureReason?.contains(
+                  'ACCOUNT_MAPPING_UNRESOLVED',
+                ) ==
+                true)
+              const Text(
+                'Часть операций сохранена без привязки к конкретному счёту.',
+                style: TextStyle(fontSize: 11, color: QestoColors.warning),
+              ),
+          ],
+          if (devDiagnostics)
+            ExpansionTile(
+              key: const Key('bank-sync-dev-diagnostics'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              title: const Text(
+                'DEV · фоновая синхронизация',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+              children: [
+                _diagnosticRow('Connection', profile.id),
+                _diagnosticRow('State', metadata.state.name),
+                _diagnosticRow(
+                  'Last attempt',
+                  _optionalDate(metadata.lastAttemptAt),
+                ),
+                _diagnosticRow(
+                  'Last success',
+                  _optionalDate(metadata.lastSuccessfulSyncAt),
+                ),
+                _diagnosticRow(
+                  'Next scheduled',
+                  _optionalDate(metadata.nextScheduledSyncAt),
+                ),
+                _diagnosticRow(
+                  'Duration',
+                  metadata.syncDurationMs == null
+                      ? '—'
+                      : '${metadata.syncDurationMs} ms',
+                ),
+                _diagnosticRow('Last result', metadata.lastResult?.name ?? '—'),
+                _diagnosticRow(
+                  'Failure reason',
+                  metadata.lastFailureReason ?? '—',
+                ),
+                _diagnosticRow(
+                  'History through',
+                  _optionalDate(metadata.lastHistorySyncThrough),
+                ),
+                _diagnosticRow('Imported', '${metadata.importedCount}'),
+                _diagnosticRow('Deduplicated', '${metadata.deduplicatedCount}'),
+                _diagnosticRow(
+                  'Browser mode',
+                  metadata.lastBrowserMode?.name.toUpperCase() ?? '—',
+                ),
+                _diagnosticRow(
+                  'Auth state',
+                  metadata.needsAuthentication ? 'REQUIRED' : 'VALID',
+                ),
+                const _BankDiagnosticProfileRow(),
+              ],
             ),
-          if (onDev != null)
-            IconButton(
-              tooltip: 'Открыть локальный DEV Inspector',
-              onPressed: onDev,
-              icon: const Icon(Icons.developer_mode_rounded, size: 18),
-            ),
-          IconButton(
-            tooltip: 'Отключить и удалить локальную сессию',
-            onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline_rounded, size: 19),
-          ),
         ],
       ),
     );
   }
+
+  static String _optionalDate(DateTime? value) =>
+      value == null ? '—' : _formatProfileDate(value);
+
+  static Widget _diagnosticRow(String label, String value) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 2),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 130,
+          child: Text(
+            label,
+            style: const TextStyle(
+              color: QestoColors.secondaryText,
+              fontSize: 10,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _BankSyncStateBadge extends StatelessWidget {
+  const _BankSyncStateBadge({required this.metadata});
+
+  final BankSyncMetadata metadata;
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = switch (metadata.state) {
+      BankConnectionSyncState.connected => (
+        'Подключён',
+        const Color(0xFF16A05D),
+      ),
+      BankConnectionSyncState.syncing => ('Обновляется', QestoColors.primary),
+      BankConnectionSyncState.authRequired => (
+        'Требуется вход',
+        QestoColors.warning,
+      ),
+      BankConnectionSyncState.temporaryError => (
+        metadata.lastResult == BankSyncResult.partial
+            ? 'Частичные данные'
+            : 'Временная ошибка',
+        QestoColors.warning,
+      ),
+      BankConnectionSyncState.failed => ('Ошибка', QestoColors.negative),
+      BankConnectionSyncState.disconnected => (
+        'Не подключён',
+        QestoColors.secondaryText,
+      ),
+      BankConnectionSyncState.disabled => (
+        'Автообновление выключено',
+        QestoColors.secondaryText,
+      ),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(99),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _BankDiagnosticProfileRow extends StatelessWidget {
+  const _BankDiagnosticProfileRow();
+
+  @override
+  Widget build(BuildContext context) =>
+      _BankProfileCard._diagnosticRow('Profile', 'existing persistent profile');
 }
 
 class BankBrowserPage extends StatefulWidget {
@@ -666,6 +1087,7 @@ class BankBrowserPage extends StatefulWidget {
     required this.bank,
     required this.profileManager,
     this.budgetController,
+    this.bankSyncScheduler,
     this.autoSyncOnOpen = false,
     this.devMode = false,
     this.initialSyncRange,
@@ -676,6 +1098,7 @@ class BankBrowserPage extends StatefulWidget {
   final BankConnectorConfig bank;
   final BrowserProfileManager profileManager;
   final BudgetController? budgetController;
+  final BankSyncScheduler? bankSyncScheduler;
   final bool autoSyncOnOpen;
   final bool devMode;
   final SberSyncRange? initialSyncRange;
@@ -697,6 +1120,21 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
   StreamSubscription<SberSyncReport>? _sberSubscription;
   SberSyncReport? _sberReport;
   var _syncing = false;
+  var _cancellingSync = false;
+  FinancialWriteGuard? _standaloneSyncGuard;
+
+  Future<void> _cancelSync() async {
+    if (!_syncing || _cancellingSync) return;
+    setState(() => _cancellingSync = true);
+    _standaloneSyncGuard?.cancel();
+    final scheduler = widget.bankSyncScheduler;
+    if (scheduler != null) {
+      await scheduler.cancelCurrentSync(widget.profile.id);
+    } else {
+      await _controller.stop();
+    }
+  }
+
   var _closing = false;
 
   @override
@@ -719,7 +1157,10 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
         bank: widget.bank,
       );
     }
-    if (!widget.autoSyncOnOpen || !mounted || !_controller.isRuntimeReady) {
+    if (!widget.autoSyncOnOpen ||
+        !mounted ||
+        _closing ||
+        !_controller.isRuntimeReady) {
       return;
     }
     try {
@@ -730,7 +1171,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
       // Sync still produces an explicit auth/parser result if loading is
       // interrupted; it must never appear to do nothing.
     }
-    if (mounted) {
+    if (mounted && !_closing) {
       await _syncSber(
         requestedRange: widget.initialSyncRange,
         askForPeriod: false,
@@ -747,12 +1188,49 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
 
   Future<void> _close() async {
     if (_closing) return;
+    _standaloneSyncGuard?.cancel();
     setState(() => _closing = true);
-    await _controller.stop();
-    await Future<void>.delayed(const Duration(milliseconds: 120));
-    if (widget.devMode) await DevBrowserBridge.instance.stop();
-    await _controller.disposeEnvironment();
-    if (mounted) Navigator.of(context).pop();
+    try {
+      if (!_syncing && _sberConnector != null && _controller.isRuntimeReady) {
+        try {
+          const detector = SberPageDetector();
+          final page = await detector
+              .inspect(_controller)
+              .timeout(const Duration(seconds: 3));
+          if (page != null &&
+              switch (detector.detect(page)) {
+                SberPageType.dashboard ||
+                SberPageType.accounts ||
+                SberPageType.accountDetails ||
+                SberPageType.transactions ||
+                SberPageType.savings ||
+                SberPageType.deposit ||
+                SberPageType.investments => true,
+                _ => false,
+              }) {
+            await widget.bankSyncScheduler?.resumeAfterAuthentication(
+              widget.profile.id,
+            );
+          }
+        } on Object {
+          // Closing never requires a successful inspection or changes auth
+          // state based merely on the URL of an unresponsive bank page.
+        }
+      }
+      await widget.bankSyncScheduler?.manager.cancel(widget.profile.id);
+      if (widget.devMode) await DevBrowserBridge.instance.stop();
+      await _controller.disposeEnvironment().timeout(
+        const Duration(seconds: 10),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } on Object {
+      if (mounted) {
+        setState(() => _closing = false);
+        _showNotice(
+          'Браузер ещё завершает работу. Подождите и нажмите «Закрыть» повторно.',
+        );
+      }
+    }
   }
 
   Future<void> _syncSber({
@@ -760,56 +1238,184 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
     bool askForPeriod = true,
   }) async {
     final connector = _sberConnector;
-    if (connector == null || _syncing) return;
+    if (connector == null || _syncing || _closing) return;
     var range = requestedRange;
     if (range == null && askForPeriod) {
-      range = await _showSberSyncRangeDialog(context);
+      final latest = await widget.profileManager.getProfile(widget.profile.id);
+      if (!mounted || _closing) return;
+      range = await _showSberSyncRangeDialog(
+        context,
+        coveredThrough: latest?.syncMetadata.lastHistorySyncThrough,
+      );
       if (range == null) return;
     }
     range ??= SberSyncRange.currentMonth();
     if (!mounted) return;
     setState(() => _syncing = true);
-    try {
+    SberSyncReport? completedReport;
+    SberImportSummary? imported;
+    QestoCashFlowSummary? diagnostic;
+    int? closingCashBalance;
+    final generation = widget.budgetController?.dataGeneration;
+    final startedAt = DateTime.now();
+    Future<BankSyncRunResult> performSync() async {
       final report = await connector.sync(range: range);
+      FinancialWriteGuard.check();
+      completedReport = report;
       final snapshot = report.snapshot;
-      if (snapshot != null && widget.budgetController != null) {
-        final imported = await widget.budgetController!.importSberSnapshot(
-          snapshot,
+      if (report.state == SberConnectorState.pinRequired ||
+          report.state == SberConnectorState.fullLoginRequired) {
+        return const BankSyncRunResult(
+          result: BankSyncResult.authRequired,
+          failureReason: 'USER_AUTHENTICATION_REQUIRED',
         );
+      }
+      if (report.state == SberConnectorState.error) {
+        return BankSyncRunResult(
+          result: BankSyncResult.bankUnavailable,
+          failureReason: report.failureCode ?? 'SBER_CONNECTOR_ERROR',
+        );
+      }
+      if (snapshot == null ||
+          (snapshot.accounts.isEmpty && snapshot.transactions.isEmpty) ||
+          (snapshot.historyRowsSeen > 0 &&
+              snapshot.transactions.isEmpty &&
+              !snapshot.hasVerifiedEmptyHistory)) {
+        return const BankSyncRunResult(
+          result: BankSyncResult.parserError,
+          failureReason: 'EMPTY_OR_INVALID_BANK_SNAPSHOT',
+        );
+      }
+      if (widget.budgetController != null) {
+        imported = await widget.budgetController!.importSberSnapshot(
+          snapshot,
+          expectedGeneration: generation,
+        );
+        diagnostic = widget.budgetController!.cashFlowForRange(
+          from: range!.from,
+          toExclusive: range.toExclusive,
+          currency: 'RUB',
+        );
+        closingCashBalance = widget.budgetController!.accounts
+            .where(
+              (account) =>
+                  account.currency == 'RUB' &&
+                  account.type != AccountType.investment &&
+                  account.type != AccountType.liability,
+            )
+            .fold<int>(0, (sum, account) => sum + account.balance);
+      }
+      final newest = snapshot.transactions.isEmpty
+          ? null
+          : snapshot.transactions
+                .map((item) => item.date)
+                .reduce((left, right) => left.isAfter(right) ? left : right);
+      return BankSyncRunResult(
+        result:
+            report.state == SberConnectorState.syncPartial ||
+                (imported?.unresolvedCount ?? 0) > 0 ||
+                (imported?.unassignedAccountCount ?? 0) > 0
+            ? BankSyncResult.partial
+            : BankSyncResult.success,
+        failureReason: report.importFailureReason(imported),
+        importedCount: imported?.newCount ?? 0,
+        updatedCount:
+            (imported?.updatedCount ?? 0) + (imported?.accountsUpdated ?? 0),
+        deduplicatedCount: imported?.unchangedCount ?? 0,
+        lastImportedTransactionAt: newest,
+        historySyncedThrough: range!.verifiedThrough(startedAt),
+      );
+    }
+
+    try {
+      final scheduler = widget.bankSyncScheduler;
+      final standaloneGuard = scheduler == null ? FinancialWriteGuard() : null;
+      _standaloneSyncGuard = standaloneGuard;
+      final execution = scheduler == null
+          ? BankSyncExecution(
+              decision: BankSyncStartDecision.started,
+              result: await standaloneGuard!.run(performSync),
+            )
+          : await scheduler.runManual(
+              await widget.profileManager.getProfile(widget.profile.id) ??
+                  _controller.profile,
+              performSync,
+              onCancel: _controller.stop,
+            );
+      if (execution.decision == BankSyncStartDecision.busy) {
         if (mounted) {
-          final diagnostic = widget.budgetController!.cashFlowForRange(
-            from: range.from,
-            toExclusive: range.toExclusive,
-            currency: 'RUB',
-          );
-          final closingCashBalance = widget.budgetController!.accounts
-              .where(
-                (account) =>
-                    account.currency == 'RUB' &&
-                    account.type != AccountType.investment &&
-                    account.type != AccountType.liability,
-              )
-              .fold<int>(0, (sum, account) => sum + account.balance);
-          await _showSberResult(
-            report,
-            imported,
-            period:
-                '${_sberShortDate(range.from)}—${_sberShortDate(range.toExclusive.subtract(const Duration(days: 1)))}',
-            diagnostic: diagnostic,
-            closingCashBalance: closingCashBalance,
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Синхронизация этого банка уже выполняется.'),
+            ),
           );
         }
+        return;
+      }
+      if (execution.decision == BankSyncStartDecision.unavailable) {
+        _showNotice(
+          'Сессия Qesto завершена. Закройте браузер банка и откройте его заново.',
+        );
+        return;
+      }
+      final report = completedReport;
+      if (execution.result?.result == BankSyncResult.cancelled) {
+        _showNotice('Синхронизация отменена');
+        return;
+      }
+      final summary = imported;
+      if (execution.result?.isSuccess == true && scheduler == null) {
         await widget.profileManager.updateLastSync(
           _controller.profile,
           DateTime.now(),
         );
-      } else if (mounted && report.message != null) {
-        await _showSberFailure(report);
       }
+      if (mounted && !_closing && report != null && summary != null) {
+        await _showSberResult(
+          report,
+          summary,
+          period:
+              '${_sberShortDate(range.from)}—${_sberShortDate(range.toExclusive.subtract(const Duration(days: 1)))}',
+          diagnostic: diagnostic,
+          closingCashBalance: closingCashBalance,
+        );
+      } else if (mounted && !_closing && report != null) {
+        await _showSberFailure(report);
+      } else if (mounted && !_closing && execution.result?.isSuccess != true) {
+        await _showSberFailure(
+          SberSyncReport(
+            state: SberConnectorState.error,
+            message: _manualSyncFailureMessage(execution.result),
+          ),
+        );
+      }
+    } on FinancialWriteCancelled {
+      _showNotice('Синхронизация отменена');
     } finally {
-      if (mounted) setState(() => _syncing = false);
+      _standaloneSyncGuard = null;
+      if (mounted) {
+        setState(() {
+          _syncing = false;
+          _cancellingSync = false;
+        });
+      }
     }
   }
+
+  String _manualSyncFailureMessage(BankSyncRunResult? result) =>
+      switch (result?.result) {
+        BankSyncResult.partial =>
+          'История получена частично. Полнота периода не подтверждена.',
+        BankSyncResult.authRequired =>
+          'Сбер попросил повторно подтвердить вход.',
+        BankSyncResult.timeout =>
+          'Синхронизация превысила допустимое время. Попробуйте позже.',
+        BankSyncResult.parserError =>
+          'Страница загрузилась, но безопасный парсер не подтвердил данные.',
+        BankSyncResult.networkError || BankSyncResult.bankUnavailable =>
+          'Сбер временно недоступен или отсутствует подключение к сети.',
+        _ => 'Синхронизация Сбера не завершена.',
+      };
 
   Future<void> _showSberResult(
     SberSyncReport report,
@@ -820,7 +1426,10 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
   }) async {
     final snapshot = report.snapshot;
     if (!mounted || snapshot == null) return;
-    final partial = report.state == SberConnectorState.syncPartial;
+    final partial =
+        report.state == SberConnectorState.syncPartial ||
+        summary.unresolvedCount > 0 ||
+        summary.unassignedAccountCount > 0;
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
@@ -844,8 +1453,25 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                     summary.recategorizedCount,
                   ),
                   _syncMetric('Без изменений', summary.unchangedCount),
+                  if (summary.deletedCount > 0)
+                    _syncMetric('Оставлено в корзине', summary.deletedCount),
+                  if (summary.unresolvedCount > 0)
+                    _syncMetric(
+                      'Требуют проверки / не приняты',
+                      summary.unresolvedCount,
+                    ),
                   _syncMetric('Счетов найдено', summary.accountsFound),
                   _syncMetric('Балансов обновлено', summary.accountsUpdated),
+                  if (summary.unassignedAccountCount > 0) ...[
+                    _syncMetric(
+                      'Сохранены, но счёт не определён',
+                      summary.unassignedAccountCount,
+                    ),
+                    const Text(
+                      'Эти операции учтены в денежном потоке, но не приписаны случайной карте. Сверка по счетам пока неполна.',
+                      style: TextStyle(color: QestoColors.warning),
+                    ),
+                  ],
                   if (summary.accountsMerged > 0)
                     _syncMetric(
                       'Дубликатов счетов объединено',
@@ -863,7 +1489,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                     if (snapshot.historyHasMoreRows &&
                         !snapshot.historyRangeBoundaryReached)
                       const Text(
-                        'История дочитана не полностью: на странице осталась кнопка «Показать ещё».',
+                        'Полнота истории не подтверждена: остались страницы или не удалось проверить конец списка.',
                         style: TextStyle(color: QestoColors.warning),
                       ),
                     if (snapshot.historyRewardRows > 0)
@@ -872,6 +1498,34 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                         style: const TextStyle(
                           color: QestoColors.secondaryText,
                         ),
+                      ),
+                    if (snapshot.historyRowsOutsidePeriod > 0)
+                      Text(
+                        'Вне выбранного периода: ${snapshot.historyRowsOutsidePeriod} '
+                        '(не являются ошибками импорта)',
+                      ),
+                    if (snapshot.historyDiagnostics.any(
+                      (d) => d.outcome.isError,
+                    ))
+                      ExpansionTile(
+                        tilePadding: EdgeInsets.zero,
+                        title: const Text('Почему часть строк не распознана'),
+                        children: [
+                          for (final row in snapshot.historyDiagnostics.where(
+                            (d) => d.outcome.isError,
+                          ))
+                            ListTile(
+                              dense: true,
+                              title: Text(row.description),
+                              subtitle: Text(
+                                [
+                                  if (row.date != null)
+                                    formatDate(row.date!, includeYear: true),
+                                  row.outcome.label,
+                                ].join(' · '),
+                              ),
+                            ),
+                        ],
                       ),
                     if (snapshot.historyRowsRejected > 0)
                       Text(
@@ -898,7 +1552,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                     ExpansionTile(
                       tilePadding: EdgeInsets.zero,
                       childrenPadding: EdgeInsets.zero,
-                      title: const Text('DEV · Cash Flow diagnostic'),
+                      title: const Text('DEV · Денежный поток всего профиля'),
                       subtitle: Text(
                         'Net: ${formatMoney(diagnostic.netCashFlow, 'RUB', showSign: true)}',
                       ),
@@ -925,7 +1579,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                         ),
                         if (closingCashBalance != null)
                           _diagnosticMoneyRow(
-                            'Текущий денежный баланс',
+                            'Текущий баланс денежных счетов всего профиля',
                             closingCashBalance,
                           ),
                         const Padding(
@@ -1063,6 +1717,8 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
     SberImportChange.created => 'Добавлено',
     SberImportChange.updated => 'Обновлено',
     SberImportChange.unchanged => 'Без изменений',
+    SberImportChange.needsReview => 'Требует проверки / не принято',
+    SberImportChange.deleted => 'В корзине',
   };
 
   Future<void> _saveSberPin() async {
@@ -1097,7 +1753,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
     input.dispose();
     if (pin == null || pin.isEmpty) return;
     try {
-      await const SberPinVault().write(pin);
+      await SberPinVault(profileId: widget.profile.id).write(pin);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -1151,6 +1807,10 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                         : _controller.reload,
                     onHome: () => _controller.navigate(widget.bank.startUrl),
                     onClose: _close,
+                    onCancelSync: _syncing && !_cancellingSync
+                        ? _cancelSync
+                        : null,
+                    cancelling: _cancellingSync,
                     onSync: _sberConnector == null || _syncing
                         ? null
                         : () => _syncSber(),
@@ -1242,6 +1902,8 @@ class _BankBrowserToolbar extends StatelessWidget {
     required this.onClose,
     this.onSync,
     this.onSavePin,
+    this.onCancelSync,
+    this.cancelling = false,
     this.syncing = false,
     this.report,
   });
@@ -1255,6 +1917,8 @@ class _BankBrowserToolbar extends StatelessWidget {
   final Future<void> Function() onClose;
   final Future<void> Function()? onSync;
   final Future<void> Function()? onSavePin;
+  final Future<void> Function()? onCancelSync;
+  final bool cancelling;
   final bool syncing;
   final SberSyncReport? report;
 
@@ -1390,6 +2054,13 @@ class _BankBrowserToolbar extends StatelessWidget {
                     )
                   : const Icon(Icons.sync_rounded, size: 17),
               label: Text(syncing ? 'Синхронизация…' : 'Синхронизировать'),
+            ),
+          if (syncing)
+            TextButton.icon(
+              key: const Key('bank-browser-cancel-sync'),
+              onPressed: onCancelSync,
+              icon: const Icon(Icons.stop_circle_outlined, size: 18),
+              label: Text(cancelling ? 'Отменяется…' : 'Отменить'),
             ),
           const SizedBox(width: 8),
           OutlinedButton.icon(

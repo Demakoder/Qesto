@@ -198,7 +198,7 @@ void main() {
   );
 
   test(
-    'Excel reimport replaces the old expense meaning with investment',
+    'Excel reimport updates automatic expense meaning without legacy user-edit migration',
     () async {
       final oldExpense = BudgetTransaction(
         id: 'excel-crypto-allocation',
@@ -230,8 +230,14 @@ void main() {
               type: AccountType.other,
             ),
           ],
-          transactions: [oldExpense],
+          transactions: const [],
         ),
+      );
+      await controller.importStatement(
+        account: controller.accounts.single,
+        transactions: [oldExpense],
+        createdPeriodIds: const {},
+        actionTitle: 'Первый импорт Excel',
       );
       final refreshed = oldExpense.copyWith(
         date: DateTime(2025, 1),
@@ -258,43 +264,49 @@ void main() {
         ),
         ['legacy-type-investment'],
       );
-      expect(controller.actions.single.previousTransactions, hasLength(1));
+      final refreshAction = controller.actions.firstWhere(
+        (action) => action.title == 'Обновление Excel',
+      );
+      expect(refreshAction.previousTransactions, hasLength(1));
 
-      await controller.undoAction(controller.actions.single.id);
+      await controller.undoAction(refreshAction.id);
       expect(controller.transactions.single.type, TransactionType.expense);
       expect(controller.transactions.single.date, DateTime(2000, 1));
     },
   );
 
-  test('Sber history is retained when products page has a parser mismatch', () async {
-    final controller = buildController();
-    final snapshot = SberSyncSnapshot(
-      observedAt: DateTime(2026, 8, 30),
-      accounts: const [],
-      transactions: [
-        SberTransactionFact(
-          sourceId: 'operation-without-account',
-          accountId: '',
-          date: DateTime(2026, 8, 29, 12, 30),
-          amount: 1500,
-          currency: 'RUB',
-          description: 'Перевод от пользователя',
-          status: 'POSTED',
-          fingerprint: 'sber-transaction-test',
-          isTransfer: true,
-          isIncome: true,
-        ),
-      ],
-      oldestTransaction: DateTime(2026, 8, 29),
-      newestTransaction: DateTime(2026, 8, 29),
-      pendingCount: 0,
-      pageType: SberPageType.transactions,
-    );
+  test(
+    'Sber history is retained when products page has a parser mismatch',
+    () async {
+      final controller = buildController();
+      final snapshot = SberSyncSnapshot(
+        observedAt: DateTime(2026, 8, 30),
+        accounts: const [],
+        transactions: [
+          SberTransactionFact(
+            sourceId: 'operation-without-account',
+            accountId: '',
+            date: DateTime(2026, 8, 29, 12, 30),
+            amount: 1500,
+            currency: 'RUB',
+            description: 'Перевод от пользователя',
+            status: 'POSTED',
+            fingerprint: 'sber-transaction-test',
+            isTransfer: true,
+            isIncome: true,
+          ),
+        ],
+        oldestTransaction: DateTime(2026, 8, 29),
+        newestTransaction: DateTime(2026, 8, 29),
+        pendingCount: 0,
+        pageType: SberPageType.transactions,
+      );
 
-    final result = await controller.importSberSnapshot(snapshot);
+      final result = await controller.importSberSnapshot(snapshot);
 
-    expect(result.found, 1);
-    expect(controller.transactions.single.accountId, 'local-default-account');
-    expect(controller.transactions.single.type, TransactionType.income);
-  });
+      expect(result.found, 1);
+      expect(controller.transactions.single.accountId, 'local-default-account');
+      expect(controller.transactions.single.type, TransactionType.income);
+    },
+  );
 }

@@ -96,7 +96,10 @@ class AutomaticNotificationImporter {
         try {
           // Unsupported text has no future value to Qesto and may still
           // contain account fragments or balances. Do not retain it until TTL.
-          await captureService.removeNotification(notification.notificationKey);
+          await captureService.removeNotification(
+            notification.notificationKey,
+            expectedVersion: notification.deliveryVersion,
+          );
         } on Object {
           failed += 1;
         }
@@ -109,8 +112,9 @@ class AutomaticNotificationImporter {
           accounts: controller.accounts,
           accountHint: transaction.accountHint,
           bankHint: transaction.bankHint,
+          currency: transaction.currency,
         );
-        if (account == null) {
+        if (account == null || account.confidence < 0.9) {
           // Keep the encrypted inbox record: once the user links or creates
           // the correct account, the next passive drain can finish safely.
           failed += 1;
@@ -141,10 +145,20 @@ class AutomaticNotificationImporter {
         );
         created += outcome.createdTransactionIds.length;
         merged += outcome.matchedTransactionIds.length;
+        if (outcome.failedCandidateIds.isNotEmpty ||
+            outcome.pendingCandidateIds.isNotEmpty) {
+          // Neither an unresolved match nor a failed record is an accepted
+          // payment. Preserve delivery for review/retry instead of acking it.
+          failed += 1;
+          continue;
+        }
 
         // Removing the inbox record is the acknowledgement. If it fails, the
         // stable notification key makes the next retry idempotent.
-        await captureService.removeNotification(notification.notificationKey);
+        await captureService.removeNotification(
+          notification.notificationKey,
+          expectedVersion: notification.deliveryVersion,
+        );
       } on Object {
         failed += 1;
       }

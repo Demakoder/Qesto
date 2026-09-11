@@ -7,6 +7,7 @@ import 'package:qesto/features/bank_browser/domain/bank_browser_models.dart';
 import 'package:qesto/features/bank_browser/runtime/browser_controller.dart';
 import 'package:qesto/features/bank_browser/sber/sber_connector_models.dart';
 import 'package:qesto/features/bank_browser/sber/sber_extractors.dart';
+import 'package:qesto/features/bank_browser/sber/sber_readiness.dart';
 
 void main() {
   const extractors = SberExtractors();
@@ -138,6 +139,44 @@ void main() {
     expect(refund.direction, SberTransactionDirection.inflow);
   });
 
+  test('fractional web amounts retain minor units', () {
+    final value = row(
+      id: 'cents',
+      date: '2026-08-10T12:00:00',
+      amount: null,
+      amountText: '100,25 ₽',
+      text: 'Coffee 100,25 ₽',
+      merchant: 'Coffee',
+      operationType: 'Оплата товаров и услуг',
+    );
+    value['amountValue'] = 100; // Legacy JS rounded this compatibility field.
+    final result = extractors.normalizeTransactionRows([value], range: range);
+    expect(result.single.amountMinor, 10025);
+    expect(result.single.amount, 100);
+  });
+
+  test(
+    'noncash records never turn their displayed account balance into money',
+    () {
+      for (final kind in ['reward', 'service']) {
+        final value = row(
+          id: kind,
+          date: '2026-08-10T12:00:00',
+          amount: 9000,
+          amountText: '9 000 ₽',
+          text: 'Информация. Баланс 9 000 ₽',
+          merchant: 'Баланс',
+          operationType: '',
+          nonCashKind: kind,
+        );
+        expect(
+          extractors.normalizeTransactionRows([value], range: range),
+          isEmpty,
+        );
+      }
+    },
+  );
+
   test('rejects reward-looking merchant and respects selected period', () {
     final transactions = extractors.normalizeTransactionRows([
       row(
@@ -164,6 +203,132 @@ void main() {
     expect(transactions.single.merchant, isNull);
     expect(transactions.single.description, 'Оплата товаров и услуг');
   });
+
+  test(
+    'diagnostics distinguish intentional exclusions from unreadable money',
+    () {
+      final base = row(
+        id: 'accepted',
+        date: '2026-08-10T12:00:00',
+        amount: 100,
+        amountText: '100,25 ₽',
+        text: 'Магазин 100,25 ₽',
+        merchant: 'Магазин',
+        operationType: 'Оплата товаров и услуг',
+      );
+      final observations = [
+        base,
+        {...base, 'id': 'reward', 'nonCashKind': 'reward'},
+        {...base, 'id': 'service', 'nonCashKind': 'service'},
+        {...base, 'id': 'old', 'dateIso': '2026-07-31', 'date': '2026-07-31'},
+        {...base, 'id': 'new', 'dateIso': '2026-09-01', 'date': '2026-09-01'},
+        {...base, 'id': 'date', 'dateIso': '', 'date': ''},
+        // Do not import 9000 from the balance when the purchase is still loading.
+        {
+          ...base,
+          'id': 'money',
+          'amount': '',
+          'amountValue': null,
+          'text': 'Магазин. Платёжный счёт: 9 000 ₽',
+        },
+        {...base, 'id': 'empty', 'text': ''},
+      ];
+      final result = extractors.diagnoseTransactionRows(
+        observations,
+        range: range,
+      );
+      expect(result.map((r) => r.outcome), [
+        SberHistoryRowOutcome.accepted,
+        SberHistoryRowOutcome.reward,
+        SberHistoryRowOutcome.service,
+        SberHistoryRowOutcome.outsidePeriod,
+        SberHistoryRowOutcome.outsidePeriod,
+        SberHistoryRowOutcome.missingDate,
+        SberHistoryRowOutcome.missingAmount,
+        SberHistoryRowOutcome.emptyText,
+      ]);
+      expect(result.where((r) => r.outcome.isError), hasLength(3));
+      expect(result.map((r) => r.observationId).toSet(), hasLength(8));
+      expect(
+        extractors
+            .normalizeTransactionRows(observations, range: range)
+            .single
+            .amountMinor,
+        10025,
+      );
+    },
+  );
+
+  test('legacy unstructured amount remains readable', () {
+    final value =
+        row(
+            id: 'legacy',
+            date: '2026-08-10T12:00:00',
+            amount: null,
+            amountText: '',
+            text: 'Магазин 100,25 ₽',
+            merchant: 'Магазин',
+            operationType: 'Оплата товаров и услуг',
+          )
+          ..remove('amount')
+          ..remove('amountValue');
+    expect(
+      extractors
+          .normalizeTransactionRows([value], range: range)
+          .single
+          .amountMinor,
+      10025,
+    );
+  });
+
+  for (final firstComplete in [false, true]) {
+    test(
+      'lazy observation keeps the complete row (firstComplete=$firstComplete)',
+      () async {
+        final complete = row(
+          id: 'lazy',
+          date: '2026-08-10T12:00:00',
+          amount: 100,
+          amountText: '100,25 ₽',
+          text: 'Магазин 100,25 ₽',
+          merchant: 'Магазин',
+          operationType: 'Оплата товаров и услуг',
+        );
+        final incomplete = {
+          ...complete,
+          'amount': '',
+          'amountValue': null,
+          'text': 'Магазин. Платёжный счёт: 9 000 ₽',
+        };
+        final boundary = {
+          ...complete,
+          'id': 'older',
+          'dateIso': '2026-07-31',
+          'date': '2026-07-31',
+        };
+        final browser = _LazyHistoryBrowser([
+          jsonEncode([firstComplete ? complete : incomplete]),
+          jsonEncode([firstComplete ? incomplete : complete, boundary]),
+        ]);
+        final result = await extractors.transactions(
+          browser,
+          range: range,
+          maxScrolls: 3,
+        );
+        expect(result.transactions.single.amountMinor, 10025);
+        expect(result.rawRowsSeen, 2);
+        expect(result.rejectedRows, 0);
+        expect(result.outsidePeriodRows, 1);
+        expect(
+          result.diagnostics.where(
+            (r) => r.outcome == SberHistoryRowOutcome.accepted,
+          ),
+          hasLength(1),
+        );
+        expect(result.rangeBoundaryReached, isTrue);
+      },
+    );
+  }
 
   test('account fallback identity does not depend on a changing balance', () {
     final first = extractors.normalizeAccountRows([
@@ -197,16 +362,16 @@ void main() {
         'id': 'payment-account-route',
         'name': 'Платёжный счёт',
         'kind': 'account',
-        'text': 'Платёжный счёт Баланс 10 000 ₽',
-        'balance': '10 000 ₽',
+        'text': 'Платёжный счёт Баланс 10 000,25 ₽',
+        'balance': '10 000,25 ₽',
         'cards': <String>['1234'],
       },
       {
         'id': 'card-route',
         'name': 'СберКарта',
         'kind': 'card',
-        'text': 'СберКарта •• 1234 10 000 ₽',
-        'balance': '10 000 ₽',
+        'text': 'СберКарта •• 1234 10 000,25 ₽',
+        'balance': '10 000,25 ₽',
         'cards': <String>[],
       },
     ]);
@@ -214,6 +379,7 @@ void main() {
     expect(accounts, hasLength(1));
     expect(accounts.single.linkedCardLastFours, contains('1234'));
     expect(accounts.single.balance, 10000);
+    expect(accounts.single.balanceMinor, 1000025);
   });
 
   test(
@@ -249,6 +415,9 @@ void main() {
       );
 
       expect(result.transactions, hasLength(1));
+      expect(result.rawRowsSeen, 2);
+      expect(result.rejectedRows, 0);
+      expect(result.outsidePeriodRows, 1);
       expect(browser.historyReads, 1);
       expect(browser.scrollAttempts, 0);
     },
@@ -332,7 +501,7 @@ void main() {
 
       await extractors.visibleTransactions(browser, range: range);
 
-      final script = browser.transactionScript;
+      final script = browser.transactionScript!;
       expect(script, isNotNull);
       expect(script, contains('operationGroupLink'));
       expect(script, contains('section ul[aria-label] li > a[href]'));
@@ -340,7 +509,15 @@ void main() {
       expect(script, isNot(contains('[aria-label*="операци" i]')));
       expect(script, contains('январ[ья]'));
       expect(
-        script!.indexOf('const labelledGroup'),
+        script,
+        contains('if (!text && !operationLinks.includes(original)) return;'),
+      );
+      expect(
+        script.replaceAll(RegExp(r'\s'), ''),
+        isNot(contains('if(!text||!date||')),
+      );
+      expect(
+        script.indexOf('const labelledGroup'),
         lessThan(script.indexOf('const own')),
       );
     },
@@ -394,6 +571,73 @@ void main() {
       expect(result.transactions, hasLength(1));
       expect(result.rangeBoundaryReached, isFalse);
       expect(result.hasMoreRows, isTrue);
+    },
+  );
+
+  test('slow history request is awaited without repeated clicks', () async {
+    final first = jsonEncode([
+      row(
+        id: 'a',
+        date: '2026-08-10',
+        amount: 100,
+        amountText: '100 ₽',
+        text: 'Shop',
+        merchant: 'Shop',
+        operationType: 'Оплата товаров и услуг',
+      ),
+    ]);
+    final boundary = jsonEncode([
+      row(
+        id: 'b',
+        date: '2026-07-31',
+        amount: 100,
+        amountText: '100 ₽',
+        text: 'Shop',
+        merchant: 'Shop',
+        operationType: 'Оплата товаров и услуг',
+      ),
+    ]);
+    final browser = _MultiPageLoadMoreBrowser([
+      first,
+      boundary,
+    ], pendingReads: 18);
+    final result = await const SberExtractors(
+      readiness: SberReadiness(
+        timeout: Duration(seconds: 1),
+        pollInterval: Duration(milliseconds: 2),
+      ),
+    ).transactions(browser, range: range);
+    expect(result.rangeBoundaryReached, isTrue);
+    expect(browser.loadMoreClicks, 1);
+  });
+
+  test(
+    'stalled history request stays partial and is not clicked again',
+    () async {
+      final first = jsonEncode([
+        row(
+          id: 'a',
+          date: '2026-08-10',
+          amount: 100,
+          amountText: '100 ₽',
+          text: 'Shop',
+          merchant: 'Shop',
+          operationType: 'Оплата товаров и услуг',
+        ),
+      ]);
+      final browser = _MultiPageLoadMoreBrowser([
+        first,
+        '[]',
+      ], pendingReads: 100000);
+      final result = await const SberExtractors(
+        readiness: SberReadiness(
+          timeout: Duration(milliseconds: 40),
+          pollInterval: Duration(milliseconds: 2),
+        ),
+      ).transactions(browser, range: range);
+      expect(result.hasMoreRows, isTrue);
+      expect(result.transactions, hasLength(1));
+      expect(browser.loadMoreClicks, 1);
     },
   );
 
@@ -507,6 +751,7 @@ class _HistoryBoundaryBrowser extends BrowserController {
     String script, {
     BrowserMode mode = BrowserMode.read,
   }) async {
+    if (script.contains('page readiness without reload')) return 'ready';
     if (script.contains('visible transaction facts')) {
       historyReads += 1;
       return payload;
@@ -542,11 +787,29 @@ class _ScriptCaptureBrowser extends BrowserController {
     String script, {
     BrowserMode mode = BrowserMode.read,
   }) async {
+    if (script.contains('page readiness without reload')) return 'ready';
     if (script.contains('visible transaction facts')) {
       transactionScript = script;
       return '[]';
     }
     return '0';
+  }
+}
+
+class _LazyHistoryBrowser extends _HistoryBoundaryBrowser {
+  _LazyHistoryBrowser(this.pages) : super('[]');
+  final List<String> pages;
+  var nextRead = 0;
+
+  @override
+  Future<dynamic> evaluateConnectorJavascript(
+    String script, {
+    BrowserMode mode = BrowserMode.read,
+  }) async {
+    if (script.contains('visible transaction facts')) {
+      return pages[nextRead++];
+    }
+    return super.evaluateConnectorJavascript(script, mode: mode);
   }
 }
 
@@ -573,6 +836,7 @@ class _IncompleteHistoryBrowser extends BrowserController {
     String script, {
     BrowserMode mode = BrowserMode.read,
   }) async {
+    if (script.contains('page readiness without reload')) return 'ready';
     if (script.contains('visible transaction facts')) return payload;
     if (script.contains('detect remaining read-only history pagination')) {
       return '1';
@@ -614,6 +878,7 @@ class _LoadMoreBeforeScrollBrowser extends BrowserController {
     String script, {
     BrowserMode mode = BrowserMode.read,
   }) async {
+    if (script.contains('page readiness without reload')) return 'ready';
     if (script.contains('visible transaction facts')) {
       historyReads += 1;
       if (expanded) return expandedPayload;
@@ -636,7 +901,7 @@ class _LoadMoreBeforeScrollBrowser extends BrowserController {
 }
 
 class _MultiPageLoadMoreBrowser extends BrowserController {
-  _MultiPageLoadMoreBrowser(this.pages)
+  _MultiPageLoadMoreBrowser(this.pages, {this.pendingReads = 3})
     : super(
         profile: BankProfile(
           id: 'sber-multi-page-profile',
@@ -652,6 +917,7 @@ class _MultiPageLoadMoreBrowser extends BrowserController {
       );
 
   final List<String> pages;
+  final int pendingReads;
   var currentPage = 0;
   var loadMoreClicks = 0;
   var scrollAttempts = 0;
@@ -662,6 +928,7 @@ class _MultiPageLoadMoreBrowser extends BrowserController {
     String script, {
     BrowserMode mode = BrowserMode.read,
   }) async {
+    if (script.contains('page readiness without reload')) return 'ready';
     if (script.contains('visible transaction facts')) {
       if (_pendingReads > 0) {
         _pendingReads -= 1;
@@ -676,7 +943,7 @@ class _MultiPageLoadMoreBrowser extends BrowserController {
       loadMoreClicks += 1;
       // Model React/virtual-list latency: several reads still expose the old
       // page after a successful button click.
-      _pendingReads = 3;
+      _pendingReads = pendingReads;
       return '1';
     }
     if (script.contains('advance a visible read-only history list')) {

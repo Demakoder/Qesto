@@ -22,6 +22,8 @@ class QestoCashFlowSummary {
     required this.internalTransferInflows,
     required this.internalTransferOutflows,
     required this.ignoredTransactions,
+    this.exactExternalInflowsMinor,
+    this.exactExternalOutflowsMinor,
   });
 
   final DateTime periodStart;
@@ -31,8 +33,15 @@ class QestoCashFlowSummary {
   final int internalTransferInflows;
   final int internalTransferOutflows;
   final int ignoredTransactions;
+  final int? exactExternalInflowsMinor;
+  final int? exactExternalOutflowsMinor;
+  int get externalInflowsMinor =>
+      exactExternalInflowsMinor ?? externalInflows * 100;
+  int get externalOutflowsMinor =>
+      exactExternalOutflowsMinor ?? externalOutflows * 100;
+  int get netCashFlowMinor => externalInflowsMinor - externalOutflowsMinor;
 
-  int get netCashFlow => externalInflows - externalOutflows;
+  int get netCashFlow => _major(netCashFlowMinor);
   int get internalTransfersExcluded =>
       internalTransferInflows + internalTransferOutflows;
 }
@@ -59,14 +68,14 @@ class CashFlowCalculationService {
       }
       switch (treatment(transaction)) {
         case CashFlowTreatment.externalInflow:
-          inflows += transaction.amount;
+          inflows += transaction.amountMinor;
         case CashFlowTreatment.externalOutflow:
-          outflows += transaction.amount;
+          outflows += transaction.amountMinor;
         case CashFlowTreatment.internalTransfer:
           if (transaction.transferDirection == TransferDirection.incoming) {
-            internalInflows += transaction.amount;
+            internalInflows += transaction.amountMinor;
           } else {
-            internalOutflows += transaction.amount;
+            internalOutflows += transaction.amountMinor;
           }
         case CashFlowTreatment.ignored:
           ignored += 1;
@@ -75,10 +84,12 @@ class CashFlowCalculationService {
     return QestoCashFlowSummary(
       periodStart: from,
       periodEndExclusive: toExclusive,
-      externalInflows: inflows,
-      externalOutflows: outflows,
-      internalTransferInflows: internalInflows,
-      internalTransferOutflows: internalOutflows,
+      externalInflows: _major(inflows),
+      externalOutflows: _major(outflows),
+      exactExternalInflowsMinor: inflows,
+      exactExternalOutflowsMinor: outflows,
+      internalTransferInflows: _major(internalInflows),
+      internalTransferOutflows: _major(internalOutflows),
       ignoredTransactions: ignored,
     );
   }
@@ -87,6 +98,8 @@ class CashFlowCalculationService {
     if ((transaction.isPotentialDuplicate && !transaction.isConfirmed) ||
         transaction.tags.contains('sber-status-pending') ||
         transaction.tags.contains('sber-status-cancelled') ||
+        transaction.tags.contains('status-pending') ||
+        transaction.tags.contains('status-cancelled') ||
         transaction.tags.contains('qesto-non-cash') ||
         transaction.tags.contains('sber-loyalty-only')) {
       return CashFlowTreatment.ignored;
@@ -109,3 +122,5 @@ class CashFlowCalculationService {
     };
   }
 }
+
+int _major(int minor) => minor.sign * ((minor.abs() + 50) ~/ 100);

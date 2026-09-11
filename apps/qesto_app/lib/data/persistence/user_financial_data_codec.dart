@@ -150,6 +150,7 @@ Map<String, dynamic> _accountToJson(QestoAccount value) => {
   'userId': value.userId,
   'title': value.title,
   'balance': value.balance,
+  'exactBalanceMinor': value.exactBalanceMinor,
   'currency': value.currency,
   'type': value.type.name,
 };
@@ -159,6 +160,7 @@ QestoAccount _accountFromJson(Map<String, dynamic> json) => QestoAccount(
   userId: json['userId'] as String,
   title: json['title'] as String,
   balance: json['balance'] as int,
+  exactBalanceMinor: json['exactBalanceMinor'] as int?,
   currency: json['currency'] as String,
   type: AccountType.values.byName(json['type'] as String),
 );
@@ -250,6 +252,7 @@ Map<String, dynamic> _transactionToJson(BudgetTransaction value) => {
   'accountId': value.accountId,
   'date': value.date.toIso8601String(),
   'amount': value.amount,
+  'exactAmountMinor': value.exactAmountMinor,
   'currency': value.currency,
   'type': value.type.name,
   'categoryId': value.categoryId,
@@ -277,6 +280,7 @@ BudgetTransaction _transactionFromJson(Map<String, dynamic> json) =>
       accountId: json['accountId'] as String,
       date: DateTime.parse(json['date'] as String),
       amount: json['amount'] as int,
+      exactAmountMinor: json['exactAmountMinor'] as int?,
       currency: json['currency'] as String,
       type: TransactionType.values.byName(json['type'] as String),
       categoryId: json['categoryId'] as String?,

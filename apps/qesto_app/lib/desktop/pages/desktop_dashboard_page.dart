@@ -254,7 +254,7 @@ class _OverviewMetricGrid extends StatelessWidget {
       builder: (context, constraints) {
         final columns = constraints.maxWidth >= 1080
             ? 4
-            : constraints.maxWidth >= 640
+            : constraints.maxWidth >= 300
             ? 2
             : 1;
         const gap = 14.0;
@@ -264,7 +264,11 @@ class _OverviewMetricGrid extends StatelessWidget {
           runSpacing: gap,
           children: [
             for (final card in cards)
-              SizedBox(width: width, height: 136, child: card),
+              SizedBox(
+                width: width,
+                height: MediaQuery.sizeOf(context).width < 600 ? 150 : 136,
+                child: card,
+              ),
           ],
         );
       },
@@ -291,7 +295,9 @@ class _MetricCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DesktopCard(
-      padding: const EdgeInsets.fromLTRB(18, 15, 14, 15),
+      padding: MediaQuery.sizeOf(context).width < 600
+          ? const EdgeInsets.all(12)
+          : const EdgeInsets.fromLTRB(18, 15, 14, 15),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -300,7 +306,7 @@ class _MetricCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  maxLines: 1,
+                  maxLines: MediaQuery.sizeOf(context).width < 600 ? 2 : 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: QestoColors.text,
@@ -320,7 +326,11 @@ class _MetricCard extends StatelessWidget {
             style: context.qestoTypography.display(
               TextStyle(
                 color: valueColor,
-                fontSize: value.length > 16 ? 20 : 25,
+                fontSize: MediaQuery.sizeOf(context).width < 600
+                    ? (value.length > 12 ? 16 : 20)
+                    : value.length > 16
+                    ? 20
+                    : 25,
                 height: 1,
                 fontWeight: FontWeight.w800,
                 letterSpacing: -0.65,
@@ -331,7 +341,7 @@ class _MetricCard extends StatelessWidget {
           const SizedBox(height: 9),
           Text(
             detail,
-            maxLines: 1,
+            maxLines: MediaQuery.sizeOf(context).width < 600 ? 2 : 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: QestoColors.secondaryText,

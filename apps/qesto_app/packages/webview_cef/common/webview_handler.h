@@ -17,6 +17,7 @@
 #include <set>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 #include "webview_cookieVisitor.h"
 
@@ -205,8 +206,11 @@ public:
 
     // Request that all existing browser windows close.
     void CloseAllBrowsers(bool force_close);
+    // Set from the same immutable root passed to CefInitialize, before create.
+    std::string storage_root;
 
-    void closeBrowser(int browserId);
+    void closeBrowser(int browserId, std::function<void()> onClosed);
+    std::unordered_map<int, std::vector<std::function<void()>>> close_callbacks_;
     void createBrowser(std::string url,
                        std::string profile_path,
                        std::vector<std::string> allowed_origins,
@@ -264,6 +268,12 @@ private:
     std::unordered_map<int, browser_info> browser_map_;
     std::unordered_map<int, browser_security_config> security_map_;
     std::unordered_map<CefRequestContext*, browser_security_config> pending_contexts_;
+    struct pending_browser_creation {
+        std::string url;
+        std::function<void(int)> callback;
+        CefRefPtr<CefRequestContext> context;
+    };
+    std::unordered_map<CefRequestContext*, pending_browser_creation> pending_creations_;
 
     std::unordered_map<std::string, std::function<void(CefRefPtr<CefValue>)>> js_callbacks_;
 

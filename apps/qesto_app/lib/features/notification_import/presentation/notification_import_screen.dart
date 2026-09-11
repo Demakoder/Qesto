@@ -5,8 +5,11 @@ import '../../../core/theme/qesto_theme.dart';
 import '../../../core/widgets/nested_screen_header.dart';
 import '../../../core/widgets/qesto_card.dart';
 import '../../../data/models/qesto_models.dart';
+import '../../../synoball/adapters/notification_identity.dart';
+import '../../../synoball/core/models.dart';
 import '../../budget/add_expense_screen.dart';
 import '../../budget/state/budget_controller.dart';
+import '../../trash/transaction_trash_screen.dart';
 import '../../transaction_import/services/transaction_account_resolver.dart';
 import '../data/notification_capture_service.dart';
 import '../domain/parsed_bank_transaction.dart';
@@ -79,10 +82,16 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Удалить все данные Qesto?'),
         content: const Text(
-          'Будут безвозвратно удалены операции, счета, бюджеты, накопления, '
+          'Будут безвозвратно удалены операции (включая корзину), счета, бюджеты, накопления, '
           'планы и история действий. Само приложение останется установленным.',
         ),
         actions: [
+          IconButton(
+            key: const Key('open-notifications-trash'),
+            tooltip: 'Корзина',
+            icon: const Icon(Icons.delete_outline_rounded),
+            onPressed: () => openTransactionTrash(context, widget.controller),
+          ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Отмена'),
@@ -145,6 +154,7 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
       accounts: widget.controller.accounts,
       accountHint: transaction.accountHint,
       bankHint: transaction.bankHint,
+      currency: transaction.currency,
     );
     if (resolution == null) return _defaultAccount;
     return widget.controller.accounts.firstWhere(
@@ -170,13 +180,20 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
         .name;
   }
 
-  Future<bool> _removeNotification(String notificationKey) async {
+  Future<bool> _removeNotification(CapturedNotification notification) async {
     try {
-      await widget.captureService.removeNotification(notificationKey);
+      await widget.captureService.removeNotification(
+        notification.notificationKey,
+        expectedVersion: notification.deliveryVersion,
+      );
       if (!mounted) return false;
       setState(() {
         _notifications = _notifications
-            .where((item) => item.notificationKey != notificationKey)
+            .where(
+              (item) =>
+                  item.notificationKey != notification.notificationKey ||
+                  item.deliveryVersion != notification.deliveryVersion,
+            )
             .toList();
       });
       return true;
@@ -209,7 +226,7 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
       ),
     );
     if (confirmed == true) {
-      await _removeNotification(notification.notificationKey);
+      await _removeNotification(notification);
     }
   }
 
@@ -217,8 +234,34 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
     CapturedNotification notification,
     ParsedBankTransaction transaction,
   ) async {
+    if (_adding) return;
+    _adding = true;
+    try {
+      await _addChecked(notification, transaction);
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Не удалось сохранить или однозначно сопоставить операцию. '
+              'Уведомление оставлено для проверки. Можно повторить.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      _adding = false;
+    }
+  }
+
+  bool _adding = false;
+
+  Future<void> _addChecked(
+    CapturedNotification notification,
+    ParsedBankTransaction transaction,
+  ) async {
     final period = _periodFor(transaction.date);
-    await widget.controller.addNotificationTransaction(
+    final outcome = await widget.controller.addNotificationTransaction(
       period: period,
       amountMinor: transaction.amountMinor,
       currency: transaction.currency,
@@ -235,11 +278,66 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
       isSmsNotification: transaction.isSmsNotification,
       confidence: transaction.confidence,
     );
-    final removed = await _removeNotification(notification.notificationKey);
+    var inTrash = outcome.suppressedTransactionIds.isNotEmpty;
+    final reviews = widget.controller.pendingCandidates
+        .where(
+          (candidate) =>
+              outcome.pendingCandidateIds.contains(candidate.id) &&
+              candidate.tags.contains(notificationIdentityReviewTag),
+        )
+        .toList();
+    if (reviews.length == 1 && outcome.failedCandidateIds.isEmpty) {
+      if (!mounted) return;
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Это отдельная операция?'),
+          content: Text(
+            'Банк повторно использовал одно уведомление. Это может быть '
+            'новая операция или обновление предыдущей.\n\n'
+            '${transaction.merchant}\n'
+            '${formatMinorMoney(transaction.amountMinor, transaction.currency)}\n'
+            '${transaction.date}\n\n'
+            'Подтвердите только если такая операция действительно была. '
+            'Старая операция не будет перезаписана.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Оставить на проверку'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Подтвердить операцию'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+      final saved = await widget.controller.confirmNotificationRevision(
+        reviews.single.id,
+      );
+      inTrash = saved.status == CanonicalTransactionStatus.deleted;
+    } else if (outcome.pendingCandidateIds.isNotEmpty ||
+        outcome.failedCandidateIds.isNotEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Операция требует проверки. Уведомление сохранено.'),
+          ),
+        );
+      }
+      return;
+    }
+    final removed = await _removeNotification(notification);
     if (removed && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Операция добавлена')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            inTrash ? 'Операция осталась в корзине' : 'Операция добавлена',
+          ),
+        ),
+      );
     }
   }
 
@@ -277,7 +375,7 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
       ),
     );
     if (saved == true) {
-      await _removeNotification(notification.notificationKey);
+      await _removeNotification(notification);
     }
   }
 
@@ -372,7 +470,7 @@ class _ParsedTransactionCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onAdd;
 
-  bool get _canAdd => hasPeriod && transaction.hasWholeCurrencyAmount;
+  bool get _canAdd => hasPeriod;
 
   @override
   Widget build(BuildContext context) {
@@ -427,9 +525,7 @@ class _ParsedTransactionCard extends StatelessWidget {
           if (!_canAdd) ...[
             const SizedBox(height: 10),
             Text(
-              hasPeriod
-                  ? 'Суммы с копейками пока нельзя добавить в текущую модель бюджета'
-                  : 'Для даты операции не найден бюджетный период',
+              'Для даты операции не найден бюджетный период',
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
@@ -442,7 +538,9 @@ class _ParsedTransactionCard extends StatelessWidget {
             children: [
               TextButton(onPressed: onDiscard, child: const Text('Пропустить')),
               OutlinedButton(
-                onPressed: _canAdd ? onEdit : null,
+                onPressed: _canAdd && transaction.hasWholeCurrencyAmount
+                    ? onEdit
+                    : null,
                 child: const Text('Изменить'),
               ),
               FilledButton.icon(

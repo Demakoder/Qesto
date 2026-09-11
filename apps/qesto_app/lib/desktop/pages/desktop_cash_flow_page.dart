@@ -74,7 +74,11 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
               const SizedBox(height: 14),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 940 ? 4 : 2;
+                  final columns = constraints.maxWidth >= 940
+                      ? 4
+                      : constraints.maxWidth >= 500
+                      ? 2
+                      : 1;
                   const gap = 14.0;
                   final width =
                       (constraints.maxWidth - gap * (columns - 1)) / columns;
@@ -446,7 +450,7 @@ class _CashFlowToolbar extends StatelessWidget {
   final VoidCallback onPrivacyChanged;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => DesktopAdaptiveRow(
     children: [
       SegmentedButton<int>(
         key: const Key('cash-flow-period-selector'),

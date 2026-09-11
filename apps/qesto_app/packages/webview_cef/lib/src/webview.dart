@@ -43,9 +43,11 @@ class WebViewController extends ValueNotifier<bool> {
   Widget get webviewWidget => _webviewWidget;
   Widget get loadingWidget => _loadingWidget ?? const Text("loading...");
 
-  late Completer<void> _creatingCompleter;
-  Future<void> get ready => _creatingCompleter.future;
+  Completer<void>? _creatingCompleter;
+  Future<void> get ready => _creatingCompleter?.future ?? Future.value();
   bool _isDisposed = false;
+  bool _nativeCreated = false;
+  Future<void>? _disposeFuture;
   bool _focusEditable = false;
 
   final int _index;
@@ -83,6 +85,7 @@ class WebViewController extends ValueNotifier<bool> {
     if (_isDisposed) {
       return Future<void>.value();
     }
+    if (_creatingCompleter != null) return _creatingCompleter!.future;
     _creatingCompleter = Completer<void>();
     try {
       await WebviewManager().ready;
@@ -94,15 +97,18 @@ class WebViewController extends ValueNotifier<bool> {
       ]);
       _browserId = args[0] as int;
       _textureId = args[1] as int;
+      _nativeCreated = true;
       WebviewManager().onBrowserCreated(_index, _browserId);
       await Future.delayed(const Duration(milliseconds: 50));
-      _webviewWidget = WebView(this);
-      value = true;
-      _creatingCompleter.complete();
-    } on PlatformException catch (e) {
-      _creatingCompleter.completeError(e);
+      if (!_isDisposed) {
+        _webviewWidget = WebView(this);
+        value = true;
+      }
+      _creatingCompleter!.complete();
+    } on Object catch (e, stack) {
+      _creatingCompleter!.completeError(e, stack);
     }
-    return _creatingCompleter.future;
+    return _creatingCompleter!.future;
   }
 
   setWebviewListener(WebviewEventsListener listener) {
@@ -110,14 +116,26 @@ class WebViewController extends ValueNotifier<bool> {
   }
 
   @override
-  Future<void> dispose() async {
-    await _creatingCompleter.future;
-    if (!_isDisposed) {
-      _isDisposed = true;
-      WebviewManager().removeWebView(_browserId);
-      await _pluginChannel.invokeMethod('close', _browserId);
+  Future<void> dispose() => _disposeFuture ??= _disposeNative();
+
+  Future<void> _disposeNative() async {
+    _isDisposed = true;
+    try {
+      try {
+        await _creatingCompleter?.future;
+      } on Object {
+        // Failed create must not prevent cleanup of a native browser that
+        // was allocated before the initialization error.
+      }
+      if (_nativeCreated) {
+        await _pluginChannel.invokeMethod('close', _browserId);
+        WebviewManager().removeWebView(_browserId);
+      } else {
+        WebviewManager().discardPendingWebView(_index);
+      }
+    } finally {
+      super.dispose();
     }
-    super.dispose();
   }
 
   /// Loads the given [url].
@@ -209,6 +227,18 @@ class WebViewController extends ValueNotifier<bool> {
     }
     assert(value);
     return _pluginChannel.invokeMethod('setClientFocus', [_browserId, focus]);
+  }
+
+  /// Configures the off-screen surface even when [webviewWidget] is not
+  /// attached to the Flutter tree. Background browser jobs need a realistic
+  /// viewport so responsive pages render the same DOM as the visible browser.
+  Future<void> setSurfaceSize({
+    Size size = const Size(1440, 1000),
+    double devicePixelRatio = 1,
+  }) async {
+    if (_isDisposed) return;
+    assert(value);
+    await _setSize(devicePixelRatio, size);
   }
 
   /// Sends a key event to CEF. Used on platforms without native key support (eLinux).
@@ -406,23 +436,30 @@ class WebViewState extends State<WebView> with WebeViewTextInput {
   void initState() {
     super.initState();
     _controller._onFocusedNodeChangeMessage = (editable) {
+      if (!mounted) return;
       _composingText = '';
-      editable ? attachTextInputClient() : detachTextInputClient();
+      editable && _focusNode.hasFocus
+          ? attachTextInputClient()
+          : detachTextInputClient();
       _controller._focusEditable = editable;
     };
 
     _controller._onImeCompositionRangeChangedMessage = (x, y, height) {
+      if (!mounted || !_focusNode.hasFocus || _key.currentContext == null)
+        return;
       final box = _key.currentContext!.findRenderObject() as RenderBox;
       updateIMEComposionPosition(x.toDouble(), y.toDouble(), height.toDouble(),
           box.localToGlobal(Offset.zero));
     };
 
     _controller._onToolTip = (final String text) {
+      if (!mounted || _key.currentContext == null) return;
       _tooltip ??= WebviewTooltip(_key.currentContext!);
       _tooltip?.showToolTip(text);
     };
 
     _controller._onCursorChanged = (int type) {
+      if (!mounted) return;
       switch (type) {
         case 0:
           _mouseType = SystemMouseCursors.basic;
@@ -452,11 +489,13 @@ class WebViewState extends State<WebView> with WebeViewTextInput {
     });
 
     // Report initial surface size
-    WidgetsBinding.instance
-        .addPostFrameCallback((_) => _reportSurfaceSize(context));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _reportSurfaceSize(context);
+    });
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
+    if (!_focusNode.hasFocus) return KeyEventResult.ignored;
     // Only handle keys on platforms without native key support (eLinux)
     // Treat null as "don't handle yet" to prevent double-delivery during async gap
     if (_hasNativeKeySupport != false) {
@@ -588,6 +627,18 @@ class WebViewState extends State<WebView> with WebeViewTextInput {
     );
   }
 
+  @override
+  void dispose() {
+    _controller._onFocusedNodeChangeMessage = null;
+    _controller._onImeCompositionRangeChangedMessage = null;
+    _controller._onToolTip = null;
+    _controller._onCursorChanged = null;
+    detachTextInputClient();
+    unawaited(_controller.setClientFocus(false));
+    _focusNode.dispose();
+    super.dispose();
+  }
+
   Widget _buildInner() {
     return NotificationListener<SizeChangedLayoutNotification>(
       onNotification: (notification) {
@@ -605,7 +656,9 @@ class WebViewState extends State<WebView> with WebeViewTextInput {
               _controller._onImeCompositionRangeChangedMessage?.call(0, 0, 0);
               _focusNode.requestFocus();
               Future.delayed(const Duration(milliseconds: 50), () {
-                if (!_focusNode.hasFocus) {
+                if (mounted &&
+                    ModalRoute.of(context)?.isCurrent != false &&
+                    !_focusNode.hasFocus) {
                   _focusNode.requestFocus();
                 }
               });

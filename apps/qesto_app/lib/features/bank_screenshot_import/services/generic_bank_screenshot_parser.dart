@@ -32,7 +32,8 @@ class GenericBankScreenshotParser implements BankScreenshotParser {
       document.capturedAt.month,
       document.capturedAt.day,
     );
-    final candidates = <String, BankScreenshotCandidate>{};
+    final candidates = <BankScreenshotCandidate>[];
+    final occurrences = <String, int>{};
     for (var index = 0; index < lines.length; index++) {
       activeDate =
           _dateHeading(lines[index].text, document.capturedAt) ?? activeDate;
@@ -56,10 +57,16 @@ class GenericBankScreenshotParser implements BankScreenshotParser {
         '${occurredAt.toIso8601String()}|${kind.name}|$amount|'
         '${_normalize(merchant)}',
       );
-      candidates.putIfAbsent(
+      final occurrence = occurrences.update(
         fingerprint,
-        () => BankScreenshotCandidate(
-          id: 'bank-shot-$fingerprint',
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
+      candidates.add(
+        BankScreenshotCandidate(
+          id: occurrence == 1
+              ? 'bank-shot-$fingerprint'
+              : 'bank-shot-$fingerprint-row-$occurrence',
           imageHash: document.imageHash,
           parserId: parserId,
           merchant: merchant,
@@ -75,10 +82,12 @@ class GenericBankScreenshotParser implements BankScreenshotParser {
       );
     }
     return BankScreenshotParseResult(
-      candidates: candidates.values.toList(growable: false),
-      warnings: candidates.isEmpty
-          ? const ['Формат банка не узнан уверенно']
-          : const [],
+      candidates: candidates,
+      warnings: [
+        if (candidates.isEmpty) 'Формат банка не узнан уверенно',
+        if (occurrences.values.any((count) => count > 1))
+          'На скриншоте есть одинаковые строки операций. Они сохранены отдельно; проверьте их перед импортом.',
+      ],
     );
   }
 

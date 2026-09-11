@@ -67,6 +67,20 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "ru.qesto.qesto/storage",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "privatePaths") {
+                result.success(mapOf(
+                    "filesDir" to applicationContext.filesDir.absolutePath,
+                    "dataDir" to applicationContext.applicationInfo.dataDir,
+                ))
+            } else {
+                result.notImplemented()
+            }
+        }
+
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
             notificationEventsChannelName,
@@ -91,45 +105,54 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             notificationChannelName,
         ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "hasAccess" -> result.success(hasNotificationAccess())
+            try {
+                when (call.method) {
+                    "hasAccess" -> result.success(hasNotificationAccess())
 
-                "openSettings" -> {
-                    startActivity(
-                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
-                    )
-                    result.success(null)
-                }
-
-                "readNotifications" -> {
-                    result.success(
-                        NotificationInbox.readAll(applicationContext),
-                    )
-                }
-
-                "clearNotifications" -> {
-                    NotificationInbox.clear(applicationContext)
-                    result.success(null)
-                }
-
-                "removeNotification" -> {
-                    val notificationKey = call.argument<String>("notificationKey")
-                    if (notificationKey.isNullOrBlank()) {
-                        result.error(
-                            "invalid_notification_key",
-                            "notificationKey is required",
-                            null,
-                        )
-                    } else {
-                        NotificationInbox.remove(
-                            applicationContext,
-                            notificationKey,
+                    "openSettings" -> {
+                        startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
                         )
                         result.success(null)
                     }
-                }
 
-                else -> result.notImplemented()
+                    "readNotifications" -> {
+                        result.success(NotificationInbox.readAll(applicationContext))
+                    }
+
+                    "clearNotifications" -> {
+                        NotificationInbox.clear(applicationContext)
+                        result.success(null)
+                    }
+
+                    "removeNotification" -> {
+                        val notificationKey = call.argument<String>("notificationKey")
+                        val expectedVersion = call.argument<String>("expectedVersion")
+                        if (notificationKey.isNullOrBlank() || expectedVersion == null) {
+                            result.error(
+                                "invalid_notification_acknowledgement",
+                                "notificationKey and expectedVersion are required",
+                                null,
+                            )
+                        } else {
+                            NotificationInbox.remove(
+                                applicationContext,
+                                notificationKey,
+                                expectedVersion,
+                            )
+                            result.success(null)
+                        }
+                    }
+
+                    else -> result.notImplemented()
+                }
+            } catch (_: Exception) {
+                // Failure is not an empty inbox or a successful acknowledgement.
+                result.error(
+                    "notification_storage_unavailable",
+                    "Notification storage requires recovery; no reset was performed",
+                    null,
+                )
             }
         }
 

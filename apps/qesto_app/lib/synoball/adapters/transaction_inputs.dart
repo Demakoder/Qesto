@@ -151,6 +151,7 @@ class StatementInput extends AdapterInputBase {
     required this.transactions,
     required this.account,
     super.institutionId,
+    super.connectionId,
   });
 
   final String batchName;

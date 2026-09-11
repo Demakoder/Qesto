@@ -114,6 +114,7 @@ class QestoAccount {
     required this.userId,
     required this.title,
     required this.balance,
+    this.exactBalanceMinor,
     required this.currency,
     required this.type,
   });
@@ -122,6 +123,8 @@ class QestoAccount {
   final String userId;
   final String title;
   final int balance;
+  final int? exactBalanceMinor;
+  int get balanceMinor => exactBalanceMinor ?? balance * 100;
   final String currency;
   final AccountType type;
 }

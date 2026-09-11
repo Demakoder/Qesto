@@ -1,3 +1,5 @@
+import 'bank_sync_models.dart';
+
 enum BankBrowserLifecycle { closed, opening, loading, ready, error }
 
 enum NavigationDecision { allow, block, openExternally, requireConfirmation }
@@ -5,6 +7,8 @@ enum NavigationDecision { allow, block, openExternally, requireConfirmation }
 enum BankBrowserLoadState { idle, started, committed, finished, failed }
 
 enum BrowserMode { auth, read }
+
+enum BrowserPresentationMode { visible, background }
 
 enum ReadOnlyBrowserValue { documentTitle, locationOrigin }
 
@@ -15,6 +19,7 @@ class BankConnectorConfig {
     required this.startUrl,
     required this.allowedOrigins,
     this.authOrigins = const {},
+    this.supportsBackgroundSync = false,
   });
 
   final String bankId;
@@ -22,6 +27,7 @@ class BankConnectorConfig {
   final Uri startUrl;
   final Set<String> allowedOrigins;
   final Set<String> authOrigins;
+  final bool supportsBackgroundSync;
 
   Set<String> get allTrustedOrigins => {...allowedOrigins, ...authOrigins};
 }
@@ -35,6 +41,7 @@ class BankProfile {
     required this.lastOpenedAt,
     this.lastKnownUrl,
     this.lastSyncAt,
+    this.syncMetadata = const BankSyncMetadata(),
   });
 
   final String id;
@@ -44,11 +51,13 @@ class BankProfile {
   final DateTime lastOpenedAt;
   final Uri? lastKnownUrl;
   final DateTime? lastSyncAt;
+  final BankSyncMetadata syncMetadata;
 
   BankProfile copyWith({
     DateTime? lastOpenedAt,
     Uri? lastKnownUrl,
     DateTime? lastSyncAt,
+    BankSyncMetadata? syncMetadata,
   }) {
     return BankProfile(
       id: id,
@@ -58,6 +67,7 @@ class BankProfile {
       lastOpenedAt: lastOpenedAt ?? this.lastOpenedAt,
       lastKnownUrl: lastKnownUrl ?? this.lastKnownUrl,
       lastSyncAt: lastSyncAt ?? this.lastSyncAt,
+      syncMetadata: syncMetadata ?? this.syncMetadata,
     );
   }
 
@@ -69,9 +79,17 @@ class BankProfile {
     'lastOpenedAt': lastOpenedAt.toUtc().toIso8601String(),
     'lastKnownUrl': lastKnownUrl?.toString(),
     'lastSyncAt': lastSyncAt?.toUtc().toIso8601String(),
+    'syncMetadata': syncMetadata.toJson(),
   };
 
   static BankProfile fromJson(Map<String, Object?> json) {
+    final lastSyncAt = switch (json['lastSyncAt']) {
+      final String value when value.isNotEmpty => DateTime.tryParse(
+        value,
+      )?.toLocal(),
+      _ => null,
+    };
+    final storedSync = json['syncMetadata'];
     return BankProfile(
       id: json['id']! as String,
       bankId: json['bankId']! as String,
@@ -82,12 +100,14 @@ class BankProfile {
         final String value when value.isNotEmpty => Uri.tryParse(value),
         _ => null,
       },
-      lastSyncAt: switch (json['lastSyncAt']) {
-        final String value when value.isNotEmpty => DateTime.tryParse(
-          value,
-        )?.toLocal(),
-        _ => null,
-      },
+      lastSyncAt: lastSyncAt,
+      syncMetadata: storedSync is Map
+          ? BankSyncMetadata.fromJson(storedSync.cast<String, Object?>())
+          : BankSyncMetadata(
+              backgroundSyncEnabled: json['bankId'] == 'sber',
+              state: BankConnectionSyncState.connected,
+              lastSuccessfulSyncAt: lastSyncAt,
+            ),
     );
   }
 }

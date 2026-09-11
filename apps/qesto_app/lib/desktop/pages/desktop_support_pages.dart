@@ -9,6 +9,7 @@ import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/capital/domain/goal_planning_service.dart';
 import '../../features/profile/services/cbr_currency_service.dart';
+import '../../features/trash/transaction_trash_screen.dart';
 import '../../synoball/ai/context.dart';
 import '../widgets/desktop_chrome.dart';
 import '../widgets/desktop_components.dart';
@@ -155,6 +156,7 @@ class DesktopGoalsPage extends StatelessWidget {
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     key: const Key('goal-category-field'),
+                    isExpanded: true,
                     initialValue: category,
                     decoration: const InputDecoration(
                       labelText: 'Категория',
@@ -396,6 +398,7 @@ class DesktopGoalsPage extends StatelessWidget {
                         SizedBox(
                           width: 145,
                           child: DropdownButtonFormField<GoalReminderCadence>(
+                            isExpanded: true,
                             initialValue: reminderCadence,
                             decoration: const InputDecoration(
                               labelText: 'Периодичность',
@@ -2509,7 +2512,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         ? user.defaultCurrency
         : 'RUB';
     _avatarUrl = user.avatarUrl;
-    _ratesFuture = CbrCurrencyService().loadLatest();
+    _ratesFuture = _loadRates();
   }
 
   @override
@@ -2603,6 +2606,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         description:
             '${widget.controller.synoballState.ingestionRecords.length} ingestion records · schema v2',
       ),
+      TransactionTrashEntry(controller: widget.controller),
       if (const bool.fromEnvironment('DEV_MODE'))
         _SettingsSection(
           title: 'Developer mode',
@@ -2681,6 +2685,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
       const SizedBox(height: 14),
       DropdownButtonFormField<String>(
         key: const Key('profile-currency-field'),
+        isExpanded: true,
         initialValue: _currency,
         decoration: const InputDecoration(
           labelText: 'Основная валюта',
@@ -2788,13 +2793,21 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
     );
   }
 
+  Future<CbrRateSnapshot> _loadRates() {
+    final future = CbrCurrencyService().loadLatest();
+    // On a phone this lazy list item is initially off screen. Attach an error
+    // listener now; the FutureBuilder still displays the failure when reached.
+    future.ignore();
+    return future;
+  }
+
   Widget _currencyRatesCard() => DesktopCard(
     padding: const EdgeInsets.all(18),
     child: FutureBuilder<CbrRateSnapshot>(
       future: _ratesFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return const Row(
+          return const DesktopAdaptiveRow(
             children: [
               SizedBox.square(
                 dimension: 18,
@@ -2816,9 +2829,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                 ),
               ),
               TextButton(
-                onPressed: () => setState(
-                  () => _ratesFuture = CbrCurrencyService().loadLatest(),
-                ),
+                onPressed: () => setState(() => _ratesFuture = _loadRates()),
                 child: const Text('Повторить'),
               ),
             ],

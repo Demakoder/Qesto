@@ -87,88 +87,96 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
           final hovered = layout.hits
               .where((item) => item.id == _hoveredId)
               .firstOrNull;
-          return MouseRegion(
-            onExit: (_) => setState(() => _hoveredId = null),
-            onHover: (event) {
+          return Listener(
+            onPointerDown: (event) {
               final hit = layout.hits
                   .where((item) => item.hitRect.contains(event.localPosition))
                   .lastOrNull;
-              if (hit?.id != _hoveredId) {
-                setState(() => _hoveredId = hit?.id);
-              }
+              setState(() => _hoveredId = hit?.id);
             },
-            child: SizedBox(
-              height: height,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _MoneyFlowPainter(
-                        layout: layout,
-                        categories: widget.categories,
-                        income: widget.income,
-                        expenses: widget.expenses,
-                        currency: widget.currency,
-                        hideAmounts: widget.hideAmounts,
-                        hoveredId: _hoveredId,
-                        compact: compact,
-                      ),
-                    ),
-                  ),
-                  if (hovered != null)
-                    Positioned(
-                      right: 12,
-                      top: 8,
-                      child: IgnorePointer(
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 260),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF172033),
-                            borderRadius: BorderRadius.circular(11),
-                            boxShadow: const [
-                              BoxShadow(
-                                color: Color(0x33000000),
-                                blurRadius: 16,
-                                offset: Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                hovered.label,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                widget.hideAmounts
-                                    ? 'Сумма скрыта'
-                                    : formatMoney(
-                                        hovered.amount,
-                                        widget.currency,
-                                      ),
-                                style: const TextStyle(
-                                  color: Color(0xFFBFC9DC),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
+            child: MouseRegion(
+              onExit: (_) => setState(() => _hoveredId = null),
+              onHover: (event) {
+                final hit = layout.hits
+                    .where((item) => item.hitRect.contains(event.localPosition))
+                    .lastOrNull;
+                if (hit?.id != _hoveredId) {
+                  setState(() => _hoveredId = hit?.id);
+                }
+              },
+              child: SizedBox(
+                height: height,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _MoneyFlowPainter(
+                          layout: layout,
+                          categories: widget.categories,
+                          income: widget.income,
+                          expenses: widget.expenses,
+                          currency: widget.currency,
+                          hideAmounts: widget.hideAmounts,
+                          hoveredId: _hoveredId,
+                          compact: compact,
                         ),
                       ),
                     ),
-                ],
+                    if (hovered != null)
+                      Positioned(
+                        right: 12,
+                        top: 8,
+                        child: IgnorePointer(
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 260),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF172033),
+                              borderRadius: BorderRadius.circular(11),
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color(0x33000000),
+                                  blurRadius: 16,
+                                  offset: Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hovered.label,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  widget.hideAmounts
+                                      ? 'Сумма скрыта'
+                                      : formatMoney(
+                                          hovered.amount,
+                                          widget.currency,
+                                        ),
+                                  style: const TextStyle(
+                                    color: Color(0xFFBFC9DC),
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );

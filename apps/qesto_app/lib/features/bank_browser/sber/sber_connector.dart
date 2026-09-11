@@ -3,10 +3,12 @@ import 'dart:async';
 import '../domain/bank_browser_models.dart';
 import '../runtime/browser_controller.dart';
 import 'sber_auth_manager.dart';
+import 'sber_account_history_mapper.dart';
 import 'sber_connector_models.dart';
 import 'sber_extractors.dart';
 import 'sber_navigator.dart';
 import 'sber_page_detector.dart';
+import 'sber_readiness.dart';
 
 class SberConnector extends Stream<SberSyncReport> {
   SberConnector({
@@ -107,6 +109,7 @@ class SberConnector extends Stream<SberSyncReport> {
           );
         }
       }
+      accounts = extractors.mergeAccounts([...dashboardAccounts, ...accounts]);
 
       _emit(
         const SberSyncReport(state: SberConnectorState.syncingTransactions),
@@ -162,9 +165,64 @@ class SberConnector extends Stream<SberSyncReport> {
           '${historyExtraction.rejectedRows} строк истории.',
         );
       }
+      // The all-products history remains the completeness authority. Product
+      // histories add exact ownership evidence; they never replace the global
+      // list or manufacture a balance from cash flow.
+      if (transactions.any((t) => t.accountId.isEmpty)) {
+        final mapper = SberAccountHistoryMapper();
+        final budget = Stopwatch()..start();
+        for (final account in accounts) {
+          if (budget.elapsed > const Duration(seconds: 90)) break;
+          for (final resource in account.historyResources) {
+            final opened = await navigator
+                .openProductHistory(browser, resource, [
+                  if (account.lastFour != null) account.lastFour!,
+                  ...account.linkedCardLastFours,
+                ]);
+            if (!opened) continue;
+            final scoped = await extractors.transactions(
+              browser,
+              range: selectedRange,
+              maxScrolls: 40,
+              maxDuration: Duration(
+                seconds: (90 - budget.elapsed.inSeconds).clamp(1, 35),
+              ),
+            );
+            final knownIds = {account.id, ...account.sourceAliases};
+            mapper.observe(
+              account.id,
+              scoped.transactions.where((t) => knownIds.contains(t.accountId)),
+            );
+            if (budget.elapsed > const Duration(seconds: 90)) break;
+          }
+        }
+        transactions = mapper.apply(transactions);
+        if (mapper.conflicts > 0) {
+          warnings.add(
+            'ACCOUNT_MAPPING_CONFLICT: conflicting product histories',
+          );
+        }
+      }
       final dates = transactions.map((item) => item.date).toList()..sort();
       final finalPage = await detector.inspect(browser);
+      final finalReadiness = await const SberReadiness().probe(browser);
+      if (finalReadiness == 'blocked') {
+        warnings.add(
+          'BANK_USER_ACTION_REQUIRED: банк запросил проверку безопасности. '
+          'Откройте Сбер и пройдите её самостоятельно; автоматические действия остановлены.',
+        );
+      } else if (finalReadiness == 'auth') {
+        warnings.add(
+          'BANK_AUTH_REQUIRED: сессия банка закончилась, требуется вход.',
+        );
+      } else if (finalReadiness != 'ready') {
+        warnings.add(
+          'BANK_LOADING_TIMEOUT: банк не закончил загрузку за время ожидания. '
+          'Полученные данные сохранены, история может быть неполной.',
+        );
+      }
       final snapshot = SberSyncSnapshot(
+        connectionId: browser.profile.id,
         observedAt: DateTime.now(),
         accounts: accounts,
         transactions: transactions,
@@ -186,13 +244,15 @@ class SberConnector extends Stream<SberSyncReport> {
         historyLoyaltyRewards: historyExtraction.loyaltyRewards,
         historyRangeBoundaryReached: historyExtraction.rangeBoundaryReached,
         historyHasMoreRows: historyExtraction.hasMoreRows,
+        historyRowsOutsidePeriod: historyExtraction.outsidePeriodRows,
+        historyDiagnostics: historyExtraction.diagnostics,
       );
       if (accounts.isEmpty) {
         warnings.add(
           'PRODUCTS_PARSER_MISMATCH: не удалось распознать счета и продукты.',
         );
       }
-      if (transactions.isEmpty) {
+      if (transactions.isEmpty && !historyExtraction.hasVerifiedEmptyHistory) {
         warnings.add(
           'TRANSACTIONS_PARSER_MISMATCH: не удалось распознать историю операций.',
         );
@@ -203,6 +263,9 @@ class SberConnector extends Stream<SberSyncReport> {
             : SberConnectorState.syncPartial,
         snapshot: snapshot,
         message: warnings.isEmpty ? null : warnings.join(' '),
+        failureCode: warnings.isEmpty
+            ? null
+            : warnings.map((warning) => warning.split(':').first).join(', '),
         pinAttempted: auth.pinAttempted,
       );
       _emit(report);
@@ -233,6 +296,7 @@ class SberConnector extends Stream<SberSyncReport> {
       // extractor still gets a bounded chance to read the rendered DOM.
     }
     await Future<void>.delayed(const Duration(milliseconds: 1500));
+    await const SberReadiness().wait(browser);
   }
 
   Future<SberPageType> _currentPageType() async {
@@ -243,10 +307,14 @@ class SberConnector extends Stream<SberSyncReport> {
   Future<List<SberAccountFact>> _readAccountsWithRetry(
     BrowserController browser,
   ) async {
-    for (var attempt = 0; attempt < 10; attempt++) {
+    if (!await const SberReadiness().wait(browser)) return const [];
+    final elapsed = Stopwatch()..start();
+    while (elapsed.elapsed < const Duration(seconds: 30)) {
       final accounts = await extractors.accounts(browser);
       if (accounts.isNotEmpty) return accounts;
-      await Future<void>.delayed(const Duration(milliseconds: 350));
+      final state = await const SberReadiness().probe(browser);
+      if (state == 'auth' || state == 'blocked') break;
+      await Future<void>.delayed(const Duration(milliseconds: 750));
     }
     return const [];
   }

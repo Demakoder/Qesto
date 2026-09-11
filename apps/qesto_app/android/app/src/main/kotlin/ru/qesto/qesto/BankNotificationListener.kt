@@ -92,17 +92,27 @@ class BankNotificationListener : NotificationListenerService() {
             )
         ) return
 
-        NotificationInbox.save(
-            context = applicationContext,
-            packageName = sbn.packageName,
-            notificationKey = sbn.key,
-            postedAt = sbn.postTime,
-            title = title,
-            text = text,
-            bigText = bigText,
-            subText = subText,
-            textLines = textLines,
-        )
+        try {
+            NotificationInbox.save(
+                context = applicationContext,
+                packageName = sbn.packageName,
+                notificationKey = sbn.key,
+                postedAt = sbn.postTime,
+                title = title,
+                text = text,
+                bigText = bigText,
+                subText = subText,
+                textLines = textLines,
+            )
+        } catch (_: Exception) {
+            // Keep the listener alive and existing encrypted data untouched.
+            // Notify the app to surface a storage error, without financial text.
+            sendBroadcast(
+                Intent(NotificationInbox.ACTION_CAPTURED)
+                    .setPackage(applicationContext.packageName),
+            )
+            return
+        }
         sendBroadcast(
             Intent(NotificationInbox.ACTION_CAPTURED)
                 .setPackage(applicationContext.packageName)

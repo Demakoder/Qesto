@@ -24,6 +24,7 @@ class LocalQestoRepository extends QestoRepository {
   final LocalKeyValueStore publicStore;
   final DealsApiClient dealsApiClient;
   Future<void> _pendingSave = Future<void>.value();
+  bool _loadFailed = false;
   Future<List<Deal>>? _dealsFuture;
 
   @override
@@ -32,10 +33,14 @@ class LocalQestoRepository extends QestoRepository {
 
   @override
   Future<UserFinancialData> getUserFinancialData() async {
-    final source = await store.readString(_financialDataKey);
-    if (source == null) return emptyUserFinancialData;
     try {
+      final source = await store.readString(_financialDataKey);
+      if (source == null) {
+        _loadFailed = false;
+        return emptyUserFinancialData;
+      }
       final restored = codec.decode(source);
+      _loadFailed = false;
       final now = DateTime.now();
       // referenceDate is the application's "today", not part of the user's
       // financial history. Persisting it verbatim made analytics remain on the
@@ -44,15 +49,19 @@ class LocalQestoRepository extends QestoRepository {
       return restored.copyWith(
         referenceDate: DateTime(now.year, now.month, now.day),
       );
-    } on FormatException {
-      return emptyUserFinancialData;
-    } on TypeError {
-      return emptyUserFinancialData;
+    } on Object {
+      _loadFailed = true;
+      rethrow;
     }
   }
 
   @override
   Future<void> saveUserFinancialData(UserFinancialData data) {
+    if (_loadFailed) {
+      return Future.error(
+        StateError('Financial data requires recovery before saving'),
+      );
+    }
     final encoded = codec.encode(data);
     final previousSave = _pendingSave;
     _pendingSave = () async {
@@ -67,6 +76,9 @@ class LocalQestoRepository extends QestoRepository {
   }
 
   Future<void> _write(String encoded) async {
+    if (_loadFailed) {
+      throw StateError('Financial data requires recovery before saving');
+    }
     await store.writeString(_financialDataKey, encoded);
   }
 

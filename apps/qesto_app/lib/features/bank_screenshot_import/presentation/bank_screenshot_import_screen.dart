@@ -8,6 +8,7 @@ import '../../transaction_import/services/transaction_account_resolver.dart';
 import '../data/bank_screenshot_scanner_service.dart';
 import '../domain/bank_screenshot_models.dart';
 import '../services/bank_screenshot_import_service.dart';
+import '../services/bank_screenshot_identity.dart';
 
 class BankScreenshotImportScreen extends StatefulWidget {
   const BankScreenshotImportScreen({
@@ -59,8 +60,11 @@ class _BankScreenshotImportScreenState
               accounts: _accounts,
               accountHint: candidate.accountHint,
               bankHint: candidate.parserId.startsWith('sber') ? 'sber' : null,
+              currency: candidate.currency,
             );
-            return candidate.copyWith(accountId: account?.accountId);
+            return _reviewIdentity(
+              candidate.copyWith(accountId: account?.accountId),
+            );
           })
           .toList(growable: false);
       final resolvedAccountIds = resolved
@@ -94,9 +98,25 @@ class _BankScreenshotImportScreenState
     setState(() {
       _batchAccountId = accountId;
       _candidates = _candidates
-          .map((candidate) => candidate.copyWith(accountId: accountId))
+          .map(
+            (candidate) =>
+                _reviewIdentity(candidate.copyWith(accountId: accountId)),
+          )
           .toList(growable: false);
     });
+  }
+
+  BankScreenshotCandidate _reviewIdentity(BankScreenshotCandidate row) {
+    final identity = resolveScreenshotIdentity(
+      row,
+      widget.controller.synoballState,
+    );
+    return identity.reviewReason == null
+        ? row
+        : row.copyWith(
+            selected: false,
+            possibleDuplicateReason: identity.reviewReason,
+          );
   }
 
   Future<void> _edit(int index) async {
@@ -132,9 +152,23 @@ class _BankScreenshotImportScreenState
       if (!mounted) return;
       final added = outcome.createdTransactionIds.length;
       final merged = outcome.matchedTransactionIds.length;
-      Navigator.of(
-        context,
-      ).pop('Добавлено: $added, дополнено без дублей: $merged');
+      final unresolved =
+          outcome.pendingCandidateIds.length +
+          outcome.failedCandidateIds.length;
+      if (unresolved > 0) {
+        setState(() {
+          _saving = false;
+          _error =
+              'Добавлено: $added, дополнено: $merged. '
+              'Требуют проверки / не приняты: $unresolved. '
+              'Импорт завершён не полностью.';
+        });
+        return;
+      }
+      Navigator.of(context).pop(
+        'Добавлено: $added, дополнено без дублей: $merged'
+        '${outcome.suppressedTransactionIds.isEmpty ? '' : ', в корзине: ${outcome.suppressedTransactionIds.length}'}',
+      );
     } on Object {
       if (!mounted) return;
       setState(() {
@@ -253,7 +287,8 @@ class _BankScreenshotImportScreenState
                           '${_kindLabel(_candidates[index].kind)} · '
                           '${_dateLabel(_candidates[index].date)} · '
                           '${_candidates[index].categoryId} · '
-                          '${(_candidates[index].confidence * 100).round()}%',
+                          '${(_candidates[index].confidence * 100).round()}%'
+                          '${_candidates[index].possibleDuplicateReason == null ? '' : '\n${_candidates[index].possibleDuplicateReason}'}',
                         ),
                       ),
                     ),

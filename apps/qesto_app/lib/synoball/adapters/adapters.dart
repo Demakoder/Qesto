@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../core/models.dart';
 import '../ingestion/adapter.dart';
 import 'transaction_inputs.dart';
+import 'notification_identity.dart';
 
 abstract class _TransactionAdapter<T extends AdapterInputBase>
     implements SynoballAdapter<T> {
@@ -33,10 +34,10 @@ abstract class _TransactionAdapter<T extends AdapterInputBase>
       throw const FormatException('raw payload must be retained');
     }
     for (final seed in seeds(input)) {
-      if (seed.amount.minorUnits < 0) {
-        throw const FormatException('amount must be absolute; use direction');
+      if (seed.amount.minorUnits <= 0) {
+        throw const FormatException('amount must be positive; use direction');
       }
-      if (seed.amount.currency.length != 3) {
+      if (!RegExp(r'^[A-Z]{3}$').hasMatch(seed.amount.currency)) {
         throw const FormatException('ISO-4217 currency is required');
       }
       if (seed.accountId.isEmpty) {
@@ -175,12 +176,14 @@ class VoiceInputAdapter extends _TransactionAdapter<VoiceInput> {
 
 class AndroidNotificationAdapter
     extends _TransactionAdapter<AndroidNotificationInput> {
-  AndroidNotificationAdapter({super.ids});
+  AndroidNotificationAdapter({super.ids, this.history = const SynoballState()});
+
+  final SynoballState history;
 
   @override
   String get id => 'android-notification';
   @override
-  String get version => '1.0.0';
+  String get version => '2.0.0';
   @override
   SynoballSourceType get sourceType => SynoballSourceType.androidNotification;
   @override
@@ -189,21 +192,13 @@ class AndroidNotificationAdapter
   bool get defaultRequiresConfirmation => false;
   @override
   List<TransactionSeed> seeds(AndroidNotificationInput input) => [
-    TransactionSeed(
-      canonicalId: input.transaction.canonicalId,
-      accountId: input.transaction.accountId,
-      amount: input.transaction.amount,
-      direction: input.transaction.direction,
-      occurredAt: input.transaction.occurredAt,
-      description: input.transaction.description,
-      merchant: input.transaction.merchant,
-      providerCategory: input.transaction.providerCategory,
-      category: input.transaction.category,
-      subcategoryId: input.transaction.subcategoryId,
-      providerTransactionId: input.notificationKey,
-      transferDirection: input.transaction.transferDirection,
-      tags: [...input.transaction.tags, 'android-notification'],
-      confidence: input.transaction.confidence,
+    notificationSeed(
+      seed: input.transaction,
+      entityId: input.entityId,
+      packageName: input.packageName,
+      notificationKey: input.notificationKey,
+      sourceType: sourceType,
+      history: history,
     ),
   ];
   @override
@@ -224,12 +219,14 @@ class AndroidNotificationAdapter
 }
 
 class SmsNotificationAdapter extends _TransactionAdapter<SmsNotificationInput> {
-  SmsNotificationAdapter({super.ids});
+  SmsNotificationAdapter({super.ids, this.history = const SynoballState()});
+
+  final SynoballState history;
 
   @override
   String get id => 'sms-notification';
   @override
-  String get version => '1.0.0';
+  String get version => '2.0.0';
   @override
   SynoballSourceType get sourceType => SynoballSourceType.smsNotification;
   @override
@@ -238,21 +235,13 @@ class SmsNotificationAdapter extends _TransactionAdapter<SmsNotificationInput> {
   bool get defaultRequiresConfirmation => false;
   @override
   List<TransactionSeed> seeds(SmsNotificationInput input) => [
-    TransactionSeed(
-      canonicalId: input.transaction.canonicalId,
-      accountId: input.transaction.accountId,
-      amount: input.transaction.amount,
-      direction: input.transaction.direction,
-      occurredAt: input.transaction.occurredAt,
-      description: input.transaction.description,
-      merchant: input.transaction.merchant,
-      providerCategory: input.transaction.providerCategory,
-      category: input.transaction.category,
-      subcategoryId: input.transaction.subcategoryId,
-      providerTransactionId: input.notificationKey,
-      transferDirection: input.transaction.transferDirection,
-      tags: [...input.transaction.tags, 'sms-notification'],
-      confidence: input.transaction.confidence,
+    notificationSeed(
+      seed: input.transaction,
+      entityId: input.entityId,
+      packageName: input.packageName,
+      notificationKey: input.notificationKey,
+      sourceType: sourceType,
+      history: history,
     ),
   ];
   @override

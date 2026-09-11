@@ -63,6 +63,7 @@ class SberBankScreenshotParser implements BankScreenshotParser {
     }
 
     final candidates = <BankScreenshotCandidate>[];
+    final occurrences = <String, int>{};
     for (var index = 0; index < groups.length; index++) {
       final group = groups[index];
       var amount = group.amountMinor;
@@ -87,9 +88,18 @@ class SberBankScreenshotParser implements BankScreenshotParser {
         '${_normalize(merchant)}|${group.balanceMinor ?? ''}|'
         '${group.accountHint ?? ''}',
       );
+      // Equal amount/merchant/day is not proof that two visible rows are the
+      // same purchase. Keep the first legacy ID and distinguish occurrences.
+      final occurrence = occurrences.update(
+        fingerprint,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
       candidates.add(
         BankScreenshotCandidate(
-          id: 'bank-shot-$fingerprint',
+          id: occurrence == 1
+              ? 'bank-shot-$fingerprint'
+              : 'bank-shot-$fingerprint-row-$occurrence',
           imageHash: document.imageHash,
           parserId: id,
           merchant: merchant,
@@ -106,13 +116,11 @@ class SberBankScreenshotParser implements BankScreenshotParser {
         ),
       );
     }
-    final unique = <String, BankScreenshotCandidate>{};
-    for (final candidate in candidates) {
-      unique.putIfAbsent(candidate.id, () => candidate);
-    }
     return BankScreenshotParseResult(
-      candidates: unique.values.toList(growable: false),
+      candidates: candidates,
       warnings: [
+        if (occurrences.values.any((count) => count > 1))
+          'На скриншоте есть одинаковые строки операций. Они сохранены отдельно; проверьте их перед импортом.',
         if (groups.isNotEmpty && candidates.isEmpty)
           'Операции найдены, но суммы не удалось прочитать',
       ],

@@ -7,6 +7,7 @@ import '../../../../core/theme/qesto_theme.dart';
 import '../../../../core/widgets/qesto_card.dart';
 import '../../../../core/widgets/states.dart';
 import '../../../../data/models/qesto_models.dart';
+import '../../../../desktop/widgets/desktop_components.dart';
 import '../../../profile/services/cbr_currency_service.dart';
 import '../../domain/models/statistics_models.dart';
 import '../screens/statistics_drilldown_screens.dart';
@@ -326,7 +327,7 @@ class _ExpenseCurrencySelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final rates = CbrCurrencyService.embeddedSnapshot;
     return QestoCard(
-      child: Row(
+      child: DesktopAdaptiveRow(
         children: [
           const Icon(
             Icons.currency_exchange_rounded,

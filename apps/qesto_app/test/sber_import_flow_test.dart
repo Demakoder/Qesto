@@ -20,38 +20,45 @@ void main() {
         ),
       );
 
-  BudgetTransaction existing({List<String> tags = const ['sberbank']}) =>
-      BudgetTransaction(
-        id: 'sber-stable-fingerprint',
-        userId: 'user',
-        accountId: 'local-default-account',
-        date: DateTime(2026, 8, 20),
-        amount: 83,
-        currency: 'RUB',
-        type: TransactionType.expense,
-        categoryId: 'other',
-        merchant: '+6',
-        title: '+6',
-        description: '+6 83 ₽ Оплата товаров и услуг',
-        tags: tags,
-      );
+  BudgetTransaction existing({
+    List<String> tags = const ['sberbank'],
+    String currency = 'RUB',
+  }) => BudgetTransaction(
+    id: 'sber-stable-fingerprint',
+    userId: 'user',
+    accountId: 'local-default-account',
+    date: DateTime(2026, 8, 20),
+    amount: 83,
+    currency: currency,
+    type: TransactionType.expense,
+    categoryId: 'other',
+    merchant: '+6',
+    title: '+6',
+    description: '+6 83 ₽ Оплата товаров и услуг',
+    tags: tags,
+  );
 
   SberSyncSnapshot snapshot({
+    String sourceId = 'source',
+    String? connectionId,
     String merchant = 'Scooters',
     String fingerprint = 'stable-fingerprint',
     bool isIncome = false,
     bool isTransfer = false,
     bool isInternalTransfer = false,
     String status = 'POSTED',
+    int? exactAmountMinor,
   }) => SberSyncSnapshot(
+    connectionId: connectionId,
     observedAt: DateTime(2026, 8, 31),
     accounts: const [],
     transactions: [
       SberTransactionFact(
-        sourceId: 'source',
+        sourceId: sourceId,
         accountId: '',
         date: DateTime(2026, 8, 20),
         amount: 83,
+        exactAmountMinor: exactAmountMinor,
         currency: 'RUB',
         description: '$merchant · Оплата товаров и услуг',
         merchant: merchant,
@@ -70,9 +77,199 @@ void main() {
   );
 
   test(
-    'repeat sync repairs merchant and category without a duplicate',
+    'provider identity survives changing text and presentation fingerprint',
+    () async {
+      final controller = BudgetController(
+        configuration: budgetConfiguration,
+        financialData: UserFinancialData(
+          user: const QestoUser(
+            id: 'user',
+            name: 'Test',
+            defaultCurrency: 'RUB',
+          ),
+          referenceDate: DateTime(2026, 8, 31),
+        ),
+      );
+      await controller.importSberSnapshot(snapshot(connectionId: 'profile-a'));
+      final result = await controller.importSberSnapshot(
+        snapshot(
+          connectionId: 'profile-a',
+          fingerprint: 'changed-render',
+          merchant: 'New bank name',
+        ),
+      );
+      expect(controller.transactions, hasLength(1));
+      expect(result.newCount, 0);
+      expect(controller.transactions.single.merchant, 'New bank name');
+    },
+  );
+
+  test(
+    'different real provider ids are not merged by equal display facts',
     () async {
       final controller = controllerWith(existing());
+      await controller.importSberSnapshot(snapshot(connectionId: 'profile-a'));
+      await controller.importSberSnapshot(
+        snapshot(
+          connectionId: 'profile-a',
+          sourceId: 'second-purchase',
+          fingerprint: 'another-fingerprint',
+        ),
+      );
+      expect(controller.transactions, hasLength(2));
+    },
+  );
+
+  test(
+    'two browser profiles isolate otherwise identical bank identities',
+    () async {
+      final controller = controllerWith(existing());
+      await controller.importSberSnapshot(snapshot(connectionId: 'profile-a'));
+      final result = await controller.importSberSnapshot(
+        snapshot(connectionId: 'profile-b'),
+      );
+      expect(controller.transactions, hasLength(2));
+      expect(result.newCount, 1);
+    },
+  );
+
+  test(
+    'review result is not reported as an accepted or unchanged transaction',
+    () async {
+      final controller = controllerWith(existing(currency: 'USD'));
+
+      final result = await controller.importSberSnapshot(snapshot());
+
+      expect(result.found, 1);
+      expect(result.newCount, 0);
+      expect(result.updatedCount, 0);
+      expect(result.unchangedCount, 0);
+      expect(result.unresolvedCount, 1);
+      expect(result.transactions.single.change, SberImportChange.needsReview);
+      expect(controller.transactions.single.currency, 'USD');
+      expect(controller.pendingCandidates, hasLength(1));
+    },
+  );
+
+  test(
+    'Sber replay reports a deleted identity separately and never restores it',
+    () async {
+      final controller = controllerWith(existing());
+      await controller.importSberSnapshot(snapshot());
+      final id = controller.transactions.single.id;
+      await controller.deleteTransaction(id);
+      final result = await controller.importSberSnapshot(snapshot());
+      expect(result.deletedCount, 1);
+      expect(result.newCount, 0);
+      expect(result.updatedCount, 0);
+      expect(result.unresolvedCount, 0);
+      expect(result.transactions.single.change, SberImportChange.deleted);
+      expect(controller.transactions, isEmpty);
+      await controller.restoreTrashedTransactions([id]);
+      expect(controller.transactions.single.id, id);
+    },
+  );
+
+  test('sync report compares saved cents instead of rounded labels', () async {
+    final controller = BudgetController(
+      configuration: budgetConfiguration,
+      financialData: UserFinancialData(
+        user: const QestoUser(id: 'user', name: 'Test', defaultCurrency: 'RUB'),
+        referenceDate: DateTime(2026, 8, 31),
+      ),
+    );
+    await controller.importSberSnapshot(snapshot(exactAmountMinor: 8325));
+    final result = await controller.importSberSnapshot(
+      snapshot(exactAmountMinor: 8326),
+    );
+    expect(result.newCount, 0);
+    expect(result.updatedCount, 1);
+    expect(result.transactions.single.change, SberImportChange.updated);
+    expect(controller.transactions.single.amountMinor, 8326);
+    final repeated = await controller.importSberSnapshot(
+      snapshot(exactAmountMinor: 8326),
+    );
+    expect(repeated.updatedCount, 0);
+    expect(repeated.unchangedCount, 1);
+  });
+
+  test(
+    'structured internal-transfer semantics survive a shortened display title and reload',
+    () async {
+      final data = UserFinancialData(
+        user: const QestoUser(id: 'user', name: 'Test', defaultCurrency: 'RUB'),
+        referenceDate: DateTime(2026, 8, 31),
+      );
+      final controller = BudgetController(
+        configuration: budgetConfiguration,
+        financialData: data,
+      );
+      addTearDown(controller.dispose);
+      // The bank row stated "между своими", but its display title only names the product.
+      final value = snapshot(
+        merchant: 'Платёжный счёт',
+        isTransfer: true,
+        isInternalTransfer: true,
+        exactAmountMinor: 8325,
+      );
+      await controller.importSberSnapshot(value);
+      final transfer = controller.transactions.single;
+      expect(transfer.type, TransactionType.transfer);
+      expect(transfer.tags, contains(qestoInternalTransferTag));
+      final flow = const CashFlowCalculationService().calculate(
+        transactions: controller.transactions,
+        from: DateTime(2026, 8),
+        toExclusive: DateTime(2026, 9),
+      );
+      expect(flow.netCashFlowMinor, 0);
+      final restored = BudgetController(
+        configuration: budgetConfiguration,
+        financialData: controller.mergeInto(data),
+      );
+      addTearDown(restored.dispose);
+      expect(
+        restored.transactions.single.tags,
+        contains(qestoInternalTransferTag),
+      );
+      expect(restored.transactions.single.type, TransactionType.transfer);
+      final replay = await restored.importSberSnapshot(value);
+      expect(replay.newCount, 0);
+      expect(
+        restored.transactions.single.tags,
+        contains(qestoInternalTransferTag),
+      );
+    },
+  );
+
+  test(
+    'sync report shows protected canonical fields, not source proposals',
+    () async {
+      final controller = controllerWith(existing());
+      final result = await controller.importSberSnapshot(snapshot());
+      expect(result.recategorizedCount, 0);
+      expect(result.transactions.single.title, '+6');
+      expect(controller.transactions.single.categoryId, 'other');
+      final repeated = await controller.importSberSnapshot(snapshot());
+      expect(repeated.updatedCount, 0);
+      expect(repeated.unchangedCount, 1);
+    },
+  );
+
+  test(
+    'new automatic sync repairs merchant and category without a duplicate',
+    () async {
+      final controller = BudgetController(
+        configuration: budgetConfiguration,
+        financialData: UserFinancialData(
+          user: const QestoUser(
+            id: 'user',
+            name: 'Test',
+            defaultCurrency: 'RUB',
+          ),
+          referenceDate: DateTime(2026, 8, 31),
+        ),
+      );
+      await controller.importSberSnapshot(snapshot(merchant: '+6'));
 
       final result = await controller.importSberSnapshot(snapshot());
 

@@ -7,6 +7,7 @@ abstract final class BankConnectorRegistry {
     startUrl: Uri.https('online.sberbank.ru', '/'),
     allowedOrigins: const {'https://online.sberbank.ru'},
     authOrigins: const {'https://id.sber.ru'},
+    supportsBackgroundSync: true,
   );
 
   static final Map<String, BankConnectorConfig> _byId = {sber.bankId: sber};

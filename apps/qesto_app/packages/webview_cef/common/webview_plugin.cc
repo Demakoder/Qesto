@@ -1,4 +1,5 @@
 #include "webview_plugin.h"
+#include "persistent_profile_path.h"
 
 #ifdef OS_MAC
 #include <include/wrapper/cef_library_loader.h>
@@ -265,12 +266,13 @@ namespace webview_cef {
 		if (name.compare("init") == 0){
 			if(!isCefInitialized){
 				if(values != nullptr && webview_value_get_len(values) > 0){
-					rootCachePath = CefString(webview_value_get_string(
+					rootCachePath = QestoNativeProfilePath(webview_value_get_string(
 						webview_value_get_list_value(values, 0)));
 				}
 				startCEF();
 			}
 			initCallback();
+			m_handler->storage_root = rootCachePath;
 			result(1, nullptr);
 		}
 		else if (name.compare("quit") == 0) {
@@ -304,11 +306,10 @@ namespace webview_cef {
 		}
 		else if (name.compare("close") == 0) {
 			int browserId = int(webview_value_get_int(values));
-			m_handler->closeBrowser(browserId);
-			if(m_renderers.find(browserId) != m_renderers.end() && m_renderers[browserId] != nullptr) {
-				m_renderers[browserId].reset();
-			}
-			result(1, nullptr);
+			m_handler->closeBrowser(browserId, [this, browserId, result]() {
+				m_renderers.erase(browserId);
+				result(1, nullptr);
+			});
 		}
 		else if (name.compare("loadUrl") == 0) {
 			int browserId = int(webview_value_get_int(webview_value_get_list_value(values, 0)));

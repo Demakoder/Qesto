@@ -21,6 +21,15 @@ class WebviewManager extends ValueNotifier<bool> {
 
   final _tempWebViews = <int, WebViewController>{};
   final _tempInjectUserScripts = <int, InjectUserScripts?>{};
+  final _earlyLifecycleEvents = <int, List<MethodCall>>{};
+  final _lifecycleQueues = <int, Future<void>>{};
+  static const _lifecycleMethods = {
+    'urlChanged',
+    'titleChanged',
+    'onLoadStart',
+    'onLoadEnd',
+    'onCertificateError',
+  };
 
   int nextIndex = 1;
 
@@ -52,7 +61,15 @@ class WebviewManager extends ValueNotifier<bool> {
   void removeWebView(int browserId) {
     if (browserId > 0) {
       _webViews.remove(browserId);
+      _injectUserScripts.remove(browserId);
+      _earlyLifecycleEvents.remove(browserId);
     }
+  }
+
+  void discardPendingWebView(int index) {
+    _tempWebViews.remove(index);
+    _tempInjectUserScripts.remove(index);
+    if (_tempWebViews.isEmpty) _earlyLifecycleEvents.clear();
   }
 
   WebviewManager._internal() : super(false);
@@ -78,6 +95,7 @@ class WebviewManager extends ValueNotifier<bool> {
     super.dispose();
     pluginChannel.setMethodCallHandler(null);
     _webViews.clear();
+    _earlyLifecycleEvents.clear();
   }
 
   void onBrowserCreated(int browserIndex, int browserId) {
@@ -86,9 +104,45 @@ class WebviewManager extends ValueNotifier<bool> {
 
     _tempWebViews.remove(browserIndex);
     _tempInjectUserScripts.remove(browserIndex);
+    final early =
+        _earlyLifecycleEvents.remove(browserId) ?? const <MethodCall>[];
+    for (final event in early) {
+      unawaited(methodCallhandler(event).catchError((Object _) {}));
+    }
+    if (_tempWebViews.isEmpty) _earlyLifecycleEvents.clear();
   }
 
   Future<void> methodCallhandler(MethodCall call) async {
+    if (_lifecycleMethods.contains(call.method) && call.arguments is Map) {
+      final id = call.arguments['browserId'];
+      if (id is! int) return;
+      if (!_webViews.containsKey(id)) {
+        // Native creation and page callbacks use separate platform messages.
+        // A fast load can precede the create reply that registers its owner.
+        if (_tempWebViews.isNotEmpty &&
+            (_earlyLifecycleEvents.containsKey(id) ||
+                _earlyLifecycleEvents.length < 8)) {
+          final events = _earlyLifecycleEvents.putIfAbsent(id, () => []);
+          if (events.length < 32) events.add(call);
+        }
+        return;
+      }
+      final previous = _lifecycleQueues[id] ?? Future<void>.value();
+      final next = previous.catchError((Object _) {}).then((_) async {
+        if (_webViews.containsKey(id)) await _dispatch(call);
+      });
+      _lifecycleQueues[id] = next;
+      unawaited(next.then<void>((_) {
+        if (identical(_lifecycleQueues[id], next)) _lifecycleQueues.remove(id);
+      }, onError: (Object _, StackTrace __) {
+        if (identical(_lifecycleQueues[id], next)) _lifecycleQueues.remove(id);
+      }));
+      return next;
+    }
+    return _dispatch(call);
+  }
+
+  Future<void> _dispatch(MethodCall call) async {
     switch (call.method) {
       case "urlChanged":
         int browserId = call.arguments["browserId"] as int;
@@ -151,9 +205,9 @@ class WebviewManager extends ValueNotifier<bool> {
             _injectUserScripts[browserId]?.retrieveLoadStartInjectScripts() ??
                 []);
 
-        WebViewController controller =
-            _webViews[browserId] as WebViewController;
-        _webViews[browserId]?.listener?.onLoadStart?.call(controller, urlId);
+        final controller = _webViews[browserId];
+        if (controller != null)
+          controller.listener?.onLoadStart?.call(controller, urlId);
         return;
       case 'onLoadEnd':
         int browserId = call.arguments["browserId"] as int;
@@ -164,9 +218,9 @@ class WebviewManager extends ValueNotifier<bool> {
             _injectUserScripts[browserId]?.retrieveLoadEndInjectScripts() ??
                 []);
 
-        WebViewController controller =
-            _webViews[browserId] as WebViewController;
-        _webViews[browserId]?.listener?.onLoadEnd?.call(controller, urlId);
+        final controller = _webViews[browserId];
+        if (controller != null)
+          controller.listener?.onLoadEnd?.call(controller, urlId);
         return;
       case 'onCertificateError':
         int browserId = call.arguments['browserId'] as int;

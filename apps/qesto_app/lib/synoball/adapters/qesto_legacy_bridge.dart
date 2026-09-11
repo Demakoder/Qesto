@@ -95,6 +95,23 @@ class QestoLegacyBridge {
     required CanonicalTransaction previous,
   }) {
     final seed = _transaction(value, previous.entityId);
+    final fieldLocks = <String>{
+      ...previous.tags.where((tag) => tag.startsWith('user-field:')),
+      if (seed.accountId != previous.accountId) 'user-field:account',
+      if (seed.amount.minorUnits != previous.amount.minorUnits ||
+          seed.amount.currency != previous.amount.currency)
+        'user-field:amount',
+      if (seed.occurredAt != previous.occurredAt) 'user-field:date',
+      if (seed.merchant != previous.merchantName) 'user-field:merchant',
+      if (seed.description != previous.rawDescription) 'user-field:description',
+      if (value.categoryId != previous.effectiveCategory) 'user-field:category',
+      if (seed.subcategoryId != previous.subcategoryId)
+        'user-field:subcategory',
+      if (seed.direction != previous.direction ||
+          seed.transferDirection != previous.transferDirection ||
+          !previous.tags.contains('legacy-type-${value.type.name}'))
+        'user-field:type',
+    };
     return previous.copyWith(
       accountId: seed.accountId,
       amount: seed.amount,
@@ -106,11 +123,12 @@ class QestoLegacyBridge {
       providerCategory: seed.providerCategory,
       synoballCategory: seed.category,
       userCategoryOverride: value.categoryId,
+      clearUserCategoryOverride: value.categoryId == null,
       categoryConfidence: value.classificationConfidence,
       subcategoryId: seed.subcategoryId,
       transferDirection: seed.transferDirection,
       receiptId: seed.receiptId,
-      tags: seed.tags,
+      tags: {...seed.tags, ...fieldLocks}.toList(),
       updatedAt: DateTime.now(),
       fieldTrust: SourceTrustLevel.userConfirmed,
     );
@@ -132,10 +150,12 @@ class QestoLegacyBridge {
         },
         currency: value.currency,
         balance: Money(
-          minorUnits: value.balance * 100,
+          minorUnits: value.balanceMinor,
           currency: value.currency,
         ),
-        isVirtual: value.id == 'local-default-account',
+        isVirtual:
+            value.id == 'local-default-account' ||
+            value.id.startsWith('sber-unassigned-'),
       );
 
   TransactionSeed _transaction(BudgetTransaction value, String entityId) {
@@ -155,7 +175,7 @@ class QestoLegacyBridge {
       canonicalId: value.id,
       accountId: value.accountId,
       amount: Money(
-        minorUnits: value.amount.abs() * 100,
+        minorUnits: value.amountMinor.abs(),
         currency: value.currency,
       ),
       direction: direction,

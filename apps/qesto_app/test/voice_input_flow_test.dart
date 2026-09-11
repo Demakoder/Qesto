@@ -8,6 +8,59 @@ import 'package:qesto/synoball/synoball.dart';
 void main() {
   const parser = VoiceTransactionDraftParser();
 
+  test(
+    'Android confirmed preview posts once and survives save retry',
+    () async {
+      var failSave = true;
+      final controller = BudgetController(
+        configuration: budgetConfiguration,
+        financialData: UserFinancialData(
+          user: const QestoUser(
+            id: 'voice-user',
+            name: 'Test',
+            defaultCurrency: 'RUB',
+          ),
+          referenceDate: DateTime(2026, 9, 6),
+        ),
+        onChanged: () async {
+          if (failSave) throw StateError('Synthetic disk failure');
+        },
+      );
+      final transaction = BudgetTransaction(
+        id: 'voice-command-1',
+        userId: 'voice-user',
+        accountId: controller.accounts.first.id,
+        date: DateTime(2026, 9, 6),
+        amount: 350,
+        currency: 'RUB',
+        type: TransactionType.expense,
+        merchant: 'Coffee',
+        categoryId: 'cafes',
+        comment: 'Coffee 350',
+      );
+      await expectLater(
+        controller.addImportedTransactions([
+          transaction,
+        ], confirmedVoiceInput: true),
+        throwsStateError,
+      );
+      failSave = false;
+      await controller.addImportedTransactions([
+        transaction,
+      ], confirmedVoiceInput: true);
+      expect(controller.pendingCandidates, isEmpty);
+      expect(controller.transactions.single.amount, 350);
+      expect(
+        controller.synoballState.transactions.single.amount.minorUnits,
+        35000,
+      );
+      expect(
+        controller.synoballState.evidence.single.sourceType,
+        SynoballSourceType.manualVoice,
+      );
+    },
+  );
+
   test('voice phrase extracts amount, merchant and category', () {
     final draft = parser.parse('Кофе 350 рублей в Surf Coffee');
 

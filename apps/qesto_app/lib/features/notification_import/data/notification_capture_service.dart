@@ -7,6 +7,7 @@ class CapturedNotification {
     required this.postedAt,
     required this.title,
     required this.text,
+    this.deliveryVersion = '',
     this.bigText = '',
     this.subText = '',
     this.textLines = const [],
@@ -17,6 +18,10 @@ class CapturedNotification {
   final DateTime postedAt;
   final String title;
   final String text;
+
+  /// Opaque inbox revision, not the identity of a financial transaction.
+  /// Empty identifies records captured before revision-aware acknowledgements.
+  final String deliveryVersion;
   final String bigText;
   final String subText;
   final List<String> textLines;
@@ -38,6 +43,7 @@ class CapturedNotification {
       ),
       title: map['title'] as String? ?? '',
       text: map['text'] as String? ?? '',
+      deliveryVersion: map['deliveryVersion'] as String? ?? '',
       bigText: map['bigText'] as String? ?? '',
       subText: map['subText'] as String? ?? '',
       textLines:
@@ -54,7 +60,10 @@ abstract interface class NotificationCaptureGateway {
   Future<void> openSettings();
   Future<List<CapturedNotification>> readNotifications();
   Future<void> clearNotifications();
-  Future<void> removeNotification(String notificationKey);
+  Future<void> removeNotification(
+    String notificationKey, {
+    required String expectedVersion,
+  });
   Stream<void> get notificationEvents;
 }
 
@@ -97,9 +106,13 @@ class NotificationCaptureService implements NotificationCaptureGateway {
   }
 
   @override
-  Future<void> removeNotification(String notificationKey) {
+  Future<void> removeNotification(
+    String notificationKey, {
+    required String expectedVersion,
+  }) {
     return _channel.invokeMethod<void>('removeNotification', {
       'notificationKey': notificationKey,
+      'expectedVersion': expectedVersion,
     });
   }
 }

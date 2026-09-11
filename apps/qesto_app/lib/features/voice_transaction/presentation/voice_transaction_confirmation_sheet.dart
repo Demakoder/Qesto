@@ -57,6 +57,7 @@ class _VoiceTransactionConfirmationSheetState
   late String _sourceAccountId;
   String? _destinationAccountId;
   bool _saving = false;
+  final _commandId = 'voice-${DateTime.now().microsecondsSinceEpoch}';
 
   List<QestoAccount> get _accounts => widget.controller.accounts
       .where((account) => account.type != AccountType.liability)
@@ -132,38 +133,45 @@ class _VoiceTransactionConfirmationSheetState
       if (destination != null) 'Получатель: ${destination.title}',
     ].join('\n');
 
-    await widget.controller.addImportedTransactions(
-      [
-        BudgetTransaction(
-          id: 'voice-${DateTime.now().microsecondsSinceEpoch}',
-          userId: widget.period.userId,
-          accountId: source.id,
-          date: date,
-          amount: amount,
-          currency: widget.period.currency,
-          type: switch (_kind) {
-            VoiceTransactionKind.expense => TransactionType.expense,
-            VoiceTransactionKind.income => TransactionType.income,
-            VoiceTransactionKind.transfer => TransactionType.transfer,
-          },
-          categoryId: _kind == VoiceTransactionKind.expense
-              ? _category?.id
-              : null,
-          merchant: title,
-          title: title,
-          description: 'Добавлено голосом',
-          comment: details,
-          normalizedMerchant: _normalizeMerchant(title),
-          transferDirection: _kind == VoiceTransactionKind.transfer
-              ? TransferDirection.outgoing
-              : null,
-          tags: const ['voice-input'],
-        ),
-      ],
-      actionTitle: 'Операция добавлена голосом',
-      confirmedVoiceInput: true,
-    );
-    if (mounted) Navigator.of(context).pop(true);
+    try {
+      await widget.controller.addImportedTransactions(
+        [
+          BudgetTransaction(
+            id: _commandId,
+            userId: widget.period.userId,
+            accountId: source.id,
+            date: date,
+            amount: amount,
+            currency: widget.period.currency,
+            type: switch (_kind) {
+              VoiceTransactionKind.expense => TransactionType.expense,
+              VoiceTransactionKind.income => TransactionType.income,
+              VoiceTransactionKind.transfer => TransactionType.transfer,
+            },
+            categoryId: _kind == VoiceTransactionKind.expense
+                ? _category?.id
+                : null,
+            merchant: title,
+            title: title,
+            description: 'Добавлено голосом',
+            comment: details,
+            normalizedMerchant: _normalizeMerchant(title),
+            transferDirection: _kind == VoiceTransactionKind.transfer
+                ? TransferDirection.outgoing
+                : null,
+            tags: const ['voice-input'],
+          ),
+        ],
+        actionTitle: 'Операция добавлена голосом',
+        confirmedVoiceInput: true,
+      );
+      if (mounted) Navigator.of(context).pop(true);
+    } on Object {
+      if (mounted) {
+        setState(() => _saving = false);
+        _showError('Не удалось сохранить операцию. Повторите попытку.');
+      }
+    }
   }
 
   void _showError(String message) {

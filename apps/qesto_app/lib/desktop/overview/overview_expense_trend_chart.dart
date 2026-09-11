@@ -64,49 +64,62 @@ class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
           const left = 54.0;
           const right = 16.0;
           final width = math.max(1, constraints.maxWidth - left - right);
-          return MouseRegion(
-            onExit: (_) => setState(() => _hoveredIndex = null),
-            onHover: (event) {
+          return Listener(
+            onPointerDown: (event) {
               final ratio = ((event.localPosition.dx - left) / width).clamp(
                 0,
                 1,
               );
-              final index = points.length == 1
-                  ? 0
-                  : (ratio * (points.length - 1)).round();
-              if (index != _hoveredIndex) {
-                setState(() => _hoveredIndex = index);
-              }
+              setState(
+                () => _hoveredIndex = points.length == 1
+                    ? 0
+                    : (ratio * (points.length - 1)).round(),
+              );
             },
-            child: SizedBox(
-              height: widget.height,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _ExpenseTrendPainter(
-                        points: points,
-                        hoveredIndex: _hoveredIndex,
-                        currency: widget.currency,
-                      ),
-                    ),
-                  ),
-                  if (_hoveredIndex case final index?)
-                    Positioned(
-                      top: 12,
-                      left: _tooltipLeft(
-                        index,
-                        points.length,
-                        constraints.maxWidth,
-                      ),
-                      child: IgnorePointer(
-                        child: _TrendTooltip(
-                          point: points[index],
+            child: MouseRegion(
+              onExit: (_) => setState(() => _hoveredIndex = null),
+              onHover: (event) {
+                final ratio = ((event.localPosition.dx - left) / width).clamp(
+                  0,
+                  1,
+                );
+                final index = points.length == 1
+                    ? 0
+                    : (ratio * (points.length - 1)).round();
+                if (index != _hoveredIndex) {
+                  setState(() => _hoveredIndex = index);
+                }
+              },
+              child: SizedBox(
+                height: widget.height,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _ExpenseTrendPainter(
+                          points: points,
+                          hoveredIndex: _hoveredIndex,
                           currency: widget.currency,
                         ),
                       ),
                     ),
-                ],
+                    if (_hoveredIndex case final index?)
+                      Positioned(
+                        top: 12,
+                        left: _tooltipLeft(
+                          index,
+                          points.length,
+                          constraints.maxWidth,
+                        ),
+                        child: IgnorePointer(
+                          child: _TrendTooltip(
+                            point: points[index],
+                            currency: widget.currency,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );

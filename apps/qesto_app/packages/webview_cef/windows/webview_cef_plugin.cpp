@@ -290,6 +290,10 @@ namespace webview_cef {
 	// post-DispatchMessage hook, so the Flutter view HWND is subclassed here.
 	static LRESULT CALLBACK ImeSubclassProc(HWND hwnd, UINT message, WPARAM wparam,
 		LPARAM lparam, UINT_PTR, DWORD_PTR) {
+		auto focused = webviewPlugins.find(hwnd);
+		if (focused == webviewPlugins.end() || !focused->second->isEditableFocused()) {
+			return DefSubclassProc(hwnd, message, wparam, lparam);
+		}
 		switch (message) {
 		case WM_IME_SETCONTEXT:
 			// Don't let the OS draw its own composition window; the preedit is

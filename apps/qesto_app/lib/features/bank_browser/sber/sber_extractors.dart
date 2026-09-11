@@ -3,9 +3,12 @@ import 'dart:convert';
 import '../../../data/models/qesto_models.dart';
 import '../runtime/browser_controller.dart';
 import 'sber_connector_models.dart';
+import 'sber_readiness.dart';
 
 class SberExtractors {
-  const SberExtractors();
+  const SberExtractors({this.readiness = const SberReadiness()});
+
+  final SberReadiness readiness;
 
   Future<List<SberAccountFact>> accounts(BrowserController browser) async {
     final raw = await browser.evaluateConnectorJavascript(_accountsScript);
@@ -20,12 +23,37 @@ class SberExtractors {
         .map(_accountFromRow)
         .whereType<SberAccountFact>()
         .toList(growable: false);
+    return mergeAccounts(normalized);
+  }
+
+  List<SberAccountFact> mergeAccounts(Iterable<SberAccountFact> facts) {
+    final normalized = facts.toList();
     final result = <SberAccountFact>[];
     for (final incoming in normalized) {
       final index = result.indexWhere(
         (existing) =>
             existing.id == incoming.id ||
-            _accountsAreDirectlyLinked(existing, incoming),
+            (_accountsAreDirectlyLinked(existing, incoming) &&
+                normalized
+                        .where(
+                          (other) =>
+                              other.id != existing.id &&
+                              _accountsAreDirectlyLinked(other, existing),
+                        )
+                        .map((a) => a.id)
+                        .toSet()
+                        .length <=
+                    1 &&
+                normalized
+                        .where(
+                          (other) =>
+                              other.id != incoming.id &&
+                              _accountsAreDirectlyLinked(other, incoming),
+                        )
+                        .map((a) => a.id)
+                        .toSet()
+                        .length <=
+                    1),
       );
       if (index < 0) {
         result.add(incoming);
@@ -40,8 +68,10 @@ class SberExtractors {
     BrowserController browser, {
     int maxSteps = 24,
   }) async {
+    if (!await readiness.wait(browser)) return;
     var stationary = 0;
     for (var step = 0; step < maxSteps; step++) {
+      if (!await readiness.wait(browser)) break;
       final moved = await browser.evaluateConnectorJavascript(
         _hydrationScrollScript,
       );
@@ -61,50 +91,76 @@ class SberExtractors {
     BrowserController browser, {
     required SberSyncRange range,
     int maxScrolls = 160,
+    Duration? maxDuration,
   }) async {
+    final elapsed = Stopwatch()..start();
     final byFingerprint = <String, SberTransactionFact>{};
+    final transactionKeyByObservation = <String, String>{};
     final rawFingerprints = <String>{};
-    final rejectedFingerprints = <String>{};
-    final rewardFingerprints = <String>{};
-    final serviceFingerprints = <String>{};
+    final diagnostics = <String, SberHistoryRowDiagnostic>{};
     final loyaltyFingerprints = <String>{};
     var previousRawCount = -1;
-    var stagnantLoadMoreAttempts = 0;
     var scrollSteps = 0;
     var loadMoreClicks = 0;
     var reachedRangeStart = false;
     var stationaryEndAttempts = 0;
+    var observedStableEnd = false;
+    bool observeRows(List<Map<String, dynamic>> rows) {
+      var advanced = false;
+      for (final row in rows) {
+        final rawFingerprint = _rawRowFingerprint(row);
+        advanced = rawFingerprints.add(rawFingerprint) || advanced;
+        final observedDate = _rowDate(row);
+        if (observedDate != null && observedDate.isBefore(range.from)) {
+          reachedRangeStart = true;
+        }
+        if (row['loyaltyAmount'] is num || row['nonCashKind'] == 'reward') {
+          loyaltyFingerprints.add(rawFingerprint);
+        }
+        final transaction = _transactionFromRow(row, range);
+        final decision = _diagnoseRow(row, range, transaction);
+        final previous = diagnostics[rawFingerprint];
+        advanced =
+            (previous?.outcome.isError == true && !decision.outcome.isError) ||
+            advanced;
+        // Every read is an observation, including pagination-wait probes.
+        // Virtualized rows can disappear before the next main-loop read.
+        if (previous?.outcome != SberHistoryRowOutcome.accepted ||
+            decision.outcome == SberHistoryRowOutcome.accepted) {
+          diagnostics[rawFingerprint] = decision;
+        }
+        if (transaction != null) {
+          final previousKey = transactionKeyByObservation[rawFingerprint];
+          if (previousKey != null && previousKey != transaction.fingerprint) {
+            byFingerprint.remove(previousKey);
+          }
+          transactionKeyByObservation[rawFingerprint] = transaction.fingerprint;
+          byFingerprint[transaction.fingerprint] = transaction;
+        }
+      }
+      return advanced;
+    }
+
+    // The SPA may restore its last scroll offset. Starting there can skip the
+    // newest part of the selected period and immediately hit its old boundary.
+    if (!await readiness.wait(browser)) {
+      return const SberTransactionExtraction(hasMoreRows: true);
+    }
+    await browser.evaluateConnectorJavascript(_scrollToTopScript);
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
     for (var index = 0; index < maxScrolls; index++) {
+      if (maxDuration != null && elapsed.elapsed >= maxDuration) break;
+      if (reachedRangeStart) break;
+      if (!await readiness.wait(browser)) break;
       final raw = await browser.evaluateConnectorJavascript(
         _transactionsScript,
       );
       if (raw is String) {
-        for (final row in _decodeRows(raw)) {
-          final rawFingerprint = _rawRowFingerprint(row);
-          rawFingerprints.add(rawFingerprint);
-          final observedDate = _rowDate(row);
-          if (observedDate != null && observedDate.isBefore(range.from)) {
-            reachedRangeStart = true;
-          }
-          if (row['loyaltyAmount'] is num || row['nonCashKind'] == 'reward') {
-            loyaltyFingerprints.add(rawFingerprint);
-          }
-          final transaction = _transactionFromRow(row, range);
-          if (transaction != null) {
-            byFingerprint[transaction.fingerprint] = transaction;
-          } else if (row['nonCashKind'] == 'reward') {
-            rewardFingerprints.add(rawFingerprint);
-          } else if (row['nonCashKind'] == 'service') {
-            serviceFingerprints.add(rawFingerprint);
-          } else {
-            rejectedFingerprints.add(rawFingerprint);
-          }
-        }
+        observeRows(_decodeRows(raw));
       }
       final grew = rawFingerprints.length > previousRawCount;
       if (grew) {
         stationaryEndAttempts = 0;
-        stagnantLoadMoreAttempts = 0;
       }
       previousRawCount = rawFingerprints.length;
       if (reachedRangeStart) break;
@@ -127,7 +183,7 @@ class SberExtractors {
       // Pagination is safe only after the incremental walk reaches the end
       // of the currently rendered page. The JS side clicks only a rendered,
       // enabled read-only history control and never a financial action.
-      if (stagnantLoadMoreAttempts < 3) {
+      {
         final loadedMore = await browser
             .evaluateConnectorJavascript(_loadMoreTransactionsScript)
             .timeout(const Duration(seconds: 5), onTimeout: () => null);
@@ -136,22 +192,26 @@ class SberExtractors {
           stationaryEndAttempts = 0;
           final advanced = await _waitForHistoryAdvance(
             browser,
-            knownRawFingerprints: rawFingerprints,
+            observeRows: observeRows,
           );
           if (advanced) {
-            stagnantLoadMoreAttempts = 0;
             continue;
           }
-          stagnantLoadMoreAttempts += 1;
+          // A slow request is not permission to click the same control again.
+          // Keep observed rows and report partial coverage after the deadline.
+          break;
         }
       }
-      if (stagnantLoadMoreAttempts >= 3) break;
 
       // A virtualized list can report the same scroll position while a new
       // page is still being mounted. Require several stable observations
       // before declaring the selected period exhausted.
+      if (!await readiness.wait(browser)) break;
       stationaryEndAttempts += 1;
-      if (stationaryEndAttempts >= 3) break;
+      if (stationaryEndAttempts >= 3) {
+        observedStableEnd = true;
+        break;
+      }
       await Future<void>.delayed(const Duration(milliseconds: 1200));
     }
     final result = byFingerprint.values.toList()
@@ -162,31 +222,42 @@ class SberExtractors {
     return SberTransactionExtraction(
       transactions: result,
       rawRowsSeen: rawFingerprints.length,
-      rejectedRows: rejectedFingerprints.length,
+      rejectedRows: diagnostics.values.where((d) => d.outcome.isError).length,
       scrollSteps: scrollSteps,
       loadMoreClicks: loadMoreClicks,
-      rewardRows: rewardFingerprints.length,
-      serviceRows: serviceFingerprints.length,
+      rewardRows: diagnostics.values
+          .where((d) => d.outcome == SberHistoryRowOutcome.reward)
+          .length,
+      serviceRows: diagnostics.values
+          .where((d) => d.outcome == SberHistoryRowOutcome.service)
+          .length,
+      outsidePeriodRows: diagnostics.values
+          .where((d) => d.outcome == SberHistoryRowOutcome.outsidePeriod)
+          .length,
+      diagnostics: diagnostics.values.toList(growable: false),
       loyaltyRewards: loyaltyFingerprints.length,
       rangeBoundaryReached: reachedRangeStart,
-      hasMoreRows: hasMore == '1',
+      // Timeout/unknown is not proof of a fully traversed history.
+      hasMoreRows: !reachedRangeStart && (!observedStableEnd || hasMore != '0'),
     );
   }
 
   Future<bool> _waitForHistoryAdvance(
     BrowserController browser, {
-    required Set<String> knownRawFingerprints,
+    required bool Function(List<Map<String, dynamic>>) observeRows,
   }) async {
-    for (var attempt = 0; attempt < 10; attempt++) {
-      await Future<void>.delayed(const Duration(milliseconds: 500));
+    final elapsed = Stopwatch()..start();
+    var advanced = false;
+    while (elapsed.elapsed < readiness.timeout) {
+      await Future<void>.delayed(readiness.pollInterval);
+      final state = await readiness.probe(browser);
+      if (state == 'auth' || state == 'blocked') return false;
       final raw = await browser
           .evaluateConnectorJavascript(_transactionsScript)
           .timeout(const Duration(seconds: 5), onTimeout: () => null);
       if (raw is! String) continue;
-      for (final row in _decodeRows(raw)) {
-        final fingerprint = _rawRowFingerprint(row);
-        if (!knownRawFingerprints.contains(fingerprint)) return true;
-      }
+      advanced = observeRows(_decodeRows(raw)) || advanced;
+      if (advanced && state == 'ready') return true;
     }
     return false;
   }
@@ -228,6 +299,46 @@ class SberExtractors {
     }
   }
 
+  List<SberHistoryRowDiagnostic> diagnoseTransactionRows(
+    Iterable<Map<String, dynamic>> rows, {
+    required SberSyncRange range,
+  }) => [
+    for (final row in rows)
+      _diagnoseRow(row, range, _transactionFromRow(row, range)),
+  ];
+
+  SberHistoryRowDiagnostic _diagnoseRow(
+    Map<String, dynamic> row,
+    SberSyncRange range,
+    SberTransactionFact? transaction,
+  ) {
+    final date = _rowDate(row);
+    final outcome = transaction != null
+        ? SberHistoryRowOutcome.accepted
+        : row['nonCashKind'] == 'reward'
+        ? SberHistoryRowOutcome.reward
+        : row['nonCashKind'] == 'service'
+        ? SberHistoryRowOutcome.service
+        : _clean(row['text'] as String?).isEmpty
+        ? SberHistoryRowOutcome.emptyText
+        : date == null
+        ? SberHistoryRowOutcome.missingDate
+        : !range.contains(date)
+        ? SberHistoryRowOutcome.outsidePeriod
+        : SberHistoryRowOutcome.missingAmount;
+    final merchant = _merchantCandidate(row['merchant'] as String?);
+    return SberHistoryRowDiagnostic(
+      observationId: _stableId('observation', _rawRowFingerprint(row)),
+      outcome: outcome,
+      date: date,
+      description:
+          merchant ??
+          (_clean(row['operationType'] as String?).isNotEmpty
+              ? _clean(row['operationType'] as String?)
+              : 'Операция без названия'),
+    );
+  }
+
   static String _rawRowFingerprint(Map<String, dynamic> row) {
     final sourceId = _clean(row['id'] as String?);
     if (sourceId.isNotEmpty) return 'id:$sourceId';
@@ -242,7 +353,8 @@ class SberExtractors {
     final text = _clean(row['text'] as String?);
     final balance = _money(row['balance'] as String? ?? text);
     if (balance == null || text.isEmpty) return null;
-    final lower = '${row['kind'] ?? ''} $text'.toLowerCase();
+    final lower = '${row['kind'] ?? ''} ${row['name'] ?? ''} $text'
+        .toLowerCase();
     final type = lower.contains('вклад') || lower.contains('депозит')
         ? AccountType.deposit
         : lower.contains('накоп')
@@ -251,17 +363,18 @@ class SberExtractors {
         ? AccountType.liability
         : lower.contains('инвест') || lower.contains('брокер')
         ? AccountType.investment
-        : lower.contains('карт')
+        : row['kind'] != 'account' && lower.contains('карт')
         ? AccountType.bankCard
         : AccountType.cash;
+    final identityText = _clean(row['identityText'] as String? ?? text);
     final maskedLastFour =
         RegExp(
           r'(?:\*{2,}|X{2,}|•{2,})\s*(\d{4})',
-        ).firstMatch(text)?.group(1) ??
+        ).firstMatch(identityText)?.group(1) ??
         RegExp(
-          r'\b(?:сч[её]т|карта)\D{0,24}(\d{4})\b',
+          r'(?:^|[^а-яёa-z])(?:сч[её]т|карта)\s*(?:[•*Xx]+\s*)?(\d{4})(?!\d)',
           caseSensitive: false,
-        ).firstMatch(text)?.group(1);
+        ).firstMatch(identityText)?.group(1);
     final linkedCards =
         (row['cards'] as List? ?? const [])
             .map((value) => _clean(value?.toString()))
@@ -287,9 +400,14 @@ class SberExtractors {
       type: type,
       currency: currency,
       balance: balance,
+      exactBalanceMinor: _moneyMinor(row['balance'] as String? ?? text),
       availableBalance: _money(row['available'] as String? ?? ''),
       lastFour: maskedLastFour,
       linkedCardLastFours: linkedCards,
+      historyResources: (row['historyResources'] as List? ?? const [])
+          .whereType<String>()
+          .where((v) => RegExp(r'^card:\d+$').hasMatch(v))
+          .toList(),
       isLiability: type == AccountType.liability,
     );
   }
@@ -299,40 +417,49 @@ class SberExtractors {
     SberAccountFact right,
   ) {
     if (left.currency != right.currency) return false;
-    final leftSuffixes = <String>{
-      if (left.lastFour != null) left.lastFour!,
-      ...left.linkedCardLastFours,
-    };
-    final rightSuffixes = <String>{
-      if (right.lastFour != null) right.lastFour!,
-      ...right.linkedCardLastFours,
-    };
-    if (leftSuffixes.intersection(rightSuffixes).isEmpty) return false;
-    return left.linkedCardLastFours.isNotEmpty ||
-        right.linkedCardLastFours.isNotEmpty ||
-        left.id == right.id;
+    return (right.type == AccountType.bankCard &&
+            right.lastFour != null &&
+            left.linkedCardLastFours.contains(right.lastFour)) ||
+        (left.type == AccountType.bankCard &&
+            left.lastFour != null &&
+            right.linkedCardLastFours.contains(left.lastFour));
   }
 
   static SberAccountFact _mergeAccountFacts(
     SberAccountFact primary,
     SberAccountFact incoming,
   ) {
+    // The account is authoritative for its balance; a linked card can show a
+    // different available amount. Input DOM order must not change net worth.
+    final account = primary.linkedCardLastFours.isNotEmpty ? primary : incoming;
     final cards = <String>{
       ...primary.linkedCardLastFours,
       ...incoming.linkedCardLastFours,
-      if (primary.lastFour != null) primary.lastFour!,
-      if (incoming.lastFour != null) incoming.lastFour!,
+      if (primary.type == AccountType.bankCard && primary.lastFour != null)
+        primary.lastFour!,
+      if (incoming.type == AccountType.bankCard && incoming.lastFour != null)
+        incoming.lastFour!,
     }.toList(growable: false)..sort();
-    final preferIncoming = incoming.name.length > primary.name.length;
     return SberAccountFact(
-      id: primary.id,
-      name: preferIncoming ? incoming.name : primary.name,
-      type: primary.type == AccountType.cash ? incoming.type : primary.type,
+      id: account.id,
+      name: account.name,
+      type: account.type,
       currency: primary.currency,
-      balance: incoming.balance,
+      balance: account.balance,
+      exactBalanceMinor: account.balanceMinor,
       availableBalance: incoming.availableBalance ?? primary.availableBalance,
-      lastFour: primary.lastFour ?? incoming.lastFour,
+      lastFour: account.lastFour,
       linkedCardLastFours: cards,
+      sourceAliases: {
+        primary.id,
+        incoming.id,
+        ...primary.sourceAliases,
+        ...incoming.sourceAliases,
+      }.toList(),
+      historyResources: {
+        ...primary.historyResources,
+        ...incoming.historyResources,
+      }.toList(),
       isLiability: primary.isLiability || incoming.isLiability,
     );
   }
@@ -341,15 +468,27 @@ class SberExtractors {
     Map<String, dynamic> row,
     SberSyncRange range,
   ) {
+    if (row['nonCashKind'] == 'reward' || row['nonCashKind'] == 'service') {
+      return null;
+    }
     final text = _clean(row['text'] as String?);
     final date = _rowDate(row);
-    final normalizedAmount = switch (row['amountValue']) {
-      final int value => value,
-      final num value => value.round(),
-      final String value => int.tryParse(value),
+    final normalizedMinor = switch (row['amountValue']) {
+      final num value => _moneyMinor(value.toString()),
+      final String value => _moneyMinor(value),
       _ => null,
     };
-    final amount = normalizedAmount ?? _money(row['amount'] as String? ?? text);
+    // The DOM display string is exact. Old JS snapshots rounded amountValue
+    // to rubles, so preferring that compatibility field silently lost cents.
+    final hasStructuredAmount =
+        row.containsKey('amount') || row.containsKey('amountValue');
+    final amountMinor =
+        _moneyMinor(row['amount'] as String? ?? '') ??
+        normalizedMinor ??
+        // A partially rendered structured row can already show an account
+        // balance or a fee. Neither is a substitute for its missing amount.
+        (hasStructuredAmount ? null : _moneyMinor(text));
+    final amount = amountMinor == null ? null : (amountMinor.abs() + 50) ~/ 100;
     if (text.isEmpty ||
         date == null ||
         amount == null ||
@@ -359,31 +498,51 @@ class SberExtractors {
     final amountText = row['amount'] as String? ?? '';
     final operationType = _clean(row['operationType'] as String?);
     final classificationText = '$text $operationType'.toLowerCase();
+    final signedText = amountText.trimLeft().replaceAll('\u2212', '-');
+    final explicitDebit = signedText.startsWith('-');
+    final explicitCredit = signedText.startsWith('+');
+    // A failed/cancelled payment is not a refund. A credit reversal is a
+    // separate money movement; merchant text must not override a debit sign.
+    final cancelled =
+        RegExp(
+          r'отклон|операци[яю]\s+отменена|отмен[её]нная\s+операция|не\s+выполнена',
+        ).hasMatch(
+          operationType.isEmpty
+              ? classificationText
+              : operationType.toLowerCase(),
+        );
     final refund =
-        classificationText.contains('возврат') ||
-        classificationText.contains('отмена операции');
+        !explicitDebit &&
+        !cancelled &&
+        (classificationText.contains('возврат') ||
+            (explicitCredit && classificationText.contains('отмена операци')));
     final income =
-        refund ||
-        amountText.trimLeft().startsWith('+') ||
-        classificationText.contains('зачислен') ||
-        classificationText.contains('зарплат') ||
-        classificationText.contains('перевод от') ||
-        classificationText.contains('поступлен') ||
-        classificationText.contains('входящ') ||
-        classificationText.contains('получен');
+        !explicitDebit &&
+        (refund ||
+            explicitCredit ||
+            classificationText.contains('зачислен') ||
+            classificationText.contains('зарплат') ||
+            classificationText.contains('перевод от') ||
+            classificationText.contains('поступлен') ||
+            classificationText.contains('входящ') ||
+            classificationText.contains('получен'));
     final transfer =
         classificationText.contains('перевод') ||
         classificationText.contains('между своими') ||
         classificationText.contains('пополнение') ||
         classificationText.contains('зачислен') ||
         classificationText.contains('сбп');
+    final fee = RegExp(r'комисси|плата за перевод').hasMatch(
+      operationType.isEmpty ? classificationText : operationType.toLowerCase(),
+    );
     final internalTransfer =
+        !fee &&
         transfer &&
         RegExp(
           r'между\s+(?:своими|собственными)|на\s+сво[юий]\s+(?:карт|сч[её]т)|со\s+своего\s+(?:сч[её]та|карт)',
           caseSensitive: false,
         ).hasMatch(classificationText);
-    final status = classificationText.contains('отклон')
+    final status = cancelled
         ? 'CANCELLED'
         : classificationText.contains('обработ') ||
               classificationText.contains('ожида')
@@ -395,7 +554,7 @@ class SberExtractors {
     final observationKey = _clean(row['observationKey'] as String?);
     final fingerprint = _stableId(
       'transaction',
-      '$sourceId|$date|$amount|$text|${sourceId.isEmpty ? observationKey : ''}',
+      '$sourceId|$date|$amountMinor|$text|${sourceId.isEmpty ? observationKey : ''}',
     );
     final rawMerchant = _clean(row['merchant'] as String?);
     final merchant = _merchantCandidate(rawMerchant);
@@ -419,6 +578,7 @@ class SberExtractors {
       accountId: _accountId(row['account'] as String?),
       date: date,
       amount: amount.abs(),
+      exactAmountMinor: amountMinor!.abs(),
       currency: _currency(text),
       description: description.isEmpty ? text : description,
       merchant: merchant,
@@ -472,7 +632,9 @@ class SberExtractors {
 
   static String _accountId(String? value) {
     final source = _clean(value);
-    return source.isEmpty ? '' : _stableId('account', source);
+    // Product cards and history links contain the same provider identifier.
+    // Both paths must use the same namespace before mapping to Synoball.
+    return source.isEmpty ? '' : _stableId('account', 'external:$source');
   }
 
   static String _title(String text) {
@@ -482,6 +644,12 @@ class SberExtractors {
   }
 
   static int? _money(String text) {
+    final minor = _moneyMinor(text);
+    return minor == null ? null : minor.sign * ((minor.abs() + 50) ~/ 100);
+  }
+
+  static int? _moneyMinor(String text) {
+    text = text.replaceAll('\u2212', '-');
     final match =
         RegExp(
           r'([+-]?\d[\d\s]*)(?:[,\.](\d{1,2}))?\s*(?:₽|руб\.?|RUB|\$|USD|€|EUR|CNY|¥)',
@@ -496,11 +664,8 @@ class SberExtractors {
     final whole = int.tryParse(rawWhole);
     if (whole == null) return null;
     final fraction = int.tryParse((match.group(2) ?? '').padRight(2, '0')) ?? 0;
-    // Qesto's legacy financial view stores whole currency units. Preserve the
-    // sign and round kopecks only when they materially change the displayed
-    // unit (e.g. 1 999,90 ₽ -> 2 000 ₽).
-    final rounded = whole.abs() + (fraction >= 50 ? 1 : 0);
-    return whole.isNegative ? -rounded : rounded;
+    final units = whole.abs() * 100 + fraction;
+    return rawWhole.startsWith('-') ? -units : units;
   }
 
   static String _currency(String text) {
@@ -625,24 +790,32 @@ const _accountsScript = r'''(() => {
   for (const node of anchors) {
     const href = hrefOf(node);
     const aria = clean(node.getAttribute('aria-label'));
-    let context = aria || clean(node.innerText);
+    const ownText = clean(node.innerText);
+    let context = ownText || aria;
+    let relationRoot = node;
     let parent = node.parentElement;
     for (let depth = 0; depth < 4 && parent; depth++, parent = parent.parentElement) {
+      // Never cross into the wallet/another product. Its total and suffixes
+      // belong to multiple accounts, even when the entire block is short.
+      if (parent.matches('body,main,nav') ||
+          parent.querySelectorAll('a[href*="/app/cta/details/"]').length !== 1) break;
       const candidate = clean(parent.innerText);
-      if (candidate && candidate.length <= 700 && money.test(candidate)) context = candidate;
+      if (!candidate || candidate.length > 700) break;
+      relationRoot = parent;
+      if (money.test(candidate)) {
+        context = candidate;
+        break;
+      }
     }
-    const balanceHint = (aria.match(/(?:баланс|остаток|доступно)[^0-9+-]*([+-]?\d[\d\s]*(?:[,\.]\d{1,2})?\s*(?:₽|руб\.?|RUB|\$|USD|€|EUR|CNY|¥))/i) || [])[1] || '';
-    const balance = balanceHint || (context.match(money) || [])[0] || '';
+    const hint = aria.match(/(?:баланс|остаток|доступно)[^0-9+-]*([+-]?\d[\d\s]*(?:[,\.]\d{1,2})?)\.?\s*(₽|руб\.?|RUB|\$|USD|€|EUR|CNY|¥)/i);
+    const balanceHint = hint ? hint[1] + ' ' + hint[2] : '';
+    const balance = (ownText.match(money) || [])[0] || balanceHint || (context.match(money) || [])[0] || '';
     if (!balance) continue;
     const kind = 'account';
     const name = (aria.match(/^(.+?)(?:\.?\s+Баланс|\.?\s+Привязана|$)/i) || [])[1] || aria;
-    let relationRoot = node.parentElement;
-    for (let depth = 0; depth < 4 && relationRoot; depth++) {
-      if (relationRoot.querySelectorAll('a[href*="/app/cta/details/"]').length === 1) break;
-      relationRoot = relationRoot.parentElement;
-    }
     const linkedNodes = relationRoot
-      ? Array.from(relationRoot.querySelectorAll('a[href*="/app/cards/details/"],button[aria-label*="карт" i],[role="button"][aria-label*="карт" i]'))
+      ? Array.from(relationRoot.querySelectorAll('a[href*="/app/cards/details/"],button[aria-label],[role="button"][aria-label]'))
+          .filter(linked => linked.matches('a[href*="/app/cards/details/"]') || /карт/i.test(linked.getAttribute('aria-label') || ''))
       : [];
     const cards = Array.from(new Set(linkedNodes.flatMap((linked) => {
       const cardText = clean((linked.getAttribute('aria-label') || '') + ' ' + (linked.innerText || ''));
@@ -652,11 +825,25 @@ const _accountsScript = r'''(() => {
       id: routeId(href) || node.getAttribute('data-id') || node.getAttribute('data-testid') || '',
       kind,
       name: clean(name),
+      identityText: clean(aria + ' ' + ownText),
       text: context.slice(0, 700),
       balance,
       available: (context.match(/(?:доступно|available)[^0-9+-]*([+-]?\d[\d\s]*(?:[,\.]\d{1,2})?\s*(?:₽|руб\.?|RUB|\$|USD|€|EUR|CNY|¥))/i) || [])[1] || '',
       cards,
+      historyResources: linkedNodes.filter(n => n.matches('a[href*="/app/cards/details/"]'))
+        .map(n => 'card:' + (hrefOf(n).match(/\/cards\/details\/(\d+)$/) || [])[1])
+        .filter(v => /^card:\d+$/.test(v)),
     });
+  }
+  // The expanded wallet may show card tiles instead of account anchors.
+  // Keep these as product observations; merge them with explicit linked cards.
+  for (const node of Array.from(document.querySelectorAll('a[href*="/app/cards/details/"]')).filter(visible)) {
+    const id = (hrefOf(node).match(/\/cards\/details\/(\d+)$/) || [])[1];
+    const text = clean(node.innerText || node.getAttribute('aria-label'));
+    const balance = (text.match(money) || [])[0];
+    if (!id || !balance) continue;
+    values.push({id, kind:'card', name:clean((node.innerText || '').split('\n')[0]),
+      identityText:text, text, balance, available:balance, cards:[], historyResources:['card:' + id]});
   }
   return JSON.stringify(values.filter((row, i, all) => all.findIndex((item) => item.id === row.id && item.kind === row.kind) === i).slice(0, 200));
 })()''';
@@ -664,6 +851,11 @@ const _accountsScript = r'''(() => {
 const _transactionsScript = r'''(() => {
   /* QESTO_SBER_READ_V1: visible transaction facts, never page internals. */
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
+  const resource = new URL(location.href).searchParams.get('usedResource') || '';
+  const productFilter = document.querySelector('[data-filter="product"]');
+  const selectedProduct = clean(productFilter && productFilter.innerText);
+  const resourceAccount = /^card:\d+$/.test(resource) && /\d{4}/.test(selectedProduct)
+      ? resource.substring(5) : '';
   const visible = (node) => {
     const s = getComputedStyle(node);
     const rect = node.getBoundingClientRect();
@@ -686,7 +878,7 @@ const _transactionsScript = r'''(() => {
     const whole = Number(match[1].replace(/\s/g, ''));
     if (!Number.isFinite(whole)) return null;
     const fraction = Number(String(match[2] || '').padEnd(2, '0')) || 0;
-    return Math.abs(whole) + (fraction >= 50 ? 1 : 0);
+    return Math.abs(whole) + fraction / 100;
   };
   const dateIso = (raw, context) => {
     const source = clean(raw).toLowerCase();
@@ -755,7 +947,20 @@ const _transactionsScript = r'''(() => {
     text: directText(element) || clean(element.getAttribute('aria-label') || ''),
   })).filter((entry) => entry.text);
   const rewardNumber = /^[+\u2212-]\s*\d[\d\s]*(?:[,\.]\d{1,2})?$/;
-  const genericOperation = /^(?:оплата(?:\s+товаров)?|входящий\s+перевод|исходящий\s+перевод|перевод\s+(?:по|между|на|со)|пополнение|зачисление|возврат|отмена\s+операци|списание\s+бонусов|начисление\s+бонусов|в\s+обработке|исполнено|отменено)/i;
+  const genericOperation = /^(?:оплата(?:\s+товаров)?|входящий\s+перевод|исходящий\s+перевод|перевод\s+(?:по|между|на|со)|между\s+(?:своими|собственными)|пополнение|зачисление|возврат|отмена\s+операци|списание\s+бонусов|начисление\s+бонусов|в\s+обработке|исполнено|отменено)/i;
+  const auxiliaryMoney = /баланс|остаток|доступно|комисси[яи]|(?:плат[её]жный|накопительный|текущий)\s+сч[её]т\s*:/i;
+  const isPrimaryAmount = (entry, row) => {
+    if (!money.test(entry.text) || auxiliaryMoney.test(entry.text)) return false;
+    // The label and its balance/fee can live in sibling spans. Inspect a
+    // compact one-amount container, never the entire multi-amount row.
+    let parent = entry.element.parentElement;
+    for (let depth = 0; parent && parent !== row && depth < 3; depth++, parent = parent.parentElement) {
+      const context = clean(parent.innerText);
+      const amounts = context.match(new RegExp(money.source, 'gi')) || [];
+      if (context.length <= 220 && amounts.length === 1 && auxiliaryMoney.test(context)) return false;
+    }
+    return true;
+  };
   const validMerchant = (value) => {
     const candidate = clean(value);
     if (!candidate || candidate.length > 180) return false;
@@ -801,8 +1006,12 @@ const _transactionsScript = r'''(() => {
     const text = clean(rawText);
     const date = groupedDate(node);
     const leaves = semanticLeaves(node);
-    const amountLeaf = leaves.find((entry) => money.test(entry.text));
-    const amount = amountLeaf?.text.match(money)?.[0] || text.match(money)?.[0] || '';
+    const amountLeaf = leaves.find((entry) => isPrimaryAmount(entry, node));
+    // Raw-text fallback is only for old layouts without semantic amount
+    // leaves. Do not reintroduce an explicitly excluded balance or commission.
+    const fallbackAmountLine = leaves.some((entry) => money.test(entry.text)) ? '' :
+      rawText.split(/[\r\n]+/).map(clean).find((line) => money.test(line) && !auxiliaryMoney.test(line)) || '';
+    const amount = amountLeaf?.text.match(money)?.[0] || fallbackAmountLine.match(money)?.[0] || '';
     let amountRow = amountLeaf?.element.parentElement || null;
     let merchantEntry = null;
     for (let depth = 0; amountRow && depth < 5; depth++, amountRow = amountRow.parentElement) {
@@ -827,7 +1036,9 @@ const _transactionsScript = r'''(() => {
     const merchant = merchantEntry?.text || '';
     const description = [merchant, operationType].filter(Boolean).join(' · ');
     const serviceRow = service.test(operationType || text);
-    if (!text || !date || (!amount && !rewardAmount && !serviceRow)) return;
+    // Keep an incomplete monetary row visible to Dart diagnostics. Dropping
+    // it here used to hide extraction failures from the completeness report.
+    if (!text && !operationLinks.includes(original)) return;
     const attrs = (name) => node.getAttribute(name) || original.getAttribute(name) || '';
     const detail = original.getAttribute('href') || '';
     let detailUrl = null;
@@ -841,6 +1052,7 @@ const _transactionsScript = r'''(() => {
     let account = attrs('data-account-id') || attrs('data-account') || '';
     const accountLink = node.querySelector('a[href*="/app/cta/details/"]');
     if (!account && accountLink) account = (accountLink.getAttribute('href') || '').split('/').pop() || '';
+    if (!account) account = resourceAccount;
     rows.push({
       id: attrs('data-operation-id') || attrs('data-transaction-id') || attrs('data-document-id') || attrs('data-uoh-id') || attrs('data-id') || detailId,
       account,
@@ -855,7 +1067,9 @@ const _transactionsScript = r'''(() => {
       dateIso: dateIso(date, text),
       observationKey: detail || [date, amount, merchant, operationType, account].join('|'),
       ordinal,
-      nonCashKind: !amount && rewardAmount ? 'reward' : !amount && serviceRow ? 'service' : '',
+      // A missing purchase amount plus an inline reward is still an incomplete
+      // purchase, not a bonus-only record. Require explicit reward semantics.
+      nonCashKind: /^(?:списание|начисление)\s+бонусов/i.test(operationType) ? 'reward' : !amount && serviceRow ? 'service' : '',
       reward: rewardAmount,
       loyaltyAmount: rewardAmount ? decimalValue(rewardAmount) : null,
     });
@@ -944,7 +1158,7 @@ const _hasMoreTransactionsScript = r'''(() => {
   /* QESTO_SBER_READ_V1: detect remaining read-only history pagination. */
   const clean = (value) => String(value || '').replace(/\s+/g, ' ').trim();
   const matches = Array.from(document.querySelectorAll('button,[role="button"]'))
-    .filter((node) => !node.disabled)
+    // Disabled pagination can mean a pending request, not end of history.
     .some((node) => /^(?:(?:показать|загрузить|открыть)\s+(?:ещ[её]|больше)|ещ[её]\s+операци)[^\n]{0,40}$/i
       .test(clean(node.innerText || node.getAttribute('aria-label'))));
   return String(matches ? 1 : 0);

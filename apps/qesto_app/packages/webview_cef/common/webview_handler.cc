@@ -3,6 +3,7 @@
 // can be found in the LICENSE file.
 
 #include "webview_handler.h"
+#include "persistent_profile_path.h"
 
 #include <sstream>
 #include <string>
@@ -67,7 +68,10 @@ bool WebviewHandler::OnProcessMessageReceived(
 	std::string message_name = message->GetName();
     if (message_name == kFocusedNodeChangedMessage)
     {
-        current_focused_browser_ = browser;
+        auto focused = browser_map_.find(browser->GetIdentifier());
+        if (focused != browser_map_.end() && focused->second.wants_focus) {
+            current_focused_browser_ = browser;
+        }
         bool editable = message->GetArgumentList()->GetBool(0);
         onFocusedNodeChangeMessage(browser->GetIdentifier(), editable);
         if (editable) {
@@ -154,10 +158,26 @@ void WebviewHandler::OnAfterCreated(CefRefPtr<CefBrowser> browser) {
         browser_map_.emplace(browser->GetIdentifier(), browser_info());
         browser_map_[browser->GetIdentifier()].browser = browser;
         auto context = browser->GetHost()->GetRequestContext();
-        auto pending = pending_contexts_.find(context.get());
+        // CEF may return a different wrapper for the same browser context on
+        // reopening a disk profile. Retain the requested context and compare
+        // its CEF identity, not a raw wrapper address.
+        auto creation = std::find_if(pending_creations_.begin(), pending_creations_.end(),
+            [&context](const auto& entry) { return context->IsSame(entry.second.context); });
+        if (creation == pending_creations_.end()) {
+            browser->GetHost()->CloseBrowser(true);
+            return;
+        }
+        auto pending = pending_contexts_.find(creation->first);
         if (pending != pending_contexts_.end()) {
             security_map_[browser->GetIdentifier()] = pending->second;
             pending_contexts_.erase(pending);
+        }
+        if (creation != pending_creations_.end()) {
+            auto ready = std::move(creation->second);
+            pending_creations_.erase(creation);
+            // Register the texture/channel receiver before initial navigation.
+            ready.callback(browser->GetIdentifier());
+            browser->GetMainFrame()->LoadURL(ready.url);
         }
     }
 }
@@ -171,7 +191,18 @@ bool WebviewHandler::DoClose(CefRefPtr<CefBrowser> browser) {
 
 void WebviewHandler::OnBeforeClose(CefRefPtr<CefBrowser> browser) {
     CEF_REQUIRE_UI_THREAD();
-    security_map_.erase(browser->GetIdentifier());
+    const int id = browser->GetIdentifier();
+    security_map_.erase(id);
+    browser_map_.erase(id);
+    if (current_focused_browser_ && current_focused_browser_->GetIdentifier() == id) {
+        current_focused_browser_ = nullptr;
+    }
+    auto closing = close_callbacks_.find(id);
+    if (closing != close_callbacks_.end()) {
+        auto callbacks = std::move(closing->second);
+        close_callbacks_.erase(closing);
+        for (auto& callback : callbacks) callback();
+    }
 }
 
 bool WebviewHandler::OnBeforePopup(CefRefPtr<CefBrowser> browser,
@@ -312,14 +343,23 @@ void WebviewHandler::CloseAllBrowsers(bool force_close) {
     browser_map_.clear();
 }
 
-void WebviewHandler::closeBrowser(int browserId)
+void WebviewHandler::closeBrowser(int browserId, std::function<void()> onClosed)
 {
+    if (!CefCurrentlyOn(TID_UI)) {
+        CefPostTask(TID_UI, base::BindOnce(&WebviewHandler::closeBrowser, this, browserId, onClosed));
+        return;
+    }
+    if (close_callbacks_.find(browserId) != close_callbacks_.end()) {
+        close_callbacks_[browserId].push_back(onClosed);
+        return;
+    }
     auto it = browser_map_.find(browserId);
     if(it != browser_map_.end()){
+        close_callbacks_[browserId].push_back(onClosed);
+        setClientFocus(browserId, false);
         it->second.browser->GetHost()->CloseBrowser(true);
-        it->second.browser = nullptr;
-        browser_map_.erase(it);
-        security_map_.erase(browserId);
+    } else {
+        onClosed();
     }
 }
 
@@ -337,6 +377,12 @@ void WebviewHandler::createBrowser(std::string url,
 	}
 #endif
     browser_security_config security;
+    if (!QestoIsPersistentProfilePath(storage_root, profile_path)) {
+        // No URL, profile path, cookie or credential is logged.
+        callback(-1);
+        return;
+    }
+    profile_path = QestoNativeProfilePath(profile_path);
     security.profile_path = profile_path;
     security.devtools_enabled = devtools_enabled;
     for (const auto& origin : allowed_origins) {
@@ -350,6 +396,7 @@ void WebviewHandler::createBrowser(std::string url,
     CefRefPtr<CefRequestContext> request_context =
         CefRequestContext::CreateContext(context_settings, nullptr);
     pending_contexts_[request_context.get()] = security;
+    pending_creations_[request_context.get()] = {url, callback, request_context};
 
     CefBrowserSettings browser_settings ;
     // CEF owns the off-screen frame schedule on its UI thread. Keeping this at
@@ -368,19 +415,18 @@ void WebviewHandler::createBrowser(std::string url,
     // so creates a warning loop and can grow debug.log indefinitely.
     window_info.external_begin_frame_enabled = false;
 #endif
-    CefRefPtr<CefBrowser> browser = CefBrowserHost::CreateBrowserSync(
+    const bool accepted = CefBrowserHost::CreateBrowser(
         window_info, this, "about:blank", browser_settings, nullptr,
         request_context);
-    if (!browser) {
+    if (!accepted) {
         pending_contexts_.erase(request_context.get());
+        pending_creations_.erase(request_context.get());
         callback(-1);
         return;
     }
-    // OnAfterCreated normally populated this already for CreateBrowserSync;
-    // assign explicitly as a defensive fallback before the first navigation.
-    security_map_[browser->GetIdentifier()] = security;
-    browser->GetMainFrame()->LoadURL(url);
-    callback(browser->GetIdentifier());
+    // Disk-backed Chrome profiles initialize asynchronously. CreateBrowserSync
+    // would return null while the profile is loading; OnAfterCreated completes
+    // the pending Dart create instead.
 #ifdef WEBVIEW_CEF_GPU_TEXTURE
     // The GPU shared-texture path is the only render path on this build (no
     // OnPaint fallback). If no accelerated frame arrives shortly, the GPU
@@ -523,7 +569,7 @@ void WebviewHandler::OnImeCompositionRangeChanged(CefRefPtr<CefBrowser> browser,
 
 void WebviewHandler::sendKeyEvent(CefKeyEvent& ev)
 {
-    auto browser = current_focused_browser_;
+    auto browser = getFocusedBrowser();
     if (!browser.get()) {
         return;
     }
@@ -668,7 +714,12 @@ void WebviewHandler::setClientFocus(int browserId, bool focus)
         return;
     }
     it->second.wants_focus = focus;
+    if (!focus && current_focused_browser_ &&
+        current_focused_browser_->GetIdentifier() == browserId) {
+        current_focused_browser_ = nullptr;
+    }
     if (focus) {
+        current_focused_browser_ = it->second.browser;
         // Re-arm the first-frame re-assert (handles a SetFocus that lands before
         // the browser is render/input-ready under external_begin_frame).
         it->second.focus_reasserted = false;
@@ -678,6 +729,9 @@ void WebviewHandler::setClientFocus(int browserId, bool focus)
 
 CefRefPtr<CefBrowser> WebviewHandler::getFocusedBrowser()
 {
+    if (!current_focused_browser_) return nullptr;
+    auto it = browser_map_.find(current_focused_browser_->GetIdentifier());
+    if (it == browser_map_.end() || !it->second.wants_focus) return nullptr;
     return current_focused_browser_;
 }
 
@@ -687,7 +741,7 @@ void WebviewHandler::imeSetCompositionNative(const std::wstring& text, int curso
         CefPostTask(TID_UI, base::BindOnce(&WebviewHandler::imeSetCompositionNative, this, text, cursor));
         return;
     }
-    auto browser = current_focused_browser_;
+    auto browser = getFocusedBrowser();
     if (!browser.get()) {
         return;
     }
@@ -717,7 +771,7 @@ void WebviewHandler::imeCommitTextNative(const std::wstring& text)
         CefPostTask(TID_UI, base::BindOnce(&WebviewHandler::imeCommitTextNative, this, text));
         return;
     }
-    auto browser = current_focused_browser_;
+    auto browser = getFocusedBrowser();
     if (!browser.get()) {
         return;
     }
@@ -732,7 +786,7 @@ void WebviewHandler::imeFinishComposition()
         CefPostTask(TID_UI, base::BindOnce(&WebviewHandler::imeFinishComposition, this));
         return;
     }
-    auto browser = current_focused_browser_;
+    auto browser = getFocusedBrowser();
     if (!browser.get()) {
         return;
     }

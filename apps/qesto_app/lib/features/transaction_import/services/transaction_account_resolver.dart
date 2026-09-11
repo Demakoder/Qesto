@@ -22,16 +22,23 @@ class TransactionAccountResolver {
     required Iterable<QestoAccount> accounts,
     String? accountHint,
     String? bankHint,
+    String? currency,
   }) {
+    final bank = _normalize(bankHint ?? '');
     final eligible = accounts
-        .where((account) => account.type != AccountType.liability)
+        .where(
+          (account) =>
+              account.type != AccountType.liability &&
+              (currency == null || account.currency == currency) &&
+              !_contradictsBank(_normalize(account.title), bank),
+        )
         .toList(growable: false);
     if (eligible.isEmpty) return null;
 
     final suffix = _lastFour(accountHint ?? '');
     if (suffix != null) {
       final matches = eligible
-          .where((account) => _lastFour(account.title) == suffix)
+          .where((account) => _suffixes(account.title).contains(suffix))
           .toList(growable: false);
       if (matches.length == 1) {
         return TransactionAccountResolution(
@@ -40,9 +47,10 @@ class TransactionAccountResolver {
           reason: 'card_suffix',
         );
       }
+      // An explicit unknown suffix contradicts a bank-name/default guess.
+      return null;
     }
 
-    final bank = _normalize(bankHint ?? '');
     if (bank.isNotEmpty) {
       final matches = eligible
           .where((account) => _bankMatches(_normalize(account.title), bank))
@@ -50,18 +58,8 @@ class TransactionAccountResolver {
       if (matches.length == 1) {
         return TransactionAccountResolution(
           accountId: matches.single.id,
-          confidence: 0.88,
+          confidence: 0.65,
           reason: 'single_bank_account',
-        );
-      }
-      final bankCards = eligible
-          .where((account) => account.type == AccountType.bankCard)
-          .toList(growable: false);
-      if (bankCards.length == 1) {
-        return TransactionAccountResolution(
-          accountId: bankCards.single.id,
-          confidence: 0.78,
-          reason: 'single_bank_card',
         );
       }
     }
@@ -69,17 +67,32 @@ class TransactionAccountResolver {
     if (eligible.length == 1) {
       return TransactionAccountResolution(
         accountId: eligible.single.id,
-        confidence: 0.74,
+        confidence: 0.60,
         reason: 'single_eligible_account',
       );
     }
     return null;
   }
 
-  String? _lastFour(String value) {
-    final matches = RegExp(r'(?<!\d)(\d{4})(?!\d)').allMatches(value).toList();
-    return matches.isEmpty ? null : matches.last.group(1);
+  bool _contradictsBank(String account, String bank) {
+    if (bank.isEmpty || _bankMatches(account, bank)) return false;
+    return [
+      'sber',
+      'tbank',
+      'alfa',
+      'vtb',
+      'gazprombank',
+    ].any((known) => _bankMatches(account, known));
   }
+
+  String? _lastFour(String value) {
+    final matches = _suffixes(value);
+    return matches.length == 1 ? matches.single : null;
+  }
+
+  Set<String> _suffixes(String value) => RegExp(
+    r'(?<!\d)(\d{4})(?!\d)',
+  ).allMatches(value).map((m) => m.group(1)!).toSet();
 
   bool _bankMatches(String account, String bank) {
     final aliases = <String, List<String>>{

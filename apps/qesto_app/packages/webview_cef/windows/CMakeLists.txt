@@ -134,6 +134,21 @@ if(USE_SANDBOX)
   target_link_libraries(${PLUGIN_NAME} PRIVATE ${CEF_SANDBOX_LIBS})
 endif()
 
+# Opt-in native regression tool: not built/installed with the application.
+# Uses the same production handler and CEF runtime with synthetic cookies only.
+add_library(qesto_cef_probe SHARED EXCLUDE_FROM_ALL
+  "../tests/persistence_probe.cc"
+  "../common/webview_handler.cc"
+  "../common/webview_js_handler.cc"
+  "../common/webview_cookieVisitor.cc")
+target_compile_features(qesto_cef_probe PRIVATE cxx_std_20)
+target_compile_definitions(qesto_cef_probe PRIVATE NOMINMAX UNICODE _UNICODE)
+target_include_directories(qesto_cef_probe PRIVATE "${CEF_ROOT}" "../common")
+target_link_libraries(qesto_cef_probe PRIVATE libcef_lib libcef_dll_wrapper ${CEF_SANDBOX_LIBS})
+add_custom_command(TARGET qesto_cef_probe POST_BUILD
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CEF_ROOT}/Release/bootstrap.exe" "$<TARGET_FILE_DIR:qesto_cef_probe>/qesto_cef_probe.exe")
+
 # === Bundle the CEF runtime next to the application executable. ===
 # Bundle the same runtime we linked against. By default that is the Release CEF
 # runtime for every configuration (see WEBVIEW_CEF_USE_DEBUG_CEF above); the

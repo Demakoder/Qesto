@@ -9,7 +9,8 @@ void main() {
     'Копия 0.xlsx': 180,
     'Копия 1.xlsx': 100,
     'Копия 2.xlsx': 45,
-    'Копия 3.xlsx': 170,
+    // Eleven capital valuation cells are stocks, not expenses; dividend flows remain.
+    'Копия 3.xlsx': 160,
     'Копия 4.xlsx': 150,
     'Копия 5.xlsm': 1000,
     'Копия 6.xlsx': 250,
@@ -18,7 +19,8 @@ void main() {
     'Копия 9.xlsx': 110,
     'Копия 10.xlsx': 70,
     'Копия 11.xlsx': 290,
-    'Копия 12.xlsx': 300,
+    // 71 rows from `total` were duplicated summaries, not additional flows.
+    'Копия 12.xlsx': 260,
     'Копия 13.xlsx': 250,
     'Копия 14.xlsx': 60,
     'Копия 15.xlsx': 70,
@@ -48,7 +50,8 @@ void main() {
     'Копия 14.xlsx': {2026},
     'Копия 15.xlsx': {2025, 2026},
     'Копия 16.xlsx': {2024, 2025},
-    'Копия 17.xlsx': {2024, 2025},
+    // 2024 belonged only to the excluded annual/half-year valuation summaries.
+    'Копия 17.xlsx': {2025},
     'Копия 18.xlsx': {2026},
     'Копия 19.xlsx': {2024, 2025},
     'Копия 20.xlsx': {2025},
@@ -182,6 +185,38 @@ void main() {
           ],
         });
         expect(statement.transactions, isNotEmpty, reason: name);
+        if (name == 'Копия 6.xlsx') {
+          // Independently reconciled against B:AF daily input cells in each
+          // month block (cached source values), not adapter-generated totals.
+          final daily = statement.transactions.where(
+            (item) => item.authorizationCode.startsWith('2 Расходы:'),
+          );
+          expect(daily.length, 214);
+          expect(
+            daily.fold<int>(0, (sum, item) => sum + item.amountMinor.abs()),
+            20238398,
+          );
+          expect(daily.every((item) => item.kind.name == 'expense'), isTrue);
+          expect(
+            statement.transactions.any(
+              (item) => item.authorizationCode.startsWith('3 План-факт:'),
+            ),
+            isFalse,
+          );
+        }
+        if (name == 'Копия 3.xlsx') {
+          expect(
+            statement.transactions.any(
+              (item) => item.authorizationCode.startsWith('Бюджет 2025:195:'),
+            ),
+            isFalse,
+          );
+          final dividends = statement.transactions.where(
+            (item) => item.authorizationCode.startsWith('Бюджет 2025:196:'),
+          );
+          expect(dividends.length, 4);
+          expect(dividends.every((item) => item.kind.name == 'income'), isTrue);
+        }
       }
       if (output != null) {
         File(output).writeAsStringSync(

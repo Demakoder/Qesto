@@ -5,6 +5,7 @@ import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/trash/transaction_trash_screen.dart';
 import '../../synoball/core/models.dart';
 import '../desktop_financial_helpers.dart';
 import '../widgets/desktop_components.dart';
@@ -85,23 +86,26 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
               padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
               child: Column(
                 children: [
-                  _FilterBar(
-                    controller: widget.controller,
-                    searchController: _searchController,
-                    searchFocus: _searchFocus,
-                    categoryId: _categoryId,
-                    accountId: _accountId,
-                    source: _source,
-                    reviewOnly: _reviewOnly,
-                    onSearchChanged: (_) => setState(() {}),
-                    onCategoryChanged: (value) =>
-                        setState(() => _categoryId = value),
-                    onAccountChanged: (value) =>
-                        setState(() => _accountId = value),
-                    onSourceChanged: (value) => setState(() => _source = value),
-                    onReviewChanged: (value) =>
-                        setState(() => _reviewOnly = value),
-                    onClear: _clearFilters,
+                  DesktopCollapsibleFilters(
+                    child: _FilterBar(
+                      controller: widget.controller,
+                      searchController: _searchController,
+                      searchFocus: _searchFocus,
+                      categoryId: _categoryId,
+                      accountId: _accountId,
+                      source: _source,
+                      reviewOnly: _reviewOnly,
+                      onSearchChanged: (_) => setState(() {}),
+                      onCategoryChanged: (value) =>
+                          setState(() => _categoryId = value),
+                      onAccountChanged: (value) =>
+                          setState(() => _accountId = value),
+                      onSourceChanged: (value) =>
+                          setState(() => _source = value),
+                      onReviewChanged: (value) =>
+                          setState(() => _reviewOnly = value),
+                      onClear: _clearFilters,
+                    ),
                   ),
                   if (widget.controller.pendingCandidates.isNotEmpty) ...[
                     const SizedBox(height: 12),
@@ -213,13 +217,15 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                                         ),
                                       ),
                                       const Spacer(),
-                                      const Text(
-                                        'Строки виртуализированы',
-                                        style: TextStyle(
-                                          color: QestoColors.secondaryText,
-                                          fontSize: 10,
+                                      if (MediaQuery.sizeOf(context).width >=
+                                          600)
+                                        const Text(
+                                          'Строки виртуализированы',
+                                          style: TextStyle(
+                                            color: QestoColors.secondaryText,
+                                            fontSize: 10,
+                                          ),
                                         ),
-                                      ),
                                     ],
                                   ),
                                 ),
@@ -232,7 +238,9 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                             top: 0,
                             right: 0,
                             bottom: 0,
-                            width: 370,
+                            width: MediaQuery.sizeOf(context).width < 600
+                                ? MediaQuery.sizeOf(context).width - 52
+                                : 370,
                             child: _TransactionDrawer(
                               key: ValueKey(opened.id),
                               controller: widget.controller,
@@ -408,6 +416,12 @@ class _FilterBar extends StatelessWidget {
             color: reviewOnly ? QestoColors.primary : QestoColors.text,
           ),
         ),
+        TextButton.icon(
+          key: const Key('open-desktop-trash'),
+          onPressed: () => openTransactionTrash(context, controller),
+          icon: const Icon(Icons.delete_outline_rounded, size: 18),
+          label: Text('Корзина (${controller.trashedTransactions.length})'),
+        ),
         if (hasFilters)
           TextButton.icon(
             onPressed: onClear,
@@ -480,7 +494,8 @@ class _CandidateBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       color: const Color(0xFFFFF9EC),
       borderColor: const Color(0xFFFFE6AE),
-      child: Row(
+      child: DesktopAdaptiveRow(
+        wrapOnMobile: true,
         children: [
           const Icon(
             Icons.mic_none_rounded,
@@ -537,7 +552,8 @@ class _BulkBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       color: QestoColors.primarySoft,
       borderColor: const Color(0xFFD6E4FF),
-      child: Row(
+      child: DesktopAdaptiveRow(
+        wrapOnMobile: true,
         children: [
           Text(
             'Выбрано: ${selectedIds.length}',
@@ -651,6 +667,21 @@ class _TransactionTableHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return Row(
+            children: [
+              Checkbox(
+                value: allSelected,
+                onChanged: (value) => onSelectAll(value ?? false),
+              ),
+              const Expanded(child: Text('Операции')),
+              const Padding(
+                padding: EdgeInsets.only(right: 12),
+                child: Text('Сумма'),
+              ),
+            ],
+          );
+        }
         final showAccount = constraints.maxWidth > 690;
         final showSource = constraints.maxWidth > 850;
         return SizedBox(
@@ -725,6 +756,60 @@ class _TransactionTableRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        if (constraints.maxWidth < 600) {
+          return InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 36,
+                    child: Checkbox(
+                      value: selected,
+                      onChanged: (value) => onSelected(value ?? false),
+                    ),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          desktopTransactionTitle(transaction),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                        ),
+                        Text(
+                          '${formatDate(transaction.date)} · ${desktopCategoryName(controller, transaction)}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: QestoColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    formatMoney(
+                      desktopSignedAmount(transaction),
+                      transaction.currency,
+                      showSign: true,
+                    ),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
         final showAccount = constraints.maxWidth > 690;
         final showSource = constraints.maxWidth > 850;
         return Material(
@@ -1133,9 +1218,9 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                     final confirmed = await showDialog<bool>(
                       context: context,
                       builder: (context) => AlertDialog(
-                        title: const Text('Удалить операцию?'),
+                        title: const Text('Переместить операцию в корзину?'),
                         content: const Text(
-                          'Она останется в audit trail Synoball как soft delete.',
+                          'Она исчезнет из статистики. Восстановить её можно в корзине.',
                         ),
                         actions: [
                           TextButton(
@@ -1150,8 +1235,18 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                       ),
                     );
                     if (confirmed != true) return;
-                    await widget.controller.deleteTransaction(transaction.id);
-                    widget.onDeleted();
+                    try {
+                      await widget.controller.deleteTransaction(transaction.id);
+                      if (mounted) widget.onDeleted();
+                    } on Object {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Не удалось сохранить удаление'),
+                          ),
+                        );
+                      }
+                    }
                   },
                   icon: const Icon(
                     Icons.delete_outline_rounded,

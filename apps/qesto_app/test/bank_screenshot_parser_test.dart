@@ -1,12 +1,60 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/features/bank_screenshot_import/domain/bank_screenshot_models.dart';
 import 'package:qesto/features/bank_screenshot_import/services/bank_screenshot_import_service.dart';
+import 'package:qesto/features/bank_screenshot_import/services/generic_bank_screenshot_parser.dart';
+import 'package:qesto/features/bank_screenshot_import/services/sber_bank_screenshot_parser.dart';
 
 void main() {
   const parser = BankScreenshotImportService();
 
   BankScreenshotTextLine line(String text, double top, [double left = 120]) =>
       BankScreenshotTextLine(text: text, top: top, left: left);
+
+  test(
+    'generic preserves equal purchases in separate visible rows and retry IDs',
+    () {
+      final document = ExtractedBankScreenshot(
+        imageHash: 'equal-generic-rows',
+        capturedAt: DateTime(2026, 8, 31),
+        lines: [line('Кофе 200 ₽', 10), line('Кофе 200 ₽', 90)],
+      );
+      final result = const GenericBankScreenshotParser().parse(document);
+      expect(result.candidates, hasLength(2));
+      expect(result.candidates.map((item) => item.id).toSet(), hasLength(2));
+      expect(
+        result.candidates.fold<int>(0, (sum, item) => sum + item.amountMinor),
+        40000,
+      );
+      final repeated = const GenericBankScreenshotParser().parse(document);
+      expect(
+        repeated.candidates.map((item) => item.id),
+        result.candidates.map((item) => item.id),
+      );
+      expect(parser.parseAll([document, document]).candidates, hasLength(2));
+    },
+  );
+
+  test(
+    'Sber preserves equal purchases in distinct rows without balance data',
+    () {
+      final document = ExtractedBankScreenshot(
+        imageHash: 'equal-sber-rows',
+        capturedAt: DateTime(2026, 8, 31),
+        lines: [
+          line('Кофе', 10),
+          line('200 ₽', 10, 500),
+          line('Оплата товаров и услуг', 30),
+          line('Кофе', 210),
+          line('200 ₽', 210, 500),
+          line('Оплата товаров и услуг', 230),
+        ],
+      );
+      final result = const SberBankScreenshotParser().parse(document);
+      expect(result.candidates, hasLength(2));
+      expect(result.candidates.map((item) => item.id).toSet(), hasLength(2));
+      expect(result.candidates.map((item) => item.amountMinor), [20000, 20000]);
+    },
+  );
 
   test('парсит экран Сбера, восстанавливает 700 и игнорирует промо', () {
     final result = parser.parseAll([
@@ -52,7 +100,7 @@ void main() {
     );
   });
 
-  test('перекрывающиеся скриншоты не создают дубль в пакете', () {
+  test('похожие строки разных скриншотов сохраняются, повтор не выбран', () {
     final lines = [
       line('YANDEX SCOOTERS', 10),
       line('Оплата товаров и усуг', 20),
@@ -67,7 +115,12 @@ void main() {
           lines: lines,
         ),
     ];
-    expect(parser.parseAll(documents).candidates, hasLength(1));
+    final result = parser.parseAll(documents);
+    // Identical amount/title/balance is not proof of one economic purchase.
+    expect(result.candidates, hasLength(2));
+    expect(result.candidates.where((row) => row.selected), hasLength(1));
+    expect(result.candidates.last.possibleDuplicateReason, isNotNull);
+    expect(result.candidates.map((row) => row.id).toSet(), hasLength(2));
   });
 
   test('generic parser reads date separators, time and signed amounts', () {

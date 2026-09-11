@@ -48,8 +48,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Удалить операцию?'),
-        content: const Text('Все суммы и графики будут пересчитаны.'),
+        title: const Text('Переместить операцию в корзину?'),
+        content: const Text(
+          'Она исчезнет из статистики. Восстановить её можно в корзине.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -63,8 +65,16 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      widget.controller.deleteTransaction(transaction.id);
-      Navigator.of(context).pop();
+      try {
+        await widget.controller.deleteTransaction(transaction.id);
+        if (mounted) Navigator.of(context).pop();
+      } on Object {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось сохранить удаление')),
+          );
+        }
+      }
     }
   }
 

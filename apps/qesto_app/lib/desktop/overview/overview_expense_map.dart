@@ -39,43 +39,51 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
           final hovered = geometry.hits
               .where((item) => item.id == _hoveredId)
               .firstOrNull;
-          return MouseRegion(
-            onExit: (_) => setState(() => _hoveredId = null),
-            onHover: (event) {
+          return GestureDetector(
+            onTapUp: (event) {
               final hit = geometry.hits
                   .where((item) => item.contains(event.localPosition))
                   .lastOrNull;
-              if (hit?.id != _hoveredId) {
-                setState(() => _hoveredId = hit?.id);
-              }
+              setState(() => _hoveredId = hit?.id);
             },
-            child: SizedBox(
-              height: height,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _ExpenseMapPainter(
-                        data: widget.data,
-                        geometry: geometry,
-                        hoveredId: _hoveredId,
-                        compact: compact,
-                      ),
-                    ),
-                  ),
-                  if (hovered != null)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: IgnorePointer(
-                        child: _FlowTooltip(
-                          hit: hovered,
-                          total: widget.data.total,
-                          currency: widget.data.currency,
+            child: MouseRegion(
+              onExit: (_) => setState(() => _hoveredId = null),
+              onHover: (event) {
+                final hit = geometry.hits
+                    .where((item) => item.contains(event.localPosition))
+                    .lastOrNull;
+                if (hit?.id != _hoveredId) {
+                  setState(() => _hoveredId = hit?.id);
+                }
+              },
+              child: SizedBox(
+                height: height,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _ExpenseMapPainter(
+                          data: widget.data,
+                          geometry: geometry,
+                          hoveredId: _hoveredId,
+                          compact: compact,
                         ),
                       ),
                     ),
-                ],
+                    if (hovered != null)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: IgnorePointer(
+                          child: _FlowTooltip(
+                            hit: hovered,
+                            total: widget.data.total,
+                            currency: widget.data.currency,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );

@@ -1,82 +1,24 @@
-import 'dart:convert';
 import 'dart:io';
+import 'android_store_location.dart';
+import 'recoverable_json_file.dart';
 
-Future<void> _pendingWrite = Future<void>.value();
+Future<String?> readString(String key) async =>
+    (await RecoverableJsonFile(await _storeFile()).read())?[key] as String?;
 
-Future<String?> readString(String key) async => (await _readAll())[key];
+Future<void> writeString(String key, String value) async => RecoverableJsonFile(
+  await _storeFile(),
+).update((current) => {...?current, key: value});
 
-Future<void> writeString(String key, String value) {
-  final previous = _pendingWrite;
-  _pendingWrite = () async {
-    try {
-      await previous;
-    } on Object {
-      // A valid later snapshot must still be allowed to replace a failed one.
-    }
-    final values = await _readAll();
-    values[key] = value;
-    await _writeAll(values);
-  }();
-  return _pendingWrite;
-}
+Future<void> remove(String key) async => RecoverableJsonFile(
+  await _storeFile(),
+).update((current) => {...?current}..remove(key), retainPrevious: false);
 
-Future<void> remove(String key) {
-  final previous = _pendingWrite;
-  _pendingWrite = () async {
-    try {
-      await previous;
-    } on Object {
-      // A later removal must still be allowed after a failed write.
-    }
-    final values = await _readAll();
-    values.remove(key);
-    await _writeAll(values);
-  }();
-  return _pendingWrite;
-}
+File? _androidStore;
 
-Future<Map<String, String>> _readAll() async {
-  final file = _storeFile();
-  final backup = File('${file.path}.backup');
-  Object? lastError;
-  for (final candidate in [file, backup]) {
-    if (!await candidate.exists()) continue;
-    final source = await candidate.readAsString();
-    if (source.trim().isEmpty) continue;
-    try {
-      final decoded = jsonDecode(source);
-      if (decoded is! Map<String, dynamic>) {
-        throw const FormatException('Qesto storage root is not an object');
-      }
-      return decoded.map((key, value) => MapEntry(key, value.toString()));
-    } on FormatException catch (error) {
-      lastError = error;
-    }
+Future<File> _storeFile() async {
+  if (Platform.isAndroid) {
+    return _androidStore ??= await resolveAndroidStore();
   }
-  if (lastError != null) throw lastError;
-  return <String, String>{};
-}
-
-Future<void> _writeAll(Map<String, String> values) async {
-  final file = _storeFile();
-  await file.parent.create(recursive: true);
-  final temporary = File('${file.path}.temporary');
-  final backup = File('${file.path}.backup');
-  await temporary.writeAsString(jsonEncode(values), flush: true);
-  if (await backup.exists()) await backup.delete();
-  if (await file.exists()) await file.rename(backup.path);
-  try {
-    await temporary.rename(file.path);
-    if (await backup.exists()) await backup.delete();
-  } on Object {
-    if (!await file.exists() && await backup.exists()) {
-      await backup.rename(file.path);
-    }
-    rethrow;
-  }
-}
-
-File _storeFile() {
   final environment = Platform.environment;
   late final String root;
   if (Platform.isWindows) {

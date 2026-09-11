@@ -7,7 +7,10 @@ import '../core/theme/qesto_theme.dart';
 import '../data/models/qesto_models.dart';
 import '../features/budget/add_expense_screen.dart';
 import '../features/budget/state/budget_controller.dart';
+import '../features/history/action_history_screen.dart';
 import '../features/bank_screenshot_import/presentation/bank_screenshot_import_screen.dart';
+import '../features/bank_browser/data/browser_profile_manager.dart';
+import '../features/bank_browser/sync/bank_sync_scheduler.dart';
 import '../features/notification_import/presentation/notification_import_screen.dart';
 import '../features/receipt_import/presentation/receipt_import_screen.dart';
 import '../features/statement_import/data/bank_statement_file_models.dart';
@@ -15,6 +18,9 @@ import '../features/statement_import/presentation/statement_import_screen.dart';
 import '../features/statistics/domain/models/statistics_models.dart';
 import '../features/voice_input/data/voice_capture_service.dart';
 import '../features/voice_input/domain/voice_transaction_draft_parser.dart';
+import '../features/voice_transaction/data/voice_speech_recognizer.dart';
+import '../features/voice_transaction/presentation/voice_transaction_confirmation_sheet.dart';
+import '../features/voice_transaction/services/voice_transaction_parser.dart';
 import 'desktop_destination.dart';
 import 'desktop_financial_helpers.dart';
 import 'pages/desktop_accounts_page.dart';
@@ -36,12 +42,20 @@ class DesktopAppShell extends StatefulWidget {
     required this.data,
     required this.controller,
     required this.onAllDataDeleted,
+    required this.browserProfileManager,
+    required this.bankSyncScheduler,
+    this.bankConnectionsAvailable = true,
+    this.onOpenNotificationInbox,
     super.key,
   });
 
   final QestoAppData data;
   final BudgetController controller;
   final Future<void> Function() onAllDataDeleted;
+  final BrowserProfileManager browserProfileManager;
+  final BankSyncScheduler bankSyncScheduler;
+  final bool bankConnectionsAvailable;
+  final Future<void> Function()? onOpenNotificationInbox;
 
   @override
   State<DesktopAppShell> createState() => _DesktopAppShellState();
@@ -79,6 +93,9 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
         autofocus: true,
         child: LayoutBuilder(
           builder: (context, constraints) {
+            if (constraints.maxWidth < 900) {
+              return _mobileShell();
+            }
             final forcedCollapsed = constraints.maxWidth < 1120;
             final collapsed = forcedCollapsed || _sidebarCollapsed;
             return Scaffold(
@@ -91,6 +108,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
                       selected: _destination,
                       collapsed: collapsed,
                       user: widget.controller.user,
+                      bankConnectionsAvailable: widget.bankConnectionsAvailable,
                       onSelected: _select,
                       onToggle: forcedCollapsed
                           ? () {}
@@ -128,6 +146,154 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
             );
           },
         ),
+      ),
+    );
+  }
+
+  Widget _mobileShell() {
+    final section = _destination.section;
+    final selectedIndex = section == null ? 0 : section.index + 1;
+    final destinations = DesktopDestination.values
+        .where((item) => section != null && item.section == section)
+        .toList();
+    return Scaffold(
+      key: const Key('mobile-app-shell'),
+      appBar: AppBar(
+        title: Text(_destination.label, style: const TextStyle(fontSize: 19)),
+        actions: [
+          IconButton(
+            tooltip: 'Поиск',
+            onPressed: _openGlobalSearch,
+            icon: const Icon(Icons.search_rounded),
+          ),
+          IconButton(
+            tooltip: 'Уведомления и SMS',
+            onPressed: _openNotifications,
+            icon: const Icon(Icons.notifications_none_rounded),
+          ),
+          IconButton(
+            key: const Key('mobile-add-data'),
+            tooltip: 'Добавить данные',
+            onPressed: _openAddData,
+            icon: const Icon(Icons.add_circle_outline),
+          ),
+        ],
+      ),
+      drawer: Drawer(
+        child: SafeArea(
+          child: ListView(
+            children: [
+              ListenableBuilder(
+                listenable: widget.controller,
+                builder: (context, _) => ListTile(
+                  title: Text(widget.controller.user.name),
+                  subtitle: Text(widget.controller.user.defaultCurrency),
+                  leading: const CircleAvatar(
+                    child: Icon(Icons.person_outline),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _select(DesktopDestination.settings);
+                  },
+                ),
+              ),
+              const Divider(),
+              for (final item in [
+                DesktopDestination.dashboard,
+                DesktopDestination.insights,
+                ...DesktopDestination.values.where(
+                  (item) => item.section != null,
+                ),
+                DesktopDestination.settings,
+              ])
+                ListTile(
+                  key: Key('mobile-destination-${item.name}'),
+                  leading: Icon(item.icon),
+                  title: Text(item.label),
+                  subtitle: item.section == null
+                      ? null
+                      : Text(item.section!.label),
+                  selected: _destination == item,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _select(item);
+                  },
+                ),
+              ListTile(
+                key: const Key('action-history-button'),
+                leading: const Icon(Icons.history),
+                title: const Text('История действий'),
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          ActionHistoryScreen(controller: widget.controller),
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            if (_destination == DesktopDestination.dashboard)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: TextButton.icon(
+                    onPressed: _chooseDashboardPeriod,
+                    icon: const Icon(Icons.calendar_month_outlined, size: 18),
+                    label: Text(_periodLabel ?? 'Период'),
+                  ),
+                ),
+              ),
+            if (destinations.length > 1)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                child: Row(
+                  children: [
+                    for (final item in destinations)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: ChoiceChip(
+                          key: Key('mobile-tab-${item.name}'),
+                          label: Text(item.label),
+                          selected: _destination == item,
+                          onSelected: (_) => _select(item),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            Expanded(child: _pageFor(_destination)),
+          ],
+        ),
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: selectedIndex,
+        onDestinationSelected: (index) => _select(
+          index == 0
+              ? DesktopDestination.dashboard
+              : DesktopProductSection.values[index - 1].landing,
+        ),
+        destinations: [
+          const NavigationDestination(
+            icon: Icon(Icons.space_dashboard_outlined),
+            label: 'Обзор',
+          ),
+          for (final item in DesktopProductSection.values)
+            NavigationDestination(icon: Icon(item.icon), label: item.label),
+        ],
       ),
     );
   }
@@ -234,6 +400,8 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     ),
     DesktopDestination.connections => DesktopBankConnectionsPage(
       controller: widget.controller,
+      profileManager: widget.browserProfileManager,
+      bankSyncScheduler: widget.bankSyncScheduler,
     ),
     DesktopDestination.benefits => DesktopBenefitsPage(
       coupons: widget.data.coupons,
@@ -246,6 +414,10 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   };
 
   void _select(DesktopDestination destination) {
+    if (destination == DesktopDestination.connections &&
+        !widget.bankConnectionsAvailable) {
+      return;
+    }
     setState(() {
       _destination = destination;
       if (destination != DesktopDestination.transactions) {
@@ -308,7 +480,10 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     final result = await showDialog<_SearchResult>(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.18),
-      builder: (context) => _GlobalSearchDialog(controller: widget.controller),
+      builder: (context) => _GlobalSearchDialog(
+        controller: widget.controller,
+        bankConnectionsAvailable: widget.bankConnectionsAvailable,
+      ),
     );
     if (result == null || !mounted) return;
     if (result.transactionId != null) {
@@ -321,7 +496,8 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   Future<void> _openAddData() async {
     final action = await showDialog<_AddDataAction>(
       context: context,
-      builder: (context) => const _AddDataDialog(),
+      builder: (context) =>
+          _AddDataDialog(includeInbox: !widget.bankConnectionsAvailable),
     );
     if (action == null || !mounted) return;
     switch (action) {
@@ -339,11 +515,12 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       case _AddDataAction.voice:
         await _openVoiceInput();
       case _AddDataAction.receipt:
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
+        final message = await Navigator.of(context).push<String>(
+          MaterialPageRoute<String>(
             builder: (_) => ReceiptImportScreen(controller: widget.controller),
           ),
         );
+        if (message != null) _showMessage(message);
       case _AddDataAction.screenshot:
         final message = await Navigator.of(context).push<String>(
           MaterialPageRoute<String>(
@@ -357,29 +534,79 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
           ).showSnackBar(SnackBar(content: Text(message)));
         }
       case _AddDataAction.statement:
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
+        final count = await Navigator.of(context).push<int>(
+          MaterialPageRoute<int>(
             builder: (_) => StatementImportScreen(
               controller: widget.controller,
               pickerMode: StatementPickerMode.statement,
             ),
           ),
         );
+        if (count != null) _showMessage('Добавлено операций: $count');
       case _AddDataAction.excel:
-        await Navigator.of(context).push<void>(
-          MaterialPageRoute<void>(
+        final count = await Navigator.of(context).push<int>(
+          MaterialPageRoute<int>(
             builder: (_) => StatementImportScreen(
               controller: widget.controller,
               pickerMode: StatementPickerMode.excel,
             ),
           ),
         );
+        if (count != null) _showMessage('Добавлено операций: $count');
       case _AddDataAction.account:
         _select(DesktopDestination.liquidity);
+      case _AddDataAction.inbox:
+        await _openNotifications();
     }
   }
 
+  void _showMessage(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _openVoiceInput() async {
+    const androidRecognizer = AndroidVoiceSpeechRecognizer();
+    if (androidRecognizer.isSupported) {
+      try {
+        final recognition = await androidRecognizer.recognize();
+        if (recognition == null || !mounted) return;
+        final draft = const VoiceTransactionParser().parse(
+          text: recognition.text,
+          categories: widget.controller.categories,
+          accounts: widget.controller.accounts,
+        );
+        final added = await showVoiceTransactionConfirmation(
+          context: context,
+          controller: widget.controller,
+          period: widget.controller.periodForOrCreate(
+            widget.controller.referenceDate,
+          ),
+          draft: draft,
+          recognizedOnDevice: recognition.onDevice,
+        );
+        if (added == true && mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Операция добавлена')));
+        }
+      } on Object catch (error) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                error is VoiceSpeechException
+                    ? error.message
+                    : 'Не удалось распознать речь. Попробуйте ещё раз.',
+              ),
+            ),
+          );
+        }
+      }
+      return;
+    }
     final result = await showDialog<_VoiceDraft>(
       context: context,
       builder: (context) => _VoiceInputDialog(controller: widget.controller),
@@ -421,6 +648,11 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   }
 
   Future<void> _openNotifications() async {
+    if (MediaQuery.sizeOf(context).width < 900 &&
+        widget.onOpenNotificationInbox != null) {
+      await widget.onOpenNotificationInbox!();
+      return;
+    }
     if (!mounted) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
@@ -435,6 +667,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
 }
 
 enum _AddDataAction {
+  inbox,
   manual,
   voice,
   receipt,
@@ -445,15 +678,24 @@ enum _AddDataAction {
 }
 
 class _AddDataDialog extends StatelessWidget {
-  const _AddDataDialog();
+  const _AddDataDialog({this.includeInbox = false});
+  final bool includeInbox;
   @override
   Widget build(BuildContext context) => AlertDialog(
+    scrollable: true,
     title: const Text('Добавить данные'),
     content: SizedBox(
       width: 470,
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        children: const [
+        children: [
+          if (includeInbox)
+            const _AddDataTile(
+              action: _AddDataAction.inbox,
+              icon: Icons.sms_outlined,
+              title: 'Уведомления и SMS',
+              subtitle: 'Доступ к уведомлениям, вставка текста и проверка',
+            ),
           _AddDataTile(
             action: _AddDataAction.manual,
             icon: Icons.edit_outlined,
@@ -464,7 +706,7 @@ class _AddDataDialog extends StatelessWidget {
             action: _AddDataAction.voice,
             icon: Icons.mic_none_rounded,
             title: 'Голосом',
-            subtitle: 'Создать candidate и подтвердить',
+            subtitle: 'Распознать речь и проверить операцию',
           ),
           _AddDataTile(
             action: _AddDataAction.receipt,
@@ -610,6 +852,7 @@ class _VoiceInputDialogState extends State<_VoiceInputDialog> {
   @override
   Widget build(BuildContext context) => AlertDialog(
     title: const Text('Добавить голосом'),
+    scrollable: true,
     content: SizedBox(
       width: 430,
       child: Column(
@@ -750,8 +993,12 @@ class _SearchResult {
 }
 
 class _GlobalSearchDialog extends StatefulWidget {
-  const _GlobalSearchDialog({required this.controller});
+  const _GlobalSearchDialog({
+    required this.controller,
+    required this.bankConnectionsAvailable,
+  });
   final BudgetController controller;
+  final bool bankConnectionsAvailable;
   @override
   State<_GlobalSearchDialog> createState() => _GlobalSearchDialogState();
 }
@@ -778,6 +1025,11 @@ class _GlobalSearchDialogState extends State<_GlobalSearchDialog> {
         .take(6)
         .toList();
     final destinations = DesktopDestination.values
+        .where(
+          (item) =>
+              widget.bankConnectionsAvailable ||
+              item != DesktopDestination.connections,
+        )
         .where((item) => item.label.toLowerCase().contains(value))
         .take(4)
         .toList();

@@ -139,7 +139,7 @@ class _DesktopAccountsPageState extends State<DesktopAccountsPage> {
                   top: 0,
                   right: 0,
                   bottom: 0,
-                  width: 440,
+                  width: math.min(440, MediaQuery.sizeOf(context).width),
                   child: _AccountDrawer(
                     controller: widget.controller,
                     insight: opened,
@@ -164,6 +164,7 @@ class _DesktopAccountsPageState extends State<DesktopAccountsPage> {
       builder: (dialogContext) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           title: const Text('Добавить денежный счёт'),
+          scrollable: true,
           content: SizedBox(
             width: 420,
             child: Column(
@@ -194,6 +195,7 @@ class _DesktopAccountsPageState extends State<DesktopAccountsPage> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<AccountType>(
                   key: const Key('account-type-field'),
+                  isExpanded: true,
                   initialValue: type,
                   items: const [
                     DropdownMenuItem(
@@ -505,7 +507,7 @@ class _LiquidityCard extends StatelessWidget {
                 ),
         ),
         const SizedBox(height: 12),
-        Row(
+        DesktopAdaptiveRow(
           children: [
             DesktopPill(
               label: data.isHistoryReconstructed
@@ -670,8 +672,8 @@ class _DistributionLegend extends StatelessWidget {
   final String currency;
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => Wrap(
+    crossAxisAlignment: WrapCrossAlignment.center,
     children: [
       Container(
         width: 8,
@@ -820,7 +822,7 @@ class _ForecastCard extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Row(
+        const DesktopAdaptiveRow(
           children: [
             Icon(
               Icons.event_available_outlined,
@@ -1106,7 +1108,7 @@ class _AccountGrid extends StatelessWidget {
             for (final item in accounts)
               SizedBox(
                 width: width,
-                height: 184,
+                height: 215,
                 child: _AccountCard(
                   insight: item,
                   baseCurrency: data.baseCurrency,
@@ -1266,7 +1268,7 @@ class _ExcludedCapitalNote extends StatelessWidget {
       color: QestoColors.surfaceSecondary,
       borderRadius: BorderRadius.circular(12),
     ),
-    child: Row(
+    child: DesktopAdaptiveRow(
       children: [
         const Icon(
           Icons.info_outline_rounded,
