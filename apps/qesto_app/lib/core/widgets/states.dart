@@ -23,11 +23,11 @@ class EmptyState extends StatelessWidget {
             Container(
               width: 58,
               height: 58,
-              decoration: const BoxDecoration(
-                color: QestoColors.primarySoft,
+              decoration: BoxDecoration(
+                color: context.qestoColors.primarySoft,
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, size: 29, color: QestoColors.primary),
+              child: Icon(icon, size: 29, color: context.qestoColors.primary),
             ),
             const SizedBox(height: 14),
             Text(
@@ -51,7 +51,7 @@ class LoadingSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.42, end: 0.88),
-      duration: const Duration(milliseconds: 850),
+      duration: QestoMotion.effective(context, QestoMotion.normal),
       curve: Curves.easeInOut,
       builder: (context, opacity, child) =>
           Opacity(opacity: opacity, child: child),
@@ -79,8 +79,8 @@ class _SkeletonBlock extends StatelessWidget {
     return Container(
       height: height,
       decoration: BoxDecoration(
-        color: const Color(0xFFE9ECF2),
-        borderRadius: BorderRadius.circular(22),
+        color: context.qestoColors.surfaceSecondary,
+        borderRadius: QestoGeometry.control,
       ),
     );
   }
@@ -99,10 +99,10 @@ class ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(
+            Icon(
               Icons.cloud_off_rounded,
               size: 52,
-              color: QestoColors.secondaryText,
+              color: context.qestoColors.secondaryText,
             ),
             const SizedBox(height: 16),
             Text(
@@ -114,7 +114,7 @@ class ErrorState extends StatelessWidget {
               'Попробуйте ещё раз. Ваши данные не были изменены.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: QestoColors.secondaryText,
+                color: context.qestoColors.secondaryText,
               ),
             ),
             const SizedBox(height: 20),

@@ -480,7 +480,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                     ? Icons.table_view_rounded
                     : Icons.account_balance_rounded,
                 size: 58,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(height: 14),
               Text(
@@ -510,9 +510,9 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 const SizedBox(height: 14),
                 Text(
                   _error!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: QestoColors.orange),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.qestoColors.orange,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -729,8 +729,8 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                               : 'Сверка остатков недоступна: в документе не распознаны все контрольные итоги.',
                           style: TextStyle(
                             color: statement.hasReconciliationMismatch
-                                ? QestoColors.warning
-                                : QestoColors.secondaryText,
+                                ? context.qestoColors.warning
+                                : context.qestoColors.secondaryText,
                           ),
                         ),
                       Text(
@@ -758,7 +758,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                         Text(
                           'Суммы сохраняются точно, включая копейки.',
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: QestoColors.orange),
+                              ?.copyWith(color: context.qestoColors.orange),
                         ),
                       ],
                     ],
@@ -822,7 +822,9 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 '${_formatMinorMoney(transaction.amountMinor)} ₽',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: _isCredit(transaction) ? QestoColors.primary : null,
+                  color: _isCredit(transaction)
+                      ? context.qestoColors.primary
+                      : null,
                 ),
               ),
             ),

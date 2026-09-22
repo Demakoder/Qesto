@@ -288,11 +288,11 @@ class _FormTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: QestoColors.background,
-      borderRadius: BorderRadius.circular(14),
+      color: context.qestoColors.background,
+      borderRadius: QestoGeometry.control,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: QestoGeometry.control,
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 58),
           child: Padding(
@@ -313,9 +313,9 @@ class _FormTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ],
             ),

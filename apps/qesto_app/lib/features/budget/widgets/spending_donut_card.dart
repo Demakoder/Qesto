@@ -151,10 +151,10 @@ class _DonutChart extends StatelessWidget {
                       summary.currentExpense,
                       summary.period.currency,
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w800,
-                      color: QestoColors.text,
+                      color: context.qestoColors.text,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -226,10 +226,10 @@ class _LegendRow extends StatelessWidget {
     final color = Color(category.colorValue);
     return Material(
       color: selected ? color.withValues(alpha: 0.10) : Colors.transparent,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: QestoGeometry.control,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: QestoGeometry.control,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
           child: Row(

@@ -99,22 +99,26 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
             final forcedCollapsed = constraints.maxWidth < 1120;
             final collapsed = forcedCollapsed || _sidebarCollapsed;
             return Scaffold(
-              backgroundColor: QestoColors.background,
+              backgroundColor: context.qestoVisual.workspace,
               body: Row(
                 children: [
                   ListenableBuilder(
                     listenable: widget.controller,
-                    builder: (context, _) => DesktopSidebar(
-                      selected: _destination,
-                      collapsed: collapsed,
-                      user: widget.controller.user,
-                      bankConnectionsAvailable: widget.bankConnectionsAvailable,
-                      onSelected: _select,
-                      onToggle: forcedCollapsed
-                          ? () {}
-                          : () => setState(
-                              () => _sidebarCollapsed = !_sidebarCollapsed,
-                            ),
+                    builder: (context, _) => Theme(
+                      data: Theme.of(context),
+                      child: DesktopSidebar(
+                        selected: _destination,
+                        collapsed: collapsed,
+                        user: widget.controller.user,
+                        bankConnectionsAvailable:
+                            widget.bankConnectionsAvailable,
+                        onSelected: _select,
+                        onToggle: forcedCollapsed
+                            ? () {}
+                            : () => setState(
+                                () => _sidebarCollapsed = !_sidebarCollapsed,
+                              ),
+                      ),
                     ),
                   ),
                   Expanded(
@@ -137,7 +141,15 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
                           onAdd: _openAddData,
                           onNotifications: _openNotifications,
                         ),
-                        Expanded(child: _pageFor(_destination)),
+                        Expanded(
+                          child: Theme(
+                            data: Theme.of(context),
+                            child: Material(
+                              color: context.qestoColors.background,
+                              child: _pageFor(_destination),
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -275,7 +287,15 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
                   ],
                 ),
               ),
-            Expanded(child: _pageFor(_destination)),
+            Expanded(
+              child: Theme(
+                data: Theme.of(context),
+                child: Material(
+                  color: context.qestoColors.background,
+                  child: _pageFor(_destination),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -450,10 +470,10 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
                   SizedBox(
                     width: 26,
                     child: period.id == _dashboardPeriod.id
-                        ? const Icon(
+                        ? Icon(
                             Icons.check_rounded,
                             size: 18,
-                            color: QestoColors.primary,
+                            color: context.qestoColors.primary,
                           )
                         : null,
                   ),
@@ -763,10 +783,10 @@ class _AddDataTile extends StatelessWidget {
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: QestoColors.primarySoft,
-        borderRadius: BorderRadius.circular(11),
+        color: context.qestoColors.primarySoft,
+        borderRadius: QestoGeometry.control,
       ),
-      child: Icon(icon, color: QestoColors.primary, size: 20),
+      child: Icon(icon, color: context.qestoColors.primary, size: 20),
     ),
     title: Text(
       title,
@@ -886,8 +906,8 @@ class _VoiceInputDialogState extends State<_VoiceInputDialog> {
                 voiceStatus!,
                 style: TextStyle(
                   color: voiceStatus!.startsWith('Распознано')
-                      ? QestoColors.positive
-                      : QestoColors.secondaryText,
+                      ? context.qestoColors.positive
+                      : context.qestoColors.secondaryText,
                   fontSize: 10,
                 ),
               ),
@@ -944,10 +964,10 @@ class _VoiceInputDialogState extends State<_VoiceInputDialog> {
             onChanged: (value) => setState(() => categoryId = value),
           ),
           const SizedBox(height: 9),
-          const Text(
+          Text(
             'Операция сначала сохранится как Synoball candidate и не попадёт в расходы до подтверждения.',
             style: TextStyle(
-              color: QestoColors.secondaryText,
+              color: context.qestoColors.secondaryText,
               fontSize: 10,
               height: 1.4,
             ),
@@ -1047,15 +1067,15 @@ class _GlobalSearchDialogState extends State<_GlobalSearchDialog> {
                 controller: query,
                 autofocus: true,
                 onChanged: (_) => setState(() {}),
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   prefixIcon: Icon(Icons.search_rounded),
                   hintText: 'Транзакции, счета, категории, разделы…',
                   suffixIcon: Padding(
                     padding: EdgeInsets.all(10),
                     child: DesktopPill(
                       label: 'Esc',
-                      color: QestoColors.secondaryText,
-                      background: QestoColors.surfaceSecondary,
+                      color: context.qestoColors.secondaryText,
+                      background: context.qestoColors.surfaceSecondary,
                     ),
                   ),
                 ),
@@ -1147,8 +1167,8 @@ class _SearchGroupLabel extends StatelessWidget {
     padding: const EdgeInsets.fromLTRB(10, 10, 10, 5),
     child: Text(
       label,
-      style: const TextStyle(
-        color: QestoColors.secondaryText,
+      style: TextStyle(
+        color: context.qestoColors.secondaryText,
         fontSize: 9,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.6,

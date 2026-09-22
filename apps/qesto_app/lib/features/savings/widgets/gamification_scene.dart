@@ -16,7 +16,7 @@ class GamificationScene extends StatelessWidget {
       label:
           'Игровая сцена цели, выполнено ${(progress * 100).round()} процентов',
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: QestoGeometry.control,
         child: AspectRatio(
           aspectRatio: 1.42,
           child: CustomPaint(

@@ -93,8 +93,10 @@ install(FILES "${QESTO_CEF_ROOT}/Release/bootstrap.exe"
 # flutter_secure_storage derives its Windows support directory from the main
 # executable's CompanyName/ProductName. The stock CEF bootstrap identifies as
 # "CEF Bootstrap Application", which would strand Qesto's existing encryption
-# key. Copy only Qesto's VERSIONINFO resource into the unsigned bootstrap so
-# upgrades keep using %APPDATA%\ru.qesto\Qesto.
+# key. Copy Qesto's VERSIONINFO resource so upgrades retain that support path.
+# Merge the runner's DPI declarations into the EXE manifest as well: the
+# manifest in qesto.dll cannot configure process DPI awareness at cold start.
+# The bootstrap's original trust/sandbox/Common Controls entries are retained.
 set(QESTO_BOOTSTRAP_PATCH_SCRIPT
   "${CMAKE_CURRENT_SOURCE_DIR}/patch_cef_bootstrap_resources.ps1")
 install(CODE "

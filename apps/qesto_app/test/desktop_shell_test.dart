@@ -11,8 +11,10 @@ void main() {
   testWidgets('production desktop starts without seeded financial data', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
@@ -30,8 +32,10 @@ void main() {
   testWidgets('desktop P0 routes remain overflow-free at target width', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
@@ -60,8 +64,10 @@ void main() {
   testWidgets('desktop shell remains compact and overflow-free at 1024', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1024, 768));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 768);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
@@ -79,8 +85,10 @@ void main() {
   testWidgets('capital accounts expose liquidity, emergency goal and details', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -117,9 +125,11 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop permanently uses typography variant B', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+  testWidgets('desktop uses approved White Silver typography', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
     );
@@ -127,17 +137,16 @@ void main() {
 
     expect(find.byKey(const Key('typography-lab')), findsNothing);
     final context = tester.element(find.text('Qesto').first);
-    expect(
-      Theme.of(context).textTheme.headlineSmall?.fontFamily,
-      'IBM Plex Sans',
-    );
-    expect(Theme.of(context).textTheme.bodyMedium?.fontFamily, 'Manrope');
+    expect(Theme.of(context).textTheme.headlineSmall?.fontFamily, 'Prata');
+    expect(Theme.of(context).textTheme.bodyMedium?.fontFamily, 'Onest');
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('dark theme can be selected and persists', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final store = MemoryKeyValueStore();
 
     await tester.pumpWidget(
@@ -155,7 +164,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(await store.readString('qesto.themeMode'), 'dark');
-    expect(find.byKey(const Key('qesto-dark-surface')), findsOneWidget);
+    expect(find.byType(ColorFiltered), findsNothing);
+    expect(
+      tester.widget<MaterialApp>(find.byType(MaterialApp)).themeMode,
+      ThemeMode.dark,
+    );
     expect(find.byKey(const Key('desktop-add-data')), findsOneWidget);
     expect(find.text('Добавить данные'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -164,8 +177,10 @@ void main() {
   testWidgets('desktop does not report overrun when budget is unassigned', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     final zeroBudgetData = sampleUserFinancialData.copyWith(
       budgetPeriods: [
         for (final period in sampleUserFinancialData.budgetPeriods)
@@ -221,8 +236,10 @@ void main() {
   testWidgets(
     'overview metrics, period and transaction sorting are interactive',
     (tester) async {
-      await tester.binding.setSurfaceSize(const Size(1440, 900));
-      addTearDown(() => tester.binding.setSurfaceSize(null));
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1440, 900);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       await tester.pumpWidget(
         QestoApp(
           repository: MockQestoRepository(
@@ -269,8 +286,10 @@ void main() {
   testWidgets('desktop is organised into Budget, Benefits and Capital', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -342,8 +361,10 @@ void main() {
   testWidgets('cash flow has an interactive money river and privacy mode', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 1000));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 1000);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -373,8 +394,10 @@ void main() {
   testWidgets('category visual identity can be edited from the budget', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -411,8 +434,10 @@ void main() {
   testWidgets('budget exposes unique analytics without a statistics hub', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -480,8 +505,10 @@ void main() {
   });
 
   testWidgets('budget analytics has a genuine empty state', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1024, 768));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 768);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
@@ -506,8 +533,10 @@ void main() {
   testWidgets('desktop notifications exposes guarded full data deletion', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
@@ -527,8 +556,10 @@ void main() {
   testWidgets('desktop add dialog exposes a dedicated Excel action', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(repository: const MockQestoRepository(delay: Duration.zero)),
@@ -550,8 +581,10 @@ void main() {
   testWidgets('all direct budget analytics sections fit at 1024', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1024, 768));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1024, 768);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -583,8 +616,10 @@ void main() {
   testWidgets('expenses can be displayed in the fixed CBR currencies', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -612,8 +647,10 @@ void main() {
   testWidgets('desktop goals can be created with category and deadline', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -655,8 +692,10 @@ void main() {
   testWidgets('desktop investment account can be created from empty state', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(
@@ -696,8 +735,10 @@ void main() {
   testWidgets('desktop debt can be created from the honest empty state', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(1440, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
       QestoApp(

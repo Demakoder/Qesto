@@ -83,7 +83,7 @@ class CategoryDetailsScreen extends StatelessWidget {
                       height: 126,
                       width: double.infinity,
                       child: CustomPaint(
-                        painter: _CategoryDailyPainter(
+                        painter: _CategoryDailyPainter(c: context.qestoColors,
                           period: period,
                           transactions: transactions,
                           color: Color(category.colorValue),
@@ -172,8 +172,8 @@ class _CategorySummaryCard extends StatelessWidget {
                           : 'Осталось ${formatMoney(status.remaining, currency)}',
                       style: TextStyle(
                         color: status.isExceeded
-                            ? QestoColors.danger
-                            : QestoColors.secondaryText,
+                            ? context.qestoColors.danger
+                            : context.qestoColors.secondaryText,
                       ),
                     ),
                   ],
@@ -211,7 +211,7 @@ class _CategorySummaryCard extends StatelessWidget {
           const SizedBox(height: 15),
           QestoProgressBar(
             value: status.progress,
-            color: status.isExceeded ? QestoColors.orange : color,
+            color: status.isExceeded ? context.qestoColors.orange : color,
             backgroundColor: status.isExceeded
                 ? const Color(0xFFFFE4E1)
                 : const Color(0xFFEEF1F6),
@@ -282,13 +282,15 @@ class _TransactionRow extends StatelessWidget {
             Text(
               '${refund ? '−' : ''}${formatMoney(transaction.amount, transaction.currency)}',
               style: TextStyle(
-                color: refund ? QestoColors.green : QestoColors.text,
+                color: refund
+                    ? context.qestoColors.green
+                    : context.qestoColors.text,
                 fontWeight: FontWeight.w800,
               ),
             ),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: QestoColors.secondaryText,
+              color: context.qestoColors.secondaryText,
             ),
           ],
         ),
@@ -298,7 +300,8 @@ class _TransactionRow extends StatelessWidget {
 }
 
 class _CategoryDailyPainter extends CustomPainter {
-  const _CategoryDailyPainter({
+ final QestoSemanticColors c;
+  const _CategoryDailyPainter({required this.c,
     required this.period,
     required this.transactions,
     required this.color,
@@ -338,12 +341,13 @@ class _CategoryDailyPainter extends CustomPainter {
     canvas.drawLine(
       Offset(4, baseline),
       Offset(size.width - 4, baseline),
-      Paint()..color = QestoColors.border,
+      Paint()..color = c.border,
     );
   }
 
   @override
   bool shouldRepaint(covariant _CategoryDailyPainter oldDelegate) =>
+ oldDelegate.c != c ||
       oldDelegate.transactions != transactions ||
       oldDelegate.period.id != period.id;
 }

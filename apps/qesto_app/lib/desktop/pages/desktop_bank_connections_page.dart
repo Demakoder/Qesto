@@ -356,7 +356,7 @@ class _DesktopBankConnectionsPageState
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: QestoColors.negative,
+              backgroundColor: context.qestoColors.negative,
             ),
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Удалить профиль'),
@@ -424,7 +424,7 @@ class _DesktopBankConnectionsPageState
                 height: 52,
                 decoration: BoxDecoration(
                   color: const Color(0xFFE8F8EE),
-                  borderRadius: BorderRadius.circular(15),
+                  borderRadius: QestoGeometry.control,
                 ),
                 child: const Icon(
                   Icons.account_balance_rounded,
@@ -433,7 +433,7 @@ class _DesktopBankConnectionsPageState
                 ),
               ),
               const SizedBox(width: 15),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -448,7 +448,7 @@ class _DesktopBankConnectionsPageState
                     Text(
                       'Официальный сайт · отдельный профиль CEF/Chromium · HTTPS',
                       style: TextStyle(
-                        color: QestoColors.secondaryText,
+                        color: context.qestoColors.secondaryText,
                         fontSize: 11,
                       ),
                     ),
@@ -525,12 +525,12 @@ class _DesktopBankConnectionsPageState
           ],
         const SizedBox(height: 18),
         DesktopCard(
-          color: QestoColors.primarySoft,
-          borderColor: QestoColors.primary.withValues(alpha: 0.18),
-          child: const Row(
+          color: context.qestoColors.primarySoft,
+          borderColor: context.qestoColors.primary.withValues(alpha: 0.18),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.shield_outlined, color: QestoColors.primary),
+              Icon(Icons.shield_outlined, color: context.qestoColors.primary),
               SizedBox(width: 12),
               Expanded(
                 child: Text(
@@ -591,8 +591,8 @@ Future<SberSyncRange?> _showSberSyncRangeDialog(
                         ? Icons.radio_button_checked_rounded
                         : Icons.radio_button_unchecked_rounded,
                     color: choice == item
-                        ? QestoColors.primary
-                        : QestoColors.secondaryText,
+                        ? context.qestoColors.primary
+                        : context.qestoColors.secondaryText,
                   ),
                   title: Text(_sberPeriodChoiceLabel(item)),
                   subtitle: item == _SberPeriodChoice.sinceLastSync
@@ -791,32 +791,32 @@ class _BankProfileCard extends StatelessWidget {
                     const SizedBox(height: 3),
                     Text(
                       'Последний вход: $opened · данные только на устройстве',
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 10,
                       ),
                     ),
                     if (metadata.lastSuccessfulSyncAt case final syncedAt?)
                       Text(
                         'Обновлено: ${_formatProfileDate(syncedAt)}',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       )
                     else if (profile.lastSyncAt case final syncedAt?)
                       Text(
                         'Последняя синхронизация: ${_formatProfileDate(syncedAt)}',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       ),
                     if (profile.bankId == 'sber')
                       Text(
                         'PIN быстрого входа: ${pinStored ? 'сохранён' : 'не сохранён'}',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       ),
@@ -870,10 +870,10 @@ class _BankProfileCard extends StatelessWidget {
             const Divider(height: 24),
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.schedule_rounded,
                   size: 18,
-                  color: QestoColors.primary,
+                  color: context.qestoColors.primary,
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -895,8 +895,8 @@ class _BankProfileCard extends StatelessWidget {
                             : metadata.nextScheduledSyncAt == null
                             ? 'Примерно каждый час'
                             : 'Следующее обновление: ${_formatProfileDate(metadata.nextScheduledSyncAt!)}',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       ),
@@ -916,23 +916,29 @@ class _BankProfileCard extends StatelessWidget {
             Text(
               'Последняя попытка: новых ${metadata.importedCount}, '
               'обновлено ${metadata.updatedCount}, без изменений ${metadata.deduplicatedCount}',
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 11,
-                color: QestoColors.secondaryText,
+                color: context.qestoColors.secondaryText,
               ),
             ),
             if (metadata.lastResult == BankSyncResult.partial)
-              const Text(
+              Text(
                 'Получены частичные данные. Полная синхронизация ещё не подтверждена.',
-                style: TextStyle(fontSize: 11, color: QestoColors.warning),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.qestoColors.warning,
+                ),
               ),
             if (metadata.lastFailureReason?.contains(
                   'ACCOUNT_MAPPING_UNRESOLVED',
                 ) ==
                 true)
-              const Text(
+              Text(
                 'Часть операций сохранена без привязки к конкретному счёту.',
-                style: TextStyle(fontSize: 11, color: QestoColors.warning),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: context.qestoColors.warning,
+                ),
               ),
           ],
           if (devDiagnostics)
@@ -945,42 +951,62 @@ class _BankProfileCard extends StatelessWidget {
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
               ),
               children: [
-                _diagnosticRow('Connection', profile.id),
-                _diagnosticRow('State', metadata.state.name),
+                _diagnosticRow(context, 'Connection', profile.id),
+                _diagnosticRow(context, 'State', metadata.state.name),
                 _diagnosticRow(
+                  context,
                   'Last attempt',
                   _optionalDate(metadata.lastAttemptAt),
                 ),
                 _diagnosticRow(
+                  context,
                   'Last success',
                   _optionalDate(metadata.lastSuccessfulSyncAt),
                 ),
                 _diagnosticRow(
+                  context,
                   'Next scheduled',
                   _optionalDate(metadata.nextScheduledSyncAt),
                 ),
                 _diagnosticRow(
+                  context,
                   'Duration',
                   metadata.syncDurationMs == null
                       ? '—'
                       : '${metadata.syncDurationMs} ms',
                 ),
-                _diagnosticRow('Last result', metadata.lastResult?.name ?? '—'),
                 _diagnosticRow(
+                  context,
+                  'Last result',
+                  metadata.lastResult?.name ?? '—',
+                ),
+                _diagnosticRow(
+                  context,
                   'Failure reason',
                   metadata.lastFailureReason ?? '—',
                 ),
                 _diagnosticRow(
+                  context,
                   'History through',
                   _optionalDate(metadata.lastHistorySyncThrough),
                 ),
-                _diagnosticRow('Imported', '${metadata.importedCount}'),
-                _diagnosticRow('Deduplicated', '${metadata.deduplicatedCount}'),
                 _diagnosticRow(
+                  context,
+                  'Imported',
+                  '${metadata.importedCount}',
+                ),
+                _diagnosticRow(
+                  context,
+                  'Deduplicated',
+                  '${metadata.deduplicatedCount}',
+                ),
+                _diagnosticRow(
+                  context,
                   'Browser mode',
                   metadata.lastBrowserMode?.name.toUpperCase() ?? '—',
                 ),
                 _diagnosticRow(
+                  context,
                   'Auth state',
                   metadata.needsAuthentication ? 'REQUIRED' : 'VALID',
                 ),
@@ -995,7 +1021,11 @@ class _BankProfileCard extends StatelessWidget {
   static String _optionalDate(DateTime? value) =>
       value == null ? '—' : _formatProfileDate(value);
 
-  static Widget _diagnosticRow(String label, String value) => Padding(
+  static Widget _diagnosticRow(
+    BuildContext context,
+    String label,
+    String value,
+  ) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 2),
     child: Row(
       children: [
@@ -1003,8 +1033,8 @@ class _BankProfileCard extends StatelessWidget {
           width: 130,
           child: Text(
             label,
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
               fontSize: 10,
             ),
           ),
@@ -1032,27 +1062,33 @@ class _BankSyncStateBadge extends StatelessWidget {
     final (label, color) = switch (metadata.state) {
       BankConnectionSyncState.connected => (
         'Подключён',
-        const Color(0xFF16A05D),
+        context.qestoColors.positive,
       ),
-      BankConnectionSyncState.syncing => ('Обновляется', QestoColors.primary),
+      BankConnectionSyncState.syncing => (
+        'Обновляется',
+        context.qestoColors.primary,
+      ),
       BankConnectionSyncState.authRequired => (
         'Требуется вход',
-        QestoColors.warning,
+        context.qestoColors.warning,
       ),
       BankConnectionSyncState.temporaryError => (
         metadata.lastResult == BankSyncResult.partial
             ? 'Частичные данные'
             : 'Временная ошибка',
-        QestoColors.warning,
+        context.qestoColors.warning,
       ),
-      BankConnectionSyncState.failed => ('Ошибка', QestoColors.negative),
+      BankConnectionSyncState.failed => (
+        'Ошибка',
+        context.qestoColors.negative,
+      ),
       BankConnectionSyncState.disconnected => (
         'Не подключён',
-        QestoColors.secondaryText,
+        context.qestoColors.secondaryText,
       ),
       BankConnectionSyncState.disabled => (
         'Автообновление выключено',
-        QestoColors.secondaryText,
+        context.qestoColors.secondaryText,
       ),
     };
     return Container(
@@ -1077,8 +1113,11 @@ class _BankDiagnosticProfileRow extends StatelessWidget {
   const _BankDiagnosticProfileRow();
 
   @override
-  Widget build(BuildContext context) =>
-      _BankProfileCard._diagnosticRow('Profile', 'existing persistent profile');
+  Widget build(BuildContext context) => _BankProfileCard._diagnosticRow(
+    context,
+    'Profile',
+    'existing persistent profile',
+  );
 }
 
 class BankBrowserPage extends StatefulWidget {
@@ -1467,9 +1506,9 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                       'Сохранены, но счёт не определён',
                       summary.unassignedAccountCount,
                     ),
-                    const Text(
+                    Text(
                       'Эти операции учтены в денежном потоке, но не приписаны случайной карте. Сверка по счетам пока неполна.',
-                      style: TextStyle(color: QestoColors.warning),
+                      style: TextStyle(color: context.qestoColors.warning),
                     ),
                   ],
                   if (summary.accountsMerged > 0)
@@ -1484,19 +1523,21 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                     const SizedBox(height: 4),
                     Text(
                       'История: ${snapshot.historyRowsAccepted} денежных операций из ${snapshot.historyRowsSeen} записей',
-                      style: const TextStyle(color: QestoColors.secondaryText),
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                      ),
                     ),
                     if (snapshot.historyHasMoreRows &&
                         !snapshot.historyRangeBoundaryReached)
-                      const Text(
+                      Text(
                         'Полнота истории не подтверждена: остались страницы или не удалось проверить конец списка.',
-                        style: TextStyle(color: QestoColors.warning),
+                        style: TextStyle(color: context.qestoColors.warning),
                       ),
                     if (snapshot.historyRewardRows > 0)
                       Text(
                         'СберСпасибо: ${snapshot.historyRewardRows} неденежных операций',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                     if (snapshot.historyRowsOutsidePeriod > 0)
@@ -1530,21 +1571,21 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                     if (snapshot.historyRowsRejected > 0)
                       Text(
                         'Не распознано строк: ${snapshot.historyRowsRejected}. Результат нельзя считать полным.',
-                        style: const TextStyle(color: QestoColors.warning),
+                        style: TextStyle(color: context.qestoColors.warning),
                       ),
                     if (snapshot.historyLoyaltyRewards >
                         snapshot.historyRewardRows)
                       Text(
                         'Бонусных начислений в денежных операциях: ${snapshot.historyLoyaltyRewards - snapshot.historyRewardRows}',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                     if (snapshot.historyServiceRows > 0)
                       Text(
                         'Служебные действия: ${snapshot.historyServiceRows} (не влияют на баланс)',
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                   ],
@@ -1582,12 +1623,12 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                             'Текущий баланс денежных счетов всего профиля',
                             closingCashBalance,
                           ),
-                        const Padding(
+                        Padding(
                           padding: EdgeInsets.only(top: 6, bottom: 4),
                           child: Text(
                             'Сверка opening → closing недоступна: Сбер отдаёт текущий баланс, но не снимок баланса на начало выбранного периода.',
                             style: TextStyle(
-                              color: QestoColors.secondaryText,
+                              color: context.qestoColors.secondaryText,
                               fontSize: 11,
                             ),
                           ),
@@ -1622,7 +1663,9 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
                     const SizedBox(height: 10),
                     Text(
                       report.message!,
-                      style: const TextStyle(color: QestoColors.secondaryText),
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                      ),
                     ),
                   ],
                 ],
@@ -1707,7 +1750,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
         formatMoney(signedAmount, item.currency, showSign: item.isIncome),
         style: TextStyle(
           fontWeight: FontWeight.w700,
-          color: item.isIncome ? const Color(0xFF16A05D) : null,
+          color: item.isIncome ? context.qestoColors.positive : null,
         ),
       ),
     );
@@ -1787,7 +1830,7 @@ class _BankBrowserPageState extends State<BankBrowserPage> {
         if (!didPop) unawaited(_close());
       },
       child: Scaffold(
-        backgroundColor: QestoColors.background,
+        backgroundColor: context.qestoColors.background,
         body: SafeArea(
           child: ListenableBuilder(
             listenable: _controller,
@@ -1934,9 +1977,9 @@ class _BankBrowserToolbar extends StatelessWidget {
     return Container(
       height: 66,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: const BoxDecoration(
-        color: QestoColors.surface,
-        border: Border(bottom: BorderSide(color: QestoColors.border)),
+      decoration: BoxDecoration(
+        color: context.qestoColors.surface,
+        border: Border(bottom: BorderSide(color: context.qestoColors.border)),
       ),
       child: Row(
         children: [
@@ -1972,9 +2015,9 @@ class _BankBrowserToolbar extends StatelessWidget {
               height: 40,
               padding: const EdgeInsets.symmetric(horizontal: 13),
               decoration: BoxDecoration(
-                color: QestoColors.surfaceSecondary,
-                border: Border.all(color: QestoColors.border),
-                borderRadius: BorderRadius.circular(12),
+                color: context.qestoColors.surfaceSecondary,
+                border: Border.all(color: context.qestoColors.border),
+                borderRadius: QestoGeometry.control,
               ),
               child: Row(
                 children: [
@@ -1995,8 +2038,8 @@ class _BankBrowserToolbar extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     state.bank.displayName,
-                    style: const TextStyle(
-                      color: QestoColors.secondaryText,
+                    style: TextStyle(
+                      color: context.qestoColors.secondaryText,
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
                     ),
@@ -2011,7 +2054,7 @@ class _BankBrowserToolbar extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.orange.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: QestoGeometry.control,
                 border: Border.all(
                   color: Colors.orange.withValues(alpha: 0.45),
                 ),
@@ -2036,8 +2079,8 @@ class _BankBrowserToolbar extends StatelessWidget {
               padding: const EdgeInsets.only(right: 10),
               child: Text(
                 _sberStageLabel(report!.state),
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -2107,14 +2150,17 @@ class _BrowserStatus extends StatelessWidget {
     child: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, color: QestoColors.primary, size: 40),
+        Icon(icon, color: context.qestoColors.primary, size: 40),
         const SizedBox(height: 14),
         Text(
           title,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 6),
-        Text(message, style: const TextStyle(color: QestoColors.secondaryText)),
+        Text(
+          message,
+          style: TextStyle(color: context.qestoColors.secondaryText),
+        ),
         if (loading) ...[
           const SizedBox(height: 18),
           const SizedBox(

@@ -79,8 +79,8 @@ class StatisticsOperationsScreen extends StatelessWidget {
                       style: TextStyle(
                         fontWeight: FontWeight.w800,
                         color: transaction.type == TransactionType.refund
-                            ? QestoColors.green
-                            : QestoColors.text,
+                            ? context.qestoColors.green
+                            : context.qestoColors.text,
                       ),
                     ),
                   ),
@@ -156,7 +156,7 @@ class StatisticsCategoryScreen extends StatelessWidget {
                       )
                       ? Icons.star_rounded
                       : Icons.star_border_rounded,
-                  color: QestoColors.primary,
+                  color: context.qestoColors.primary,
                 ),
               ),
               const SizedBox(width: 8),
@@ -320,7 +320,7 @@ class StatisticsMerchantScreen extends StatelessWidget {
                   controller.isTracked(TrackedStatisticsType.merchant, merchant)
                       ? Icons.star_rounded
                       : Icons.star_border_rounded,
-                  color: QestoColors.primary,
+                  color: context.qestoColors.primary,
                 ),
               ),
               const SizedBox(width: 8),

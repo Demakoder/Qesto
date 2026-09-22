@@ -167,9 +167,12 @@ class _DesktopDebtsPageState extends State<DesktopDebtsPage> {
           ),
           if (data.hasUnconvertedCurrencies) ...[
             const SizedBox(height: 14),
-            const Text(
+            Text(
               'Часть валютных долгов не вошла в итог: для валюты нет курса пересчёта.',
-              style: TextStyle(color: QestoColors.warning, fontSize: 11),
+              style: TextStyle(
+                color: context.qestoColors.warning,
+                fontSize: 11,
+              ),
             ),
           ],
         ],
@@ -446,14 +449,14 @@ class _DesktopDebtsPageState extends State<DesktopDebtsPage> {
                     const SizedBox(height: 12),
                     Text(
                       error!,
-                      style: const TextStyle(color: QestoColors.danger),
+                      style: TextStyle(color: context.qestoColors.danger),
                     ),
                   ],
                   const SizedBox(height: 10),
-                  const Text(
+                  Text(
                     '* Для создания достаточно названия и текущего остатка. Неизвестные поля останутся пустыми.',
                     style: TextStyle(
-                      color: QestoColors.secondaryText,
+                      color: context.qestoColors.secondaryText,
                       fontSize: 10,
                     ),
                   ),
@@ -604,18 +607,15 @@ class _DebtsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Expanded(
+      Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Долги',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-            ),
+            Text('Долги', style: QestoTypography.sectionTitle),
             SizedBox(height: 4),
             Text(
               'Обязательства, их стоимость и путь к погашению',
-              style: TextStyle(color: QestoColors.secondaryText),
+              style: TextStyle(color: context.qestoColors.secondaryText),
             ),
           ],
         ),
@@ -683,10 +683,10 @@ class _DebtOverviewCard extends StatelessWidget {
                           : '${positive ? 'Долг уменьшился' : 'Долг вырос'} на ${formatMoney(change.abs(), data.baseCurrency)}${data.changePercent == null ? '' : ' · ${data.changePercent!.abs().toStringAsFixed(1)}%'}',
                       style: TextStyle(
                         color: change == null
-                            ? QestoColors.secondaryText
+                            ? context.qestoColors.secondaryText
                             : positive
-                            ? QestoColors.positive
-                            : QestoColors.warning,
+                            ? context.qestoColors.positive
+                            : context.qestoColors.warning,
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
@@ -803,10 +803,10 @@ class _DebtMetricCard extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: QestoColors.primarySoft,
-            borderRadius: BorderRadius.circular(11),
+            color: context.qestoColors.primarySoft,
+            borderRadius: QestoGeometry.control,
           ),
-          child: Icon(icon, size: 19, color: QestoColors.primary),
+          child: Icon(icon, size: 19, color: context.qestoColors.primary),
         ),
         const SizedBox(width: 11),
         Expanded(
@@ -815,8 +815,8 @@ class _DebtMetricCard extends StatelessWidget {
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 10,
                 ),
               ),
@@ -836,8 +836,8 @@ class _DebtMetricCard extends StatelessWidget {
                   detail!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 9,
                   ),
                 ),
@@ -865,9 +865,9 @@ class _DebtStructureCard extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         if (data.structure.isEmpty)
-          const Text(
+          Text(
             'Нет задолженности',
-            style: TextStyle(color: QestoColors.secondaryText),
+            style: TextStyle(color: context.qestoColors.secondaryText),
           )
         else ...[
           ClipRRect(
@@ -942,8 +942,8 @@ class _UpcomingDebtPaymentsCard extends StatelessWidget {
             if (data.nextPayments.isNotEmpty)
               Text(
                 '30 дней · ${formatMoney(data.next30DaysDebtPayments, data.baseCurrency)}',
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 10,
                   fontWeight: FontWeight.w700,
                 ),
@@ -952,9 +952,12 @@ class _UpcomingDebtPaymentsCard extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         if (data.nextPayments.isEmpty)
-          const Text(
+          Text(
             'Даты или суммы платежей пока не указаны.',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 11),
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
+              fontSize: 11,
+            ),
           )
         else
           for (final item in data.nextPayments)
@@ -977,7 +980,7 @@ class _UpcomingDebtPaymentsCard extends StatelessWidget {
                     height: 32,
                     decoration: BoxDecoration(
                       color: _debtTypeColor(item.type).withValues(alpha: 0.11),
-                      borderRadius: BorderRadius.circular(9),
+                      borderRadius: QestoGeometry.control,
                     ),
                     child: Icon(
                       _debtTypeIcon(item.type),
@@ -1001,8 +1004,8 @@ class _UpcomingDebtPaymentsCard extends StatelessWidget {
                         ),
                         Text(
                           item.creditor ?? _debtTypeLabel(item.type),
-                          style: const TextStyle(
-                            color: QestoColors.secondaryText,
+                          style: TextStyle(
+                            color: context.qestoColors.secondaryText,
                             fontSize: 9,
                           ),
                         ),
@@ -1047,7 +1050,7 @@ class _DebtCard extends StatelessWidget {
                 height: 38,
                 decoration: BoxDecoration(
                   color: _debtTypeColor(debt.type).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: QestoGeometry.control,
                 ),
                 child: Icon(
                   _debtTypeIcon(debt.type),
@@ -1073,8 +1076,8 @@ class _DebtCard extends StatelessWidget {
                       debt.institutionName ?? _debtTypeLabel(debt.type),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 10,
                       ),
                     ),
@@ -1092,9 +1095,12 @@ class _DebtCard extends StatelessWidget {
               numeric: true,
             ),
           ),
-          const Text(
+          Text(
             'осталось',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 10),
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
+              fontSize: 10,
+            ),
           ),
           const SizedBox(height: 14),
           Row(
@@ -1121,8 +1127,8 @@ class _DebtCard extends StatelessWidget {
             const SizedBox(height: 11),
             Text(
               'Следующий платёж · ${formatDate(debt.nextPaymentDate!, includeYear: true)}',
-              style: const TextStyle(
-                color: QestoColors.secondaryText,
+              style: TextStyle(
+                color: context.qestoColors.secondaryText,
                 fontSize: 10,
               ),
             ),
@@ -1132,14 +1138,14 @@ class _DebtCard extends StatelessWidget {
             DesktopProgressBar(
               value: insight.utilization!.clamp(0, 1),
               color: insight.utilization! > 0.8
-                  ? QestoColors.warning
-                  : QestoColors.primary,
+                  ? context.qestoColors.warning
+                  : context.qestoColors.primary,
             ),
             const SizedBox(height: 5),
             Text(
               'Использовано ${(insight.utilization! * 100).toStringAsFixed(1)}% лимита',
-              style: const TextStyle(
-                color: QestoColors.secondaryText,
+              style: TextStyle(
+                color: context.qestoColors.secondaryText,
                 fontSize: 9,
               ),
             ),
@@ -1161,7 +1167,7 @@ class _InlineDebtValue extends StatelessWidget {
     children: [
       Text(
         label,
-        style: const TextStyle(color: QestoColors.secondaryText, fontSize: 9),
+        style: TextStyle(color: context.qestoColors.secondaryText, fontSize: 9),
       ),
       const SizedBox(height: 3),
       Text(
@@ -1255,7 +1261,9 @@ class _DebtDetails extends StatelessWidget {
                     ),
                     Text(
                       '${debt.institutionName ?? 'Кредитор не указан'} · ${_debtTypeLabel(debt.type)}',
-                      style: const TextStyle(color: QestoColors.secondaryText),
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                      ),
                     ),
                   ],
                 ),
@@ -1303,8 +1311,8 @@ class _DebtDetails extends StatelessWidget {
                       points.length < 2
                           ? 'Пока известен только текущий остаток — Qesto не достраивает прошлое.'
                           : 'Сплошная линия показывает сохранённые снимки остатка.',
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 10,
                       ),
                     ),
@@ -1343,9 +1351,12 @@ class _DebtDetails extends StatelessWidget {
             onRefresh: () => onExtraChanged(extraMonthlyPayment),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             'Расчёты приблизительные. Фактический график зависит от условий банка, комиссий, страховок и правил досрочного погашения.',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 10),
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
+              fontSize: 10,
+            ),
           ),
         ],
       ),
@@ -1364,9 +1375,12 @@ class _DebtSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'Осталось',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 11),
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
+              fontSize: 11,
+            ),
           ),
           const SizedBox(height: 5),
           Text(
@@ -1465,8 +1479,8 @@ class _DetailLine extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
               fontSize: 10,
             ),
           ),
@@ -1506,9 +1520,12 @@ class _ExtraPaymentCard extends StatelessWidget {
           style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 5),
-        const Text(
+        Text(
           'Дополнительный ежемесячный платёж',
-          style: TextStyle(color: QestoColors.secondaryText, fontSize: 10),
+          style: TextStyle(
+            color: context.qestoColors.secondaryText,
+            fontSize: 10,
+          ),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -1529,9 +1546,12 @@ class _ExtraPaymentCard extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         if (simulation == null)
-          const Text(
+          Text(
             'Для прогноза укажите ежемесячный платёж. Для оценки процентов также нужна ставка.',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 11),
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
+              fontSize: 11,
+            ),
           )
         else
           Row(
@@ -1615,9 +1635,12 @@ class _OneTimePaymentCard extends StatelessWidget {
         ),
         const SizedBox(height: 14),
         if (simulation == null)
-          const Text(
+          Text(
             'Для модельного расчёта нужен известный ежемесячный платёж.',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 11),
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
+              fontSize: 11,
+            ),
           )
         else
           Row(
@@ -1665,7 +1688,10 @@ class _SimulationValue extends StatelessWidget {
     children: [
       Text(
         label,
-        style: const TextStyle(color: QestoColors.secondaryText, fontSize: 10),
+        style: TextStyle(
+          color: context.qestoColors.secondaryText,
+          fontSize: 10,
+        ),
       ),
       const SizedBox(height: 4),
       Text(
@@ -1685,8 +1711,8 @@ class _ScenarioBox extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(13),
     decoration: BoxDecoration(
-      color: QestoColors.surfaceSecondary,
-      borderRadius: BorderRadius.circular(12),
+      color: context.qestoColors.surfaceSecondary,
+      borderRadius: QestoGeometry.control,
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1701,8 +1727,8 @@ class _ScenarioBox extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 3),
             child: Text(
               line,
-              style: const TextStyle(
-                color: QestoColors.secondaryText,
+              style: TextStyle(
+                color: context.qestoColors.secondaryText,
                 fontSize: 10,
               ),
             ),
@@ -1777,13 +1803,16 @@ class _DebtQualityPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (label, color) = switch (quality) {
-      DebtDataQuality.verified => ('Подтверждено', QestoColors.positive),
-      DebtDataQuality.estimated => ('Расчёт', QestoColors.info),
-      DebtDataQuality.manual => ('Вручную', QestoColors.primary),
-      DebtDataQuality.stale => ('Устарело', QestoColors.warning),
+      DebtDataQuality.verified => (
+        'Подтверждено',
+        context.qestoColors.positive,
+      ),
+      DebtDataQuality.estimated => ('Расчёт', context.qestoColors.info),
+      DebtDataQuality.manual => ('Вручную', context.qestoColors.primary),
+      DebtDataQuality.stale => ('Устарело', context.qestoColors.warning),
       DebtDataQuality.incomplete => (
         'Не все данные',
-        QestoColors.secondaryText,
+        context.qestoColors.secondaryText,
       ),
     };
     return Container(
@@ -1811,13 +1840,22 @@ class _DebtTrendChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => CustomPaint(
-    painter: _DebtTrendPainter(points: points, currency: currency),
+    painter: _DebtTrendPainter(
+      c: context.qestoColors,
+      points: points,
+      currency: currency,
+    ),
     child: const SizedBox.expand(),
   );
 }
 
 class _DebtTrendPainter extends CustomPainter {
-  const _DebtTrendPainter({required this.points, required this.currency});
+  final QestoSemanticColors c;
+  const _DebtTrendPainter({
+    required this.c,
+    required this.points,
+    required this.currency,
+  });
   final List<DebtTrendPoint> points;
   final String currency;
 
@@ -1840,7 +1878,7 @@ class _DebtTrendPainter extends CustomPainter {
     final minRaw = values.isEmpty ? 0.0 : values.reduce(math.min);
     final minValue = math.max(0.0, minRaw * 0.92);
     final span = math.max(1.0, maxValue - minValue);
-    final gridPaint = Paint()..color = QestoColors.border;
+    final gridPaint = Paint()..color = c.border;
     for (var index = 0; index <= 3; index++) {
       final y = rect.bottom - rect.height * index / 3;
       canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), gridPaint);
@@ -1877,14 +1915,14 @@ class _DebtTrendPainter extends CustomPainter {
           ..shader = const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x223478F6), Color(0x003478F6)],
+            colors: [Color(0x22A3424F), Color(0x00A3424F)],
           ).createShader(rect),
       );
     }
     canvas.drawPath(
       path,
       Paint()
-        ..color = QestoColors.primary
+        ..color = c.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round
@@ -1893,7 +1931,7 @@ class _DebtTrendPainter extends CustomPainter {
     for (var index = 0; index < points.length; index++) {
       final offset = Offset(x(index), y(points[index].totalBalance));
       canvas.drawCircle(offset, 3.5, Paint()..color = Colors.white);
-      canvas.drawCircle(offset, 2.4, Paint()..color = QestoColors.primary);
+      canvas.drawCircle(offset, 2.4, Paint()..color = c.primary);
     }
     _paintText(
       canvas,
@@ -1922,7 +1960,11 @@ class _DebtTrendPainter extends CustomPainter {
     final painter = TextPainter(
       text: TextSpan(
         text: text,
-        style: const TextStyle(color: QestoColors.secondaryText, fontSize: 8),
+        style: TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: c.secondaryText,
+          fontSize: 8,
+        ),
       ),
       textDirection: TextDirection.ltr,
       textAlign: align,
@@ -1933,7 +1975,9 @@ class _DebtTrendPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DebtTrendPainter oldDelegate) =>
-      oldDelegate.points != points || oldDelegate.currency != currency;
+      oldDelegate.c != c ||
+      oldDelegate.points != points ||
+      oldDelegate.currency != currency;
 }
 
 int? _integer(String value) {
@@ -1973,10 +2017,10 @@ IconData _debtTypeIcon(DebtType type) => switch (type) {
 };
 
 Color _debtTypeColor(DebtType type) => switch (type) {
-  DebtType.mortgage => const Color(0xFF3478F6),
-  DebtType.personalLoan => const Color(0xFF8D63F6),
-  DebtType.creditCard => const Color(0xFFFF8A65),
-  DebtType.autoLoan => const Color(0xFF2DB6A3),
-  DebtType.installment => const Color(0xFFFFB347),
+  DebtType.mortgage => const Color(0xFF424A50),
+  DebtType.personalLoan => const Color(0xFF647079),
+  DebtType.creditCard => const Color(0xFF8B959C),
+  DebtType.autoLoan => const Color(0xFF747C81),
+  DebtType.installment => const Color(0xFFAEB6BD),
   DebtType.other => const Color(0xFF8A93A3),
 };

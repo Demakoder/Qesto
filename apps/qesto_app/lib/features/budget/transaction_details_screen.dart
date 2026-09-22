@@ -111,15 +111,15 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       ? 'Возврат'
                       : 'Расход',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: QestoColors.secondaryText,
+                    color: context.qestoColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 8),
                 AmountText(
                   formatMoney(transaction.amount, transaction.currency),
                   color: transaction.type == TransactionType.refund
-                      ? QestoColors.green
-                      : QestoColors.text,
+                      ? context.qestoColors.green
+                      : context.qestoColors.text,
                 ),
                 const SizedBox(height: 22),
                 _DetailRow(
@@ -165,7 +165,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             icon: const Icon(Icons.delete_outline_rounded),
             label: const Text('Удалить операцию'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: QestoColors.danger,
+              foregroundColor: context.qestoColors.danger,
               minimumSize: const Size.fromHeight(54),
             ),
           ),
@@ -197,7 +197,7 @@ class _ReceiptDetailsCard extends StatelessWidget {
               child: Text(
                 'Товары не распознаны',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ),
             )

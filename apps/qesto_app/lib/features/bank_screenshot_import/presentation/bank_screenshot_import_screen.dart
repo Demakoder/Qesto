@@ -222,7 +222,7 @@ class _BankScreenshotImportScreenState
                   const SizedBox(height: 14),
                   Text(
                     _error!,
-                    style: const TextStyle(color: QestoColors.orange),
+                    style: TextStyle(color: context.qestoColors.orange),
                   ),
                 ],
                 for (final warning in _warnings) ...[

@@ -59,11 +59,11 @@ class RhythmStatisticsSection extends StatelessWidget {
                 },
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Чем насыщеннее синий цвет, тем выше сумма расходов. Пустая ячейка — день без расходов.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ),
             ],
@@ -158,11 +158,11 @@ class MerchantsStatisticsSection extends StatelessWidget {
                 onTap: (item) => _open(context, item.id),
               ),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'Число в круге — количество покупок. В подписи указан средний чек.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ),
             ],
@@ -178,8 +178,8 @@ class MerchantsStatisticsSection extends StatelessWidget {
               LinearProgressIndicator(
                 value: concentration.clamp(0, 1),
                 minHeight: 14,
-                borderRadius: BorderRadius.circular(10),
-                backgroundColor: QestoColors.border,
+                borderRadius: QestoGeometry.control,
+                backgroundColor: context.qestoColors.border,
               ),
               const SizedBox(height: 12),
               Text(
@@ -311,7 +311,7 @@ class CashFlowStatisticsSection extends StatelessWidget {
               value: formatMoney(snapshot.summary.income, 'RUB'),
               caption: 'за выбранный период',
               icon: Icons.south_west_rounded,
-              valueColor: const Color(0xFF168C4A),
+              valueColor: context.qestoColors.positive,
             ),
             StatisticsMetricItem(
               label: 'Расходы',
@@ -372,9 +372,9 @@ class CashFlowStatisticsSection extends StatelessWidget {
                 for (final item in upcoming.take(4))
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.event_rounded,
-                      color: QestoColors.primary,
+                      color: context.qestoColors.primary,
                     ),
                     title: Text(
                       item.title,
@@ -561,12 +561,12 @@ class RecurringStatisticsSection extends StatelessWidget {
                       width: 42,
                       height: 42,
                       decoration: BoxDecoration(
-                        color: QestoColors.primarySoft,
-                        borderRadius: BorderRadius.circular(13),
+                        color: context.qestoColors.primarySoft,
+                        borderRadius: QestoGeometry.control,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.autorenew_rounded,
-                        color: QestoColors.primary,
+                        color: context.qestoColors.primary,
                       ),
                     ),
                     title: Text(
@@ -632,7 +632,7 @@ class _HorizontalValueRow extends StatelessWidget {
           value: value / math.max(maxValue, 1),
           minHeight: 7,
           borderRadius: BorderRadius.circular(6),
-          backgroundColor: QestoColors.border,
+          backgroundColor: context.qestoColors.border,
         ),
         const SizedBox(height: 4),
         Text(caption, style: Theme.of(context).textTheme.bodySmall),
@@ -780,13 +780,13 @@ class _CategoryPlanCard extends StatelessWidget {
                       value: item.progress.clamp(0, 1),
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(7),
-                      backgroundColor: QestoColors.border,
+                      backgroundColor: context.qestoColors.border,
                       valueColor: AlwaysStoppedAnimation(
                         !item.hasAssignedBudget
-                            ? QestoColors.secondaryText
+                            ? context.qestoColors.secondaryText
                             : item.isExceeded
-                            ? QestoColors.orange
-                            : QestoColors.primary,
+                            ? context.qestoColors.orange
+                            : context.qestoColors.primary,
                       ),
                     ),
                   ],
@@ -933,11 +933,11 @@ class _IncomeExpensePeriodsCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const Text(
+                      Text(
                         'Доход',
                         style: TextStyle(
                           fontSize: 12,
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                       const Spacer(),
@@ -952,18 +952,20 @@ class _IncomeExpensePeriodsCard extends StatelessWidget {
                     value: item.income / maxValue,
                     minHeight: 7,
                     borderRadius: BorderRadius.circular(6),
-                    backgroundColor: QestoColors.border,
-                    valueColor: const AlwaysStoppedAnimation(QestoColors.green),
+                    backgroundColor: context.qestoColors.border,
+                    valueColor: AlwaysStoppedAnimation(
+                      context.qestoColors.green,
+                    ),
                   ),
                   const SizedBox(height: 5),
                   Row(
                     children: [
                       const SizedBox(width: 68),
-                      const Text(
+                      Text(
                         'Расход',
                         style: TextStyle(
                           fontSize: 12,
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                       const Spacer(),
@@ -978,7 +980,7 @@ class _IncomeExpensePeriodsCard extends StatelessWidget {
                     value: item.expenses / maxValue,
                     minHeight: 7,
                     borderRadius: BorderRadius.circular(6),
-                    backgroundColor: QestoColors.border,
+                    backgroundColor: context.qestoColors.border,
                   ),
                 ],
               ),
@@ -1032,7 +1034,9 @@ class _CashFlowWaterfall extends StatelessWidget {
                     item.$3
                         ? Icons.add_circle_outline_rounded
                         : Icons.remove_circle_outline_rounded,
-                    color: item.$3 ? QestoColors.green : QestoColors.orange,
+                    color: item.$3
+                        ? context.qestoColors.green
+                        : context.qestoColors.orange,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1086,9 +1090,9 @@ class _IncomeSourcesCard extends StatelessWidget {
             for (final entry in groups.entries)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                leading: const Icon(
+                leading: Icon(
                   Icons.south_west_rounded,
-                  color: QestoColors.green,
+                  color: context.qestoColors.green,
                 ),
                 title: Text(entry.key),
                 trailing: Text(
@@ -1137,13 +1141,13 @@ class _BudgetPeriodRow extends StatelessWidget {
             value: ratio.clamp(0, 1),
             minHeight: 8,
             borderRadius: BorderRadius.circular(7),
-            backgroundColor: QestoColors.border,
+            backgroundColor: context.qestoColors.border,
             valueColor: AlwaysStoppedAnimation(
               !hasBudget
-                  ? QestoColors.secondaryText
+                  ? context.qestoColors.secondaryText
                   : ratio > 1
-                  ? QestoColors.orange
-                  : QestoColors.primary,
+                  ? context.qestoColors.orange
+                  : context.qestoColors.primary,
             ),
           ),
           const SizedBox(height: 4),
@@ -1158,10 +1162,10 @@ class _BudgetPeriodRow extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 color: !hasBudget
-                    ? QestoColors.secondaryText
+                    ? context.qestoColors.secondaryText
                     : ratio > 1
                     ? const Color(0xFFB76500)
-                    : const Color(0xFF168C4A),
+                    : context.qestoColors.positive,
                 fontWeight: FontWeight.w700,
               ),
             ),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_window.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/trash/transaction_trash_screen.dart';
@@ -83,7 +84,7 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                         orElse: () => null,
                       );
             return Padding(
-              padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
+              padding: QestoSpacing.workspace(context),
               child: Column(
                 children: [
                   DesktopCollapsibleFilters(
@@ -201,8 +202,8 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
                                   ),
-                                  decoration: const BoxDecoration(
-                                    color: QestoColors.surfaceSecondary,
+                                  decoration: BoxDecoration(
+                                    color: context.qestoColors.surfaceSecondary,
                                     borderRadius: BorderRadius.vertical(
                                       bottom: Radius.circular(16),
                                     ),
@@ -211,18 +212,21 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                                     children: [
                                       Text(
                                         'Показано ${transactions.length} из ${widget.controller.transactions.length}',
-                                        style: const TextStyle(
-                                          color: QestoColors.secondaryText,
+                                        style: TextStyle(
+                                          color:
+                                              context.qestoColors.secondaryText,
                                           fontSize: 11,
                                         ),
                                       ),
                                       const Spacer(),
                                       if (MediaQuery.sizeOf(context).width >=
                                           600)
-                                        const Text(
+                                        Text(
                                           'Строки виртуализированы',
                                           style: TextStyle(
-                                            color: QestoColors.secondaryText,
+                                            color: context
+                                                .qestoColors
+                                                .secondaryText,
                                             fontSize: 10,
                                           ),
                                         ),
@@ -407,13 +411,15 @@ class _FilterBar extends StatelessWidget {
             size: 16,
           ),
           label: const Text('Требуют проверки'),
-          side: const BorderSide(color: QestoColors.border),
-          selectedColor: QestoColors.primarySoft,
-          checkmarkColor: QestoColors.primary,
+          side: BorderSide(color: context.qestoColors.border),
+          selectedColor: context.qestoColors.primarySoft,
+          checkmarkColor: context.qestoColors.primary,
           labelStyle: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w700,
-            color: reviewOnly ? QestoColors.primary : QestoColors.text,
+            color: reviewOnly
+                ? context.qestoColors.primary
+                : context.qestoColors.text,
           ),
         ),
         TextButton.icon(
@@ -455,9 +461,9 @@ class _DropdownFilter<T> extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 130, maxWidth: 190),
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
-        color: QestoColors.surface,
-        border: Border.all(color: QestoColors.border),
-        borderRadius: BorderRadius.circular(11),
+        color: context.qestoColors.surface,
+        border: Border.all(color: context.qestoColors.border),
+        borderRadius: QestoGeometry.control,
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<T>(
@@ -465,13 +471,14 @@ class _DropdownFilter<T> extends StatelessWidget {
           isExpanded: true,
           hint: Row(
             children: [
-              Icon(icon, size: 16, color: QestoColors.secondaryText),
+              Icon(icon, size: 16, color: context.qestoColors.secondaryText),
               const SizedBox(width: 6),
               Flexible(child: Text(hint, overflow: TextOverflow.ellipsis)),
             ],
           ),
-          style: const TextStyle(
-            color: QestoColors.text,
+          style: TextStyle(
+            fontFamily: QestoTypography.uiFamily,
+            color: context.qestoColors.text,
             fontSize: 12,
             fontWeight: FontWeight.w600,
           ),
@@ -492,15 +499,15 @@ class _CandidateBanner extends StatelessWidget {
     final candidates = controller.pendingCandidates;
     return DesktopCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      color: const Color(0xFFFFF9EC),
-      borderColor: const Color(0xFFFFE6AE),
+      color: context.qestoColors.warning.withValues(alpha: .10),
+      borderColor: context.qestoColors.warning.withValues(alpha: .3),
       child: DesktopAdaptiveRow(
         wrapOnMobile: true,
         children: [
-          const Icon(
+          Icon(
             Icons.mic_none_rounded,
             size: 19,
-            color: QestoColors.warning,
+            color: context.qestoColors.warning,
           ),
           const SizedBox(width: 9),
           Expanded(
@@ -517,7 +524,7 @@ class _CandidateBanner extends StatelessWidget {
                 icon: const Icon(Icons.check_rounded, size: 16),
                 label: Text(candidate.merchantGuess ?? 'Подтвердить'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: QestoColors.text,
+                  foregroundColor: context.qestoColors.text,
                   side: const BorderSide(color: Color(0xFFFFD789)),
                   visualDensity: VisualDensity.compact,
                 ),
@@ -550,15 +557,15 @@ class _BulkBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return DesktopCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      color: QestoColors.primarySoft,
+      color: context.qestoColors.primarySoft,
       borderColor: const Color(0xFFD6E4FF),
       child: DesktopAdaptiveRow(
         wrapOnMobile: true,
         children: [
           Text(
             'Выбрано: ${selectedIds.length}',
-            style: const TextStyle(
-              color: QestoColors.primary,
+            style: TextStyle(
+              color: context.qestoColors.primary,
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
@@ -591,7 +598,7 @@ class _BulkBar extends StatelessWidget {
               );
               onChanged();
             },
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: QestoGeometry.control,
             child: const _BulkAction(
               icon: Icons.done_all_rounded,
               label: 'Проверено',
@@ -615,7 +622,7 @@ class _BulkBar extends StatelessWidget {
                 );
               }
             },
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: QestoGeometry.control,
             child: const _BulkAction(
               icon: Icons.file_download_outlined,
               label: 'Экспорт',
@@ -726,8 +733,8 @@ class _HeaderLabel extends StatelessWidget {
     alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
     child: Text(
       label,
-      style: const TextStyle(
-        color: QestoColors.secondaryText,
+      style: TextStyle(
+        color: context.qestoColors.secondaryText,
         fontSize: 10,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.25,
@@ -785,9 +792,9 @@ class _TransactionTableRow extends StatelessWidget {
                         ),
                         Text(
                           '${formatDate(transaction.date)} · ${desktopCategoryName(controller, transaction)}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: QestoColors.secondaryText,
+                            color: context.qestoColors.secondaryText,
                           ),
                         ),
                       ],
@@ -814,9 +821,9 @@ class _TransactionTableRow extends StatelessWidget {
         final showSource = constraints.maxWidth > 850;
         return Material(
           color: opened
-              ? QestoColors.primarySoft
+              ? context.qestoColors.primarySoft
               : selected
-              ? const Color(0xFFF7F9FD)
+              ? context.qestoColors.primarySoft
               : Colors.transparent,
           child: InkWell(
             onTap: onTap,
@@ -835,8 +842,8 @@ class _TransactionTableRow extends StatelessWidget {
                     width: 80,
                     child: Text(
                       '${transaction.date.day.toString().padLeft(2, '0')}.${transaction.date.month.toString().padLeft(2, '0')}',
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 11,
                       ),
                     ),
@@ -849,13 +856,13 @@ class _TransactionTableRow extends StatelessWidget {
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            color: QestoColors.surfaceSecondary,
-                            borderRadius: BorderRadius.circular(9),
+                            color: context.qestoColors.surfaceSecondary,
+                            borderRadius: QestoGeometry.control,
                           ),
-                          child: const Icon(
+                          child: Icon(
                             Icons.shopping_bag_outlined,
                             size: 16,
-                            color: QestoColors.secondaryText,
+                            color: context.qestoColors.secondaryText,
                           ),
                         ),
                         const SizedBox(width: 9),
@@ -880,8 +887,8 @@ class _TransactionTableRow extends StatelessWidget {
                                   transaction.normalizedMerchant!,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: QestoColors.secondaryText,
+                                  style: TextStyle(
+                                    color: context.qestoColors.secondaryText,
                                     fontSize: 9,
                                   ),
                                 ),
@@ -910,8 +917,8 @@ class _TransactionTableRow extends StatelessWidget {
                         desktopAccountName(controller, transaction),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       ),
@@ -923,8 +930,8 @@ class _TransactionTableRow extends StatelessWidget {
                         desktopSourceLabel(controller, transaction.id),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       ),
@@ -940,25 +947,23 @@ class _TransactionTableRow extends StatelessWidget {
                             ? Icons.error_outline_rounded
                             : Icons.check_circle_outline_rounded,
                         color: desktopNeedsReview(transaction)
-                            ? QestoColors.warning
-                            : QestoColors.positive,
+                            ? context.qestoColors.warning
+                            : context.qestoColors.positive,
                         size: 18,
                       ),
                     ),
                   ),
                   SizedBox(
                     width: 116,
-                    child: Text(
+                    child: QestoMoneyCell(
                       formatMoney(
                         desktopSignedAmount(transaction),
                         transaction.currency,
                         showSign: true,
                       ),
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: desktopAmountColor(transaction),
+                      color: desktopAmountColor(
+                        transaction,
+                        colors: context.qestoColors,
                       ),
                     ),
                   ),
@@ -1014,7 +1019,7 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
     final evidence = desktopEvidenceFor(widget.controller, transaction.id);
     return Material(
       elevation: 16,
-      color: QestoColors.surface,
+      color: context.qestoColors.surface,
       borderRadius: const BorderRadius.horizontal(left: Radius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: Column(
@@ -1022,8 +1027,10 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
           Container(
             height: 58,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: QestoColors.border)),
+            decoration: BoxDecoration(
+              border: Border(
+                bottom: BorderSide(color: context.qestoColors.border),
+              ),
             ),
             child: Row(
               children: [
@@ -1063,14 +1070,17 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.w900,
-                    color: desktopAmountColor(transaction),
+                    color: desktopAmountColor(
+                      transaction,
+                      colors: context.qestoColors,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 5),
                 Text(
                   '${formatDate(transaction.date, includeYear: true)} · ${transaction.date.hour.toString().padLeft(2, '0')}:${transaction.date.minute.toString().padLeft(2, '0')}',
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 11,
                   ),
                 ),
@@ -1140,7 +1150,7 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                         Icon(
                           desktopSourceIcon(item.sourceType),
                           size: 17,
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -1154,8 +1164,8 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                         ),
                         Text(
                           '${(item.confidence * 100).round()}%',
-                          style: const TextStyle(
-                            color: QestoColors.secondaryText,
+                          style: TextStyle(
+                            color: context.qestoColors.secondaryText,
                             fontSize: 10,
                           ),
                         ),
@@ -1164,11 +1174,11 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                   ),
                 Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Категория',
                         style: TextStyle(
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                           fontSize: 11,
                         ),
                       ),
@@ -1186,8 +1196,8 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                 DesktopProgressBar(
                   value: transaction.classificationConfidence,
                   color: transaction.classificationConfidence >= 0.8
-                      ? QestoColors.positive
-                      : QestoColors.warning,
+                      ? context.qestoColors.positive
+                      : context.qestoColors.warning,
                   height: 5,
                 ),
                 if (const bool.fromEnvironment('DEV_MODE')) ...[
@@ -1195,10 +1205,10 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                   const _DrawerLabel('Developer'),
                   SelectableText(
                     'transaction: ${transaction.id}\naccount: ${transaction.accountId}\nevidence: ${evidence.map((item) => item.id).join(', ')}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'monospace',
                       fontSize: 10,
-                      color: QestoColors.secondaryText,
+                      color: context.qestoColors.secondaryText,
                     ),
                   ),
                 ],
@@ -1207,8 +1217,10 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
           ),
           Container(
             padding: const EdgeInsets.all(14),
-            decoration: const BoxDecoration(
-              border: Border(top: BorderSide(color: QestoColors.border)),
+            decoration: BoxDecoration(
+              border: Border(
+                top: BorderSide(color: context.qestoColors.border),
+              ),
             ),
             child: Row(
               children: [
@@ -1248,9 +1260,9 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                       }
                     }
                   },
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.delete_outline_rounded,
-                    color: QestoColors.negative,
+                    color: context.qestoColors.negative,
                   ),
                 ),
                 const Spacer(),
@@ -1277,7 +1289,7 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                     }
                   },
                   style: FilledButton.styleFrom(
-                    backgroundColor: QestoColors.primary,
+                    backgroundColor: context.qestoColors.primary,
                   ),
                   child: const Text('Сохранить'),
                 ),
@@ -1299,8 +1311,8 @@ class _DrawerLabel extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: 6),
     child: Text(
       label,
-      style: const TextStyle(
-        color: QestoColors.secondaryText,
+      style: TextStyle(
+        color: context.qestoColors.secondaryText,
         fontSize: 10,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.35,

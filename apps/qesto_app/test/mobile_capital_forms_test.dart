@@ -39,6 +39,8 @@ void main() {
           matching: find.byType(Scrollable),
         ),
       );
+      await tester.ensureVisible(destination);
+      await tester.pumpAndSettle();
       await tester.tap(destination);
       await tester.pumpAndSettle();
       final button = route == 'liquidity'

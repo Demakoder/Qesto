@@ -50,42 +50,18 @@ class _QestoAppState extends State<QestoApp> {
         title: 'Qesto',
         debugShowCheckedModeBanner: false,
         theme: buildQestoTheme(),
+        darkTheme: buildQestoTheme(brightness: Brightness.dark),
+        themeMode: switch (_appearanceController.preference) {
+          QestoThemePreference.system => ThemeMode.system,
+          QestoThemePreference.light => ThemeMode.light,
+          QestoThemePreference.dark => ThemeMode.dark,
+        },
         builder: (context, child) {
           final content = child ?? const SizedBox.shrink();
-          final dark = _appearanceController.isDark(
-            MediaQuery.platformBrightnessOf(context),
-          );
+
           return AppAppearanceScope(
             controller: _appearanceController,
-            child: QestoDarkSurface(
-              enabled: dark,
-              child: LayoutBuilder(
-                builder: (context, constraints) => ColoredBox(
-                  color: const Color(0xFFEFF2F7),
-                  child: constraints.maxWidth >= 900
-                      ? MediaQuery(
-                          data: MediaQuery.of(
-                            context,
-                          ).copyWith(size: constraints.biggest),
-                          child: content,
-                        )
-                      : Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 520),
-                            child: MediaQuery(
-                              data: MediaQuery.of(context).copyWith(
-                                size: Size(
-                                  constraints.maxWidth.clamp(0, 520).toDouble(),
-                                  constraints.maxHeight,
-                                ),
-                              ),
-                              child: content,
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            ),
+            child: content,
           );
         },
         home: _AppDataLoader(repository: widget.repository),

@@ -249,7 +249,7 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
                 icon: const Icon(Icons.delete_outline_rounded),
                 label: const Text('Удалить'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: QestoColors.danger,
+                  foregroundColor: context.qestoColors.danger,
                   minimumSize: const Size.fromHeight(54),
                 ),
               ),

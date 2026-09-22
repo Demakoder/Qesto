@@ -90,9 +90,9 @@ class DealCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 6),
-          const Icon(
+          Icon(
             Icons.chevron_right_rounded,
-            color: QestoColors.secondaryText,
+            color: context.qestoColors.secondaryText,
           ),
         ],
       ),
@@ -119,7 +119,7 @@ class _DealIcon extends StatelessWidget {
             height: 62,
             decoration: BoxDecoration(
               color: visual.color.withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: QestoGeometry.control,
             ),
             child: Icon(visual.icon, color: visual.color, size: 36),
           ),
@@ -130,7 +130,7 @@ class _DealIcon extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
-                  color: QestoColors.surface,
+                  color: context.qestoColors.surface,
                   borderRadius: BorderRadius.circular(99),
                   border: Border.all(
                     color: visual.color.withValues(alpha: 0.45),
@@ -177,7 +177,7 @@ class TrackedProductCard extends StatelessWidget {
             height: 62,
             decoration: BoxDecoration(
               color: visual.color.withValues(alpha: 0.13),
-              borderRadius: BorderRadius.circular(17),
+              borderRadius: QestoGeometry.control,
             ),
             child: Icon(visual.icon, color: visual.color, size: 35),
           ),
@@ -206,7 +206,9 @@ class TrackedProductCard extends StatelessWidget {
                     Text(
                       '${falling ? '↓' : '↑'} ${product.changePercent.abs().toStringAsFixed(1)}%',
                       style: TextStyle(
-                        color: falling ? QestoColors.green : QestoColors.danger,
+                        color: falling
+                            ? context.qestoColors.green
+                            : context.qestoColors.danger,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                       ),
@@ -221,9 +223,9 @@ class TrackedProductCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(
+          Icon(
             Icons.chevron_right_rounded,
-            color: QestoColors.secondaryText,
+            color: context.qestoColors.secondaryText,
           ),
         ],
       ),

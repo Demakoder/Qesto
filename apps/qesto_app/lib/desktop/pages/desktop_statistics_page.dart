@@ -203,8 +203,8 @@ class _StatisticsToolbar extends StatelessWidget {
       children: [
         Text(
           '${controller.section.label} · аналитика',
-          style: const TextStyle(
-            color: QestoColors.text,
+          style: TextStyle(
+            color: context.qestoColors.text,
             fontSize: 21,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.35,
@@ -213,8 +213,8 @@ class _StatisticsToolbar extends StatelessWidget {
         const SizedBox(height: 3),
         Text(
           statisticsRangeLabel(controller.query.period),
-          style: const TextStyle(
-            color: QestoColors.secondaryText,
+          style: TextStyle(
+            color: context.qestoColors.secondaryText,
             fontSize: 11,
           ),
         ),
@@ -249,7 +249,7 @@ class _StatisticsToolbar extends StatelessWidget {
                 ? 'Фильтры'
                 : 'Фильтры · ${controller.query.activeFilterCount}',
           ),
-          style: _toolbarButtonStyle(),
+          style: _toolbarButtonStyle(context),
         ),
         if (controller.query.activeFilterCount > 0)
           TextButton(
@@ -261,8 +261,8 @@ class _StatisticsToolbar extends StatelessWidget {
           label: 'Качество ${controller.snapshot.dataQuality.score}%',
           icon: Icons.verified_user_outlined,
           color: controller.snapshot.dataQuality.score >= 80
-              ? QestoColors.positive
-              : QestoColors.warning,
+              ? context.qestoColors.positive
+              : context.qestoColors.warning,
         ),
       ],
     );
@@ -273,9 +273,11 @@ class _StatisticsToolbar extends StatelessWidget {
         return Container(
           width: double.infinity,
           padding: const EdgeInsets.fromLTRB(26, 18, 26, 12),
-          decoration: const BoxDecoration(
-            color: QestoColors.background,
-            border: Border(bottom: BorderSide(color: QestoColors.border)),
+          decoration: BoxDecoration(
+            color: context.qestoColors.background,
+            border: Border(
+              bottom: BorderSide(color: context.qestoColors.border),
+            ),
           ),
           child: compact
               ? Column(
@@ -323,21 +325,26 @@ class _StatisticsPopupButton<T> extends StatelessWidget {
         onPressed: () {},
         icon: Icon(icon, size: 17),
         label: Text(label),
-        style: _toolbarButtonStyle(),
+        style: _toolbarButtonStyle(context),
       ),
     ),
   );
 }
 
-ButtonStyle _toolbarButtonStyle() => OutlinedButton.styleFrom(
-  foregroundColor: QestoColors.text,
-  side: const BorderSide(color: QestoColors.border),
-  backgroundColor: QestoColors.surface,
-  visualDensity: VisualDensity.compact,
-  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-  textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
-  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-);
+ButtonStyle _toolbarButtonStyle(BuildContext context) =>
+    OutlinedButton.styleFrom(
+      foregroundColor: context.qestoColors.text,
+      side: BorderSide(color: context.qestoColors.border),
+      backgroundColor: context.qestoColors.surface,
+      visualDensity: VisualDensity.compact,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      textStyle: const TextStyle(
+        fontFamily: QestoTypography.uiFamily,
+        fontSize: 12,
+        fontWeight: FontWeight.w700,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: QestoGeometry.control),
+    );
 
 class _DataQualityNotice extends StatelessWidget {
   const _DataQualityNotice({required this.snapshot});
@@ -350,23 +357,25 @@ class _DataQualityNotice extends StatelessWidget {
     margin: const EdgeInsets.fromLTRB(26, 3, 26, 0),
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
     decoration: BoxDecoration(
-      color: const Color(0xFFFFF7E8),
-      borderRadius: BorderRadius.circular(11),
-      border: Border.all(color: const Color(0xFFFFE0A8)),
+      color: context.qestoColors.warning.withValues(alpha: .10),
+      borderRadius: QestoGeometry.control,
+      border: Border.all(
+        color: context.qestoColors.warning.withValues(alpha: .3),
+      ),
     ),
     child: Row(
       children: [
-        const Icon(
+        Icon(
           Icons.info_outline_rounded,
           size: 17,
-          color: QestoColors.warning,
+          color: context.qestoColors.warning,
         ),
         const SizedBox(width: 9),
         Expanded(
           child: Text(
             'Качество данных ${snapshot.dataQuality.score}% · требуют внимания: ${snapshot.dataQuality.issues.length}',
-            style: const TextStyle(
-              color: QestoColors.text,
+            style: TextStyle(
+              color: context.qestoColors.text,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),

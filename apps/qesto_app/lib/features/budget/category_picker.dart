@@ -15,7 +15,7 @@ Future<BudgetCategory?> showBudgetCategoryPicker({
     useSafeArea: true,
     isScrollControlled: true,
     showDragHandle: true,
-    backgroundColor: QestoColors.background,
+    backgroundColor: context.qestoColors.background,
     builder: (_) => FractionallySizedBox(
       heightFactor: 0.86,
       child: _CategoryPicker(
@@ -172,11 +172,11 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                 TextField(
                   controller: _searchController,
                   onChanged: (_) => setState(() {}),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: 'Поиск категории',
                     prefixIcon: Icon(Icons.search_rounded),
                     filled: true,
-                    fillColor: QestoColors.surface,
+                    fillColor: context.qestoColors.surface,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.all(Radius.circular(16)),
                       borderSide: BorderSide.none,
@@ -185,12 +185,14 @@ class _CategoryPickerState extends State<_CategoryPicker> {
                 ),
                 const SizedBox(height: 12),
                 if (filtered.isEmpty)
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.all(20),
                     child: Text(
                       'Категория не найдена',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: QestoColors.secondaryText),
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                      ),
                     ),
                   )
                 else
@@ -252,9 +254,9 @@ class _CategoryListTile extends StatelessWidget {
         category.name,
         style: const TextStyle(fontWeight: FontWeight.w700),
       ),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.chevron_right_rounded,
-        color: QestoColors.secondaryText,
+        color: context.qestoColors.secondaryText,
       ),
     );
   }

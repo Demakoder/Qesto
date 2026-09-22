@@ -21,10 +21,10 @@ int desktopSignedAmount(BudgetTransaction transaction) =>
       _ => -transaction.amount,
     };
 
-Color desktopAmountColor(BudgetTransaction transaction) =>
-    desktopSignedAmount(transaction) > 0
-    ? QestoColors.positive
-    : QestoColors.text;
+Color desktopAmountColor(
+  BudgetTransaction transaction, {
+  QestoSemanticColors colors = QestoSemanticColors.light,
+}) => desktopSignedAmount(transaction) > 0 ? colors.positive : colors.text;
 
 String desktopCategoryName(
   BudgetController controller,

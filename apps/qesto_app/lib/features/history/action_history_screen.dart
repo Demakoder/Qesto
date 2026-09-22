@@ -90,17 +90,17 @@ class _ActionCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: action.isUndone
-                  ? QestoColors.border
-                  : QestoColors.primarySoft,
-              borderRadius: BorderRadius.circular(14),
+                  ? context.qestoColors.border
+                  : context.qestoColors.primarySoft,
+              borderRadius: QestoGeometry.control,
             ),
             child: Icon(
               action.type == FinancialActionType.statementImport
                   ? Icons.upload_file_rounded
                   : Icons.add_circle_outline_rounded,
               color: action.isUndone
-                  ? QestoColors.secondaryText
-                  : QestoColors.primary,
+                  ? context.qestoColors.secondaryText
+                  : context.qestoColors.primary,
             ),
           ),
           const SizedBox(width: 12),

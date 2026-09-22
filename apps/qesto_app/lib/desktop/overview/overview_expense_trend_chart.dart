@@ -1,9 +1,8 @@
 import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
-
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_window.dart';
 import 'desktop_overview_data.dart';
 
 class OverviewExpenseTrendChart extends StatefulWidget {
@@ -14,12 +13,10 @@ class OverviewExpenseTrendChart extends StatefulWidget {
     this.height = 285,
     super.key,
   });
-
   final List<OverviewTrendPoint> points;
   final String currency;
   final OverviewTrendGranularity granularity;
   final double height;
-
   @override
   State<OverviewExpenseTrendChart> createState() =>
       _OverviewExpenseTrendChartState();
@@ -27,7 +24,6 @@ class OverviewExpenseTrendChart extends StatefulWidget {
 
 class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
   int? _hoveredIndex;
-
   List<OverviewTrendPoint> get _visiblePoints {
     if (widget.granularity == OverviewTrendGranularity.days ||
         widget.points.length <= 8) {
@@ -46,145 +42,222 @@ class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
   @override
   Widget build(BuildContext context) {
     final points = _visiblePoints;
-    if (points.isEmpty || points.every((item) => item.amount == 0)) {
-      return SizedBox(
+    final colors = context.qestoColors;
+    final scaler = MediaQuery.textScalerOf(context);
+    return QestoChartSurface(
+      child: SizedBox(
         height: widget.height,
-        child: const Center(
-          child: Text(
-            'Расходов за выбранный период пока нет',
-            style: TextStyle(color: QestoColors.secondaryText, fontSize: 13),
-          ),
-        ),
-      );
-    }
-    return Semantics(
-      label: 'График расходов за выбранный период',
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          const left = 54.0;
-          const right = 16.0;
-          final width = math.max(1, constraints.maxWidth - left - right);
-          return Listener(
-            onPointerDown: (event) {
-              final ratio = ((event.localPosition.dx - left) / width).clamp(
-                0,
-                1,
-              );
-              setState(
-                () => _hoveredIndex = points.length == 1
-                    ? 0
-                    : (ratio * (points.length - 1)).round(),
-              );
-            },
-            child: MouseRegion(
-              onExit: (_) => setState(() => _hoveredIndex = null),
-              onHover: (event) {
-                final ratio = ((event.localPosition.dx - left) / width).clamp(
-                  0,
-                  1,
-                );
-                final index = points.length == 1
-                    ? 0
-                    : (ratio * (points.length - 1)).round();
-                if (index != _hoveredIndex) {
-                  setState(() => _hoveredIndex = index);
-                }
-              },
-              child: SizedBox(
-                height: widget.height,
-                child: Stack(
-                  children: [
-                    Positioned.fill(
-                      child: CustomPaint(
-                        painter: _ExpenseTrendPainter(
-                          points: points,
-                          hoveredIndex: _hoveredIndex,
-                          currency: widget.currency,
-                        ),
-                      ),
+        child: points.isEmpty || points.every((p) => p.amount == 0)
+            ? Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    'Расходов за выбранный период пока нет',
+                    style: QestoTypography.caption.copyWith(
+                      color: colors.secondaryText,
                     ),
-                    if (_hoveredIndex case final index?)
-                      Positioned(
-                        top: 12,
-                        left: _tooltipLeft(
-                          index,
-                          points.length,
-                          constraints.maxWidth,
-                        ),
-                        child: IgnorePointer(
-                          child: _TrendTooltip(
-                            point: points[index],
-                            currency: widget.currency,
-                          ),
+                  ),
+                ),
+              )
+            : Semantics(
+                label: 'График расходов за выбранный период',
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final geometry = OverviewTrendGeometry.compute(
+                      constraints.biggest,
+                      points,
+                      widget.currency,
+                      scaler,
+                    );
+                    final selected = _hoveredIndex?.clamp(0, points.length - 1);
+                    void select(Offset position) {
+                      final index = geometry.indexAt(
+                        position.dx,
+                        points.length,
+                      );
+                      if (index != _hoveredIndex) {
+                        setState(() => _hoveredIndex = index);
+                      }
+                    }
+
+                    final tooltipWidth = math.min(
+                      250.0,
+                      math.max(1.0, constraints.maxWidth - 16),
+                    );
+                    final tooltipLeft = selected == null
+                        ? 0.0
+                        : (geometry.x(selected, points.length) -
+                                  tooltipWidth / 2)
+                              .clamp(
+                                8.0,
+                                math.max(
+                                  8.0,
+                                  constraints.maxWidth - tooltipWidth - 8,
+                                ),
+                              );
+                    return Listener(
+                      onPointerDown: (event) => select(event.localPosition),
+                      child: MouseRegion(
+                        onExit: (_) => setState(() => _hoveredIndex = null),
+                        onHover: (event) => select(event.localPosition),
+                        child: Stack(
+                          children: [
+                            Positioned.fill(
+                              child: CustomPaint(
+                                painter: _ExpenseTrendPainter(
+                                  points: points,
+                                  hoveredIndex: selected,
+                                  currency: widget.currency,
+                                  geometry: geometry,
+                                  colors: colors,
+                                  scaler: scaler,
+                                ),
+                              ),
+                            ),
+                            if (selected != null)
+                              Positioned(
+                                top: 8,
+                                left: tooltipLeft.toDouble(),
+                                width: tooltipWidth,
+                                child: IgnorePointer(
+                                  child: _TrendTooltip(
+                                    point: points[selected],
+                                    currency: widget.currency,
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
                       ),
-                  ],
+                    );
+                  },
                 ),
               ),
-            ),
-          );
-        },
       ),
     );
   }
+}
 
-  double _tooltipLeft(int index, int length, double width) {
-    final x = 54 + (width - 70) * (length <= 1 ? 0 : index / (length - 1));
-    return (x - 77).clamp(4, math.max(4, width - 158));
+/// Canvas margins and hit testing share exactly the same local geometry.
+/// Labels are measured with the selected font/text scale, not clipped to 48px.
+class OverviewTrendGeometry {
+  const OverviewTrendGeometry({
+    required this.size,
+    required this.plot,
+    required this.maximum,
+    required this.yLabels,
+    required this.xLabels,
+  });
+  final Size size;
+  final Rect plot;
+  final double maximum;
+  final List<String> yLabels;
+  final Map<int, String> xLabels;
+
+  static TextPainter label(String text, TextScaler scaler, Color color) =>
+      TextPainter(
+        text: TextSpan(
+          text: text,
+          style: QestoTypography.metadata.copyWith(fontSize: 10, color: color),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+      )..layout();
+
+  static OverviewTrendGeometry compute(
+    Size size,
+    List<OverviewTrendPoint> points,
+    String currency,
+    TextScaler scaler,
+  ) {
+    final maximum =
+        math.max(
+          1,
+          points.fold<int>(0, (value, item) => math.max(value, item.amount)),
+        ) *
+        1.1;
+    final yLabels = List.generate(
+      5,
+      (i) => formatCompactMoney(maximum * i / 4, currency),
+    );
+    final xLabels = {
+      if (points.isNotEmpty)
+        for (final i in <int>{0, points.length ~/ 2, points.length - 1})
+          i: formatDate(points[i].date),
+    };
+    final yWidth = yLabels
+        .map((s) => label(s, scaler, Colors.black).width)
+        .reduce(math.max);
+    final labelHeight = label('0 ₽', scaler, Colors.black).height;
+    final left = yWidth + 16;
+    final top = labelHeight / 2 + 12;
+    final bottom = labelHeight + 18;
+    return OverviewTrendGeometry(
+      size: size,
+      plot: Rect.fromLTRB(
+        left,
+        top,
+        math.max(left + 1, size.width - 12),
+        math.max(top + 1, size.height - bottom),
+      ),
+      maximum: maximum,
+      yLabels: yLabels,
+      xLabels: xLabels,
+    );
+  }
+
+  double x(int index, int length) =>
+      plot.left + plot.width * (length <= 1 ? .5 : index / (length - 1));
+  int indexAt(double dx, int length) => length <= 1
+      ? 0
+      : (((dx - plot.left) / plot.width).clamp(0, 1) * (length - 1)).round();
+  Rect xLabelBounds(int index, int length, TextScaler scaler) {
+    final painter = label(xLabels[index]!, scaler, Colors.black);
+    final left = (x(index, length) - painter.width / 2).clamp(
+      4.0,
+      math.max(4.0, size.width - painter.width - 4),
+    );
+    return Rect.fromLTWH(
+      left.toDouble(),
+      plot.bottom + 8,
+      painter.width,
+      painter.height,
+    );
   }
 }
 
 class _TrendTooltip extends StatelessWidget {
   const _TrendTooltip({required this.point, required this.currency});
-
   final OverviewTrendPoint point;
   final String currency;
-
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 154,
-      padding: const EdgeInsets.all(11),
-      decoration: BoxDecoration(
-        color: const Color(0xFF172033),
-        borderRadius: BorderRadius.circular(11),
-        boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 14)],
-      ),
-      child: DefaultTextStyle(
-        style: const TextStyle(color: Colors.white, fontSize: 11),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              formatDate(point.date),
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: QestoColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    'Расходы ${formatMoney(point.amount, currency)}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ],
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: context.qestoColors.chartTooltip,
+      border: Border.all(color: context.qestoColors.border),
+      borderRadius: QestoGeometry.control,
+      boxShadow: QestoGeometry.focusShadow,
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          formatDate(point.date),
+          style: QestoTypography.uiStrong.copyWith(
+            color: context.qestoColors.text,
+          ),
         ),
-      ),
-    );
-  }
+        const SizedBox(height: 6),
+        Text(
+          'Расходы ${formatMoney(point.amount, currency)}',
+          style: QestoTypography.table.copyWith(
+            color: context.qestoColors.negative,
+          ),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ExpenseTrendPainter extends CustomPainter {
@@ -192,56 +265,54 @@ class _ExpenseTrendPainter extends CustomPainter {
     required this.points,
     required this.hoveredIndex,
     required this.currency,
+    required this.geometry,
+    required this.colors,
+    required this.scaler,
   });
-
   final List<OverviewTrendPoint> points;
   final int? hoveredIndex;
   final String currency;
-
+  final OverviewTrendGeometry geometry;
+  final QestoSemanticColors colors;
+  final TextScaler scaler;
   @override
   void paint(Canvas canvas, Size size) {
-    const left = 54.0;
-    const top = 24.0;
-    const right = 16.0;
-    const bottom = 35.0;
-    final plot = Rect.fromLTRB(
-      left,
-      top,
-      size.width - right,
-      size.height - bottom,
-    );
-    final maximum = math.max(
-      1,
-      points.fold<int>(0, (value, item) => math.max(value, item.amount)),
-    );
-    final maxValue = maximum * 1.1;
-    final gridPaint = Paint()
-      ..color = QestoColors.border
-      ..strokeWidth = 1;
-    for (var index = 0; index <= 4; index++) {
-      final y = plot.bottom - plot.height * index / 4;
-      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), gridPaint);
-      _paintText(
+    final plot = geometry.plot;
+    for (var i = 0; i <= 4; i++) {
+      final y = plot.bottom - plot.height * i / 4;
+      canvas.drawLine(
+        Offset(plot.left, y),
+        Offset(plot.right, y),
+        Paint()
+          ..color = colors.chartGrid
+          ..strokeWidth = .7,
+      );
+      final label = OverviewTrendGeometry.label(
+        geometry.yLabels[i],
+        scaler,
+        colors.chartAxis,
+      );
+      label.paint(
         canvas,
-        formatCompactMoney(maxValue * index / 4, currency),
-        Offset(0, y - 7),
-        48,
-        const TextStyle(color: QestoColors.secondaryText, fontSize: 9),
+        Offset(plot.left - label.width - 8, y - label.height / 2),
       );
     }
-
     final path = Path();
-    for (var index = 0; index < points.length; index++) {
-      final point = Offset(
-        _x(index, plot),
-        plot.bottom - plot.height * points[index].amount / maxValue,
-      );
-      if (index == 0) {
+    Offset pointAt(int i) => Offset(
+      geometry.x(i, points.length),
+      plot.bottom - plot.height * points[i].amount / geometry.maximum,
+    );
+    for (var i = 0; i < points.length; i++) {
+      final point = pointAt(i);
+      if (i == 0) {
         path.moveTo(point.dx, point.dy);
       } else {
         path.lineTo(point.dx, point.dy);
       }
     }
+    // Clip only the data plot, never the axis labels or tooltip overlay.
+    canvas.save();
+    canvas.clipRect(plot.inflate(5));
     if (points.length > 1) {
       final fill = Path.from(path)
         ..lineTo(plot.right, plot.bottom)
@@ -250,78 +321,57 @@ class _ExpenseTrendPainter extends CustomPainter {
       canvas.drawPath(
         fill,
         Paint()
-          ..shader = const LinearGradient(
+          ..shader = LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0x333478F6), Color(0x003478F6)],
+            colors: [
+              colors.negative.withValues(alpha: .12),
+              colors.negative.withValues(alpha: .01),
+            ],
           ).createShader(plot),
       );
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = QestoColors.primary
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round,
-    );
-
-    final labelIndices = <int>{0, points.length ~/ 2, points.length - 1};
-    for (final index in labelIndices) {
-      final point = points[index];
-      _paintText(
-        canvas,
-        formatDate(point.date),
-        Offset(_x(index, plot) - 28, plot.bottom + 10),
-        56,
-        const TextStyle(color: QestoColors.secondaryText, fontSize: 9),
-        align: TextAlign.center,
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = colors.negative
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.8
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round,
       );
+    } else {
+      canvas.drawCircle(pointAt(0), 3, Paint()..color = colors.negative);
     }
-
     if (hoveredIndex case final index?) {
-      final x = _x(index, plot);
-      final y = plot.bottom - plot.height * points[index].amount / maxValue;
+      final point = pointAt(index);
       canvas.drawLine(
-        Offset(x, plot.top),
-        Offset(x, plot.bottom),
-        Paint()..color = QestoColors.text.withValues(alpha: 0.15),
+        Offset(point.dx, plot.top),
+        Offset(point.dx, plot.bottom),
+        Paint()..color = colors.secondaryText.withValues(alpha: .45),
       );
-      canvas.drawCircle(Offset(x, y), 5, Paint()..color = Colors.white);
-      canvas.drawCircle(
-        Offset(x, y),
-        3.4,
-        Paint()..color = QestoColors.primary,
+      canvas.drawCircle(point, 5, Paint()..color = colors.surface);
+      canvas.drawCircle(point, 3.4, Paint()..color = colors.negative);
+    }
+    canvas.restore();
+    for (final entry in geometry.xLabels.entries) {
+      final label = OverviewTrendGeometry.label(
+        entry.value,
+        scaler,
+        colors.chartAxis,
+      );
+      label.paint(
+        canvas,
+        geometry.xLabelBounds(entry.key, points.length, scaler).topLeft,
       );
     }
-  }
-
-  double _x(int index, Rect plot) => points.length <= 1
-      ? plot.left
-      : plot.left + plot.width * index / (points.length - 1);
-
-  void _paintText(
-    Canvas canvas,
-    String value,
-    Offset offset,
-    double width,
-    TextStyle style, {
-    TextAlign align = TextAlign.left,
-  }) {
-    final painter = TextPainter(
-      text: TextSpan(text: value, style: style),
-      textAlign: align,
-      textDirection: TextDirection.ltr,
-      maxLines: 1,
-      ellipsis: '…',
-    )..layout(maxWidth: width);
-    painter.paint(canvas, offset);
   }
 
   @override
-  bool shouldRepaint(covariant _ExpenseTrendPainter oldDelegate) =>
-      oldDelegate.points != points ||
-      oldDelegate.hoveredIndex != hoveredIndex ||
-      oldDelegate.currency != currency;
+  bool shouldRepaint(covariant _ExpenseTrendPainter old) =>
+      old.points != points ||
+      old.hoveredIndex != hoveredIndex ||
+      old.currency != currency ||
+      old.geometry.size != geometry.size ||
+      old.colors != colors ||
+      old.scaler != scaler;
 }

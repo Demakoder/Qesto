@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ru" data-material="silver">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Qesto Desktop — Win95 × Aero / Design Lab 2.0</title>
+<style>
+/* Autonomous prototype. No assets, network, storage or application integration.
+   Material tokens → system chrome → windows → financial content → compact layout. */
+:root{
+  color-scheme:light;--desk:#e8ebeb;--desk-light:#f4f5f1;--body:#fbfcfa;--well:#f5f7f6;
+  --metal-light:#f8fafb;--metal:#e3e8eb;--metal-low:#d3dbe0;--active-light:#dfe8ee;--active-low:#bfcdd6;
+  --ink:#243139;--muted:#606f77;--border:#8e9da6;--line:#dce2e3;--white:#fff;--bevel-low:#afbbc3;
+  --green:#00764f;--red:#8b2f41;--green-soft:#e8f2ec;--red-soft:#f7edef;--select:#dfe9ee;
+  --shadow:0 2px 3px #23394712,0 13px 24px -17px #26394650;--hover:0 4px 6px #23394719,0 18px 30px -18px #26394670;
+  --focus:#3c6275;--ui:'Segoe UI',Arial,sans-serif;--display:Georgia,'Times New Roman',serif;--mono:Consolas,'Liberation Mono',monospace;
+  --header:51px;--menu:39px;--taskbar:44px;
+}
+html[data-material="graphite"]{color-scheme:dark;--desk:#273138;--desk-light:#364047;--body:#303c43;--well:#29353d;--metal-light:#59676f;--metal:#43515a;--metal-low:#36434c;--active-light:#637984;--active-low:#475c68;--ink:#f0f4f2;--muted:#bdcbd1;--border:#71838d;--line:#4c5c65;--white:#899ba4;--bevel-low:#29343b;--green:#80d3ad;--red:#f1a5b2;--green-soft:#28453b;--red-soft:#4c3742;--select:#465e6a;--focus:#b1d8e5;--shadow:0 7px 16px #0003;--hover:0 12px 24px #0005}
+html[data-material="paper"]{color-scheme:light;--desk:#e6e2d6;--desk-light:#f3efe5;--body:#fffdf5;--well:#f7f3e9;--metal-light:#fffdf3;--metal:#ece7da;--metal-low:#ded7c7;--active-light:#eee8d7;--active-low:#d4cbb5;--ink:#34382f;--muted:#6b6c5d;--border:#a39f8a;--line:#e5dfd0;--white:#fffef9;--bevel-low:#bdb5a1;--green:#3f724d;--red:#933e46;--green-soft:#edf2e6;--red-soft:#f4e8e1;--select:#ece5d2;--focus:#69673b;--shadow:0 3px 0 -1px #b3a98c70;--hover:0 6px 12px #7c735626}
+*{box-sizing:border-box}body{margin:0;background:var(--desk);color:var(--ink);font:12px/1.45 var(--ui)}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{cursor:default;opacity:.5}[hidden]{display:none!important}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.mono{font:10px var(--mono);letter-spacing:.035em}.muted{color:var(--muted)}.positive{color:var(--green)}.negative{color:var(--red)}
+.metal{background:linear-gradient(180deg,var(--metal-light),var(--metal) 55%,var(--metal-low));box-shadow:inset 0 1px var(--white)}
+.raised{border:1px solid var(--border);border-radius:2px;background:linear-gradient(var(--metal-light),var(--metal));box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),0 1px 1px #1c34450a}
+.raised:hover{background:linear-gradient(var(--white),var(--metal-low))}.raised:active,.raised[aria-pressed="true"]{background:var(--select);box-shadow:inset 1px 1px var(--bevel-low),inset -1px -1px var(--white)}
+.system-button{padding:5px 11px;min-height:29px;font-size:11px}.system-button.primary{font-weight:650}
+.app-shell{height:100vh;height:100dvh;display:grid;grid-template-rows:var(--header) var(--menu) minmax(0,1fr) var(--taskbar);overflow:hidden}
+.system-header{display:flex;align-items:center;padding:8px 17px;gap:20px;border-bottom:1px solid var(--border);z-index:50}
+.brand{display:flex;align-items:baseline;gap:8px;font-size:23px;font-weight:700;letter-spacing:-1px}.brand span{font-size:10px;letter-spacing:.04em;color:var(--muted);font-family:var(--mono);font-weight:400}
+.environment{border-left:1px solid var(--bevel-low);padding-left:20px;display:flex;flex-direction:column;gap:2px}.environment strong{font-size:11px;font-weight:600}.environment small{font:9px var(--mono);color:var(--muted);letter-spacing:.045em}
+.header-actions{margin-left:auto;display:flex;gap:9px;align-items:center}.period{display:flex;gap:12px;align-items:center;border:1px solid var(--border);box-shadow:inset 1px 1px var(--bevel-low),inset -1px -1px var(--white);background:var(--well);padding:5px 10px;font-size:11px}.period .mono{font-size:9px;color:var(--muted)}
+.menu-bar{display:flex;align-items:center;gap:5px;padding:4px 17px;border-bottom:1px solid var(--border);background:var(--metal);box-shadow:inset 0 1px var(--white);z-index:49;position:relative}
+.menu-label{font-size:11px;font-weight:600;padding:4px 8px;margin-right:6px;border-right:1px solid var(--bevel-low)}.menu-button{border:1px solid transparent;padding:4px 10px;min-height:28px;background:none;border-radius:1px;font-size:11px}.menu-button:hover,.menu-button[aria-expanded="true"]{border-color:var(--border);background:var(--metal-light);box-shadow:inset 1px 1px var(--white)}.menu-meta{margin-left:auto;font:9px var(--mono);color:var(--muted);display:flex;gap:16px;align-items:center}.demo{border:1px solid var(--border);padding:2px 6px;background:var(--well);letter-spacing:.05em}
+.window-menu{position:absolute;left:141px;top:35px;width:280px;padding:4px;z-index:60;background:var(--metal);border:1px solid var(--border);box-shadow:inset 1px 1px var(--white),3px 5px 10px #23394730}.window-menu button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border:0;background:none;text-align:left}.window-menu button:hover,.window-menu button:focus-visible{background:var(--select)}.window-menu small{color:var(--muted);font:9px var(--mono)}
+.workspace{overflow:auto;position:relative;padding:23px 28px 28px;background:radial-gradient(ellipse at 55% -35%,var(--desk-light),var(--desk) 90%);scrollbar-color:var(--border) var(--metal);scrollbar-width:thin}
+.workspace-label{display:flex;justify-content:space-between;align-items:center;max-width:1500px;margin:0 auto 14px;color:var(--muted);font:9px var(--mono);letter-spacing:.07em;gap:15px}.workspace-label strong{font-weight:400;letter-spacing:.1em}.workspace-label span:last-child{letter-spacing:0}
+.window-grid{max-width:1500px;margin:auto;display:grid;grid-template-columns:minmax(280px,.9fr) minmax(480px,2fr);grid-template-areas:'capital analysis' 'material analysis' 'ai log';gap:17px;align-items:stretch}
+.window{min-width:0;background:var(--metal);padding:3px;border:1px solid var(--border);border-radius:3px;box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),var(--shadow);display:flex;flex-direction:column;position:relative;transition:box-shadow .18s,border-color .18s}
+@media(hover:hover){.window:not(.maximized):hover{box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),var(--hover);border-color:var(--muted)}}
+.window.active{border-color:var(--muted)}.window-title{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:31px;padding:3px 4px 3px 8px;background:linear-gradient(90deg,var(--metal-low),var(--metal));border:1px solid var(--bevel-low);box-shadow:inset 0 1px #ffffff50;user-select:none;flex-shrink:0}
+.window.active .window-title{background:linear-gradient(100deg,var(--active-low),var(--active-light) 85%)}.window-title h2{display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.015em;font-weight:650;margin:0;min-width:0}.module-id{font:9px var(--mono);padding:2px 4px;background:var(--well);border:1px solid var(--border);box-shadow:inset 1px 1px var(--white);color:var(--muted);letter-spacing:0}
+.window-controls{display:flex;gap:3px;flex-shrink:0}.control{width:26px;height:24px;padding:0;display:grid;place-items:center;font:17px/1 Arial,sans-serif}.control.close:hover{background:var(--red-soft);color:var(--red)}.control:active{padding-top:2px}.control span{transform:translateY(-1px)}
+.client{background:var(--body);border:1px solid var(--border);border-top-color:var(--bevel-low);margin-top:3px;min-height:0;flex:1}.status-line{display:flex;gap:3px;padding-top:3px;font:9px/1.3 var(--mono);color:var(--muted);flex-shrink:0}.status-cell{border:1px solid var(--bevel-low);box-shadow:inset 1px 1px #3247510b,inset -1px -1px var(--white);padding:4px 6px;min-width:0}.status-cell:first-child{flex:1}.status-line .grip{width:12px;flex-shrink:0;background:repeating-linear-gradient(135deg,transparent 0 3px,var(--bevel-low) 3px 4px,transparent 4px 6px);margin:7px 2px 0 3px;height:11px;opacity:.6}
+.capital{grid-area:capital}.capital .client{padding:22px 23px 20px;display:flex;flex-direction:column;justify-content:center;min-height:170px}.kicker{color:var(--muted);font:10px var(--mono);letter-spacing:.06em}.capital-value{font:clamp(45px,4.1vw,65px)/1.25 var(--display);letter-spacing:-2px;font-variant-numeric:lining-nums tabular-nums;white-space:nowrap;margin:5px 0 10px}.capital-meta{display:flex;justify-content:space-between;gap:15px;font-size:10px;color:var(--muted)}
+.analysis{grid-area:analysis}.module-toolbar{display:flex;gap:15px;align-items:center;justify-content:space-between;padding:9px 12px;background:var(--well);border-bottom:1px solid var(--line);font-size:10px}.tool-group{display:flex;gap:4px;align-items:center}.tool-group .system-button{padding:3px 9px;min-height:26px;font-size:10px}.analysis-content{padding:18px 21px 10px}.analysis-summary{display:flex;align-items:start;justify-content:space-between;gap:20px}.analysis-value{font:33px/1.15 var(--display);letter-spacing:-.7px;margin:5px 0 6px}.analysis-period{text-align:right;display:flex;flex-direction:column;gap:5px;font-size:10px;color:var(--muted);padding-top:4px}.analysis-period strong{color:var(--ink);font-weight:500}.chart-panel{border:1px solid var(--line);background:var(--well);box-shadow:inset 1px 1px #26374707;margin-top:13px;position:relative}.chart-panel svg{display:block;width:100%;height:228px;cursor:crosshair;touch-action:pan-y}.chart-caption{display:flex;gap:12px;justify-content:space-between;margin-top:9px;color:var(--muted);font-size:9px}.chart-caption .line{border-top:2px solid var(--red);display:inline-block;width:15px;vertical-align:middle;margin-right:5px}
+.chart-tip{position:absolute;pointer-events:none;top:8px;padding:8px 11px;background:var(--body);border:1px solid var(--border);box-shadow:2px 3px 5px #24384615;font-size:10px;min-width:142px;z-index:2}.chart-tip strong{display:block;font:22px var(--display);margin-top:3px;color:var(--red)}
+.material{grid-area:material}.material .client{padding:12px 14px}.material fieldset{border:1px solid var(--bevel-low);box-shadow:inset 1px 1px var(--white);padding:8px;margin:0}.material legend{padding:0 5px;font-size:10px;color:var(--muted)}.material-options{display:grid;gap:4px}.material-option{display:flex;width:100%;align-items:center;gap:9px;padding:5px 7px;border:1px solid transparent;background:none;text-align:left;font-size:11px;min-height:30px}.material-option:hover{background:var(--well)}.material-option[aria-pressed="true"]{border-color:var(--border);background:var(--select);box-shadow:inset 1px 1px var(--bevel-low),inset -1px -1px var(--white)}.sample{width:17px;height:17px;flex-shrink:0;border:1px solid #8f9ca2;box-shadow:inset 1px 1px #ffffff99}.sample.silver{background:linear-gradient(#f6f9fa,#ced7dc)}.sample.graphite{background:linear-gradient(#6b7b84,#35434d)}.sample.paper{background:#f3ecdc}.material-check{margin-left:auto;font:9px var(--mono);color:var(--muted)}.material-setting{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:11px;font-size:10px}.material-setting select{max-width:145px;background:var(--well);border:1px solid var(--border);padding:3px;font-size:10px;height:25px}.material-setting input{max-width:105px;accent-color:var(--muted)}
+.ai{grid-area:ai}.ai .client{padding:17px 20px;display:flex;flex-direction:column;gap:17px}.report-number{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);padding-bottom:9px;color:var(--muted);font:9px var(--mono)}.ai-observation{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}.ai-delta{font:40px/1 var(--display);letter-spacing:-1px;color:var(--red)}.ai-observation p{margin:0;font-size:11px;line-height:1.6}.report-action{border-left:2px solid var(--bevel-low);padding-left:12px;font-size:12px;line-height:1.6}.report-action .kicker{font-size:9px;display:block;margin-bottom:5px}.ai-detail{margin:0;color:var(--muted);font-size:10px;border-top:1px solid var(--line);padding-top:12px}.ai .system-button{align-self:start;margin-top:auto}.ai-sample{font:9px var(--mono);color:var(--muted)}
+.log{grid-area:log}.log .client{display:flex;flex-direction:column}.log .module-toolbar{flex-wrap:wrap;gap:8px}.search{background:var(--body);border:1px solid var(--border);box-shadow:inset 1px 1px #3247520a;min-height:26px;padding:4px 7px;font-size:10px;width:190px;max-width:100%}.table-scroll{overflow:auto;flex:1;scrollbar-width:thin}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:11px;text-align:left}th{position:sticky;top:0;z-index:1;background:linear-gradient(var(--metal-light),var(--metal));font-weight:500;font-size:10px;box-shadow:inset 0 1px var(--white)}th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 12px}th:last-child,td:last-child{border-right:0}tbody tr:nth-child(even){background:var(--well)}tbody tr:hover{background:var(--select)}tbody tr:last-child td{border-bottom:0}.row-index{width:28px;padding:8px;text-align:center;background:var(--metal);font:9px var(--mono);color:var(--muted)}.date{font:10px var(--mono);color:var(--muted)}.amount{text-align:right;font:11px var(--mono);font-variant-numeric:tabular-nums}.category{color:var(--muted)}.sort{font:inherit;border:0;background:none;padding:0;display:block;text-align:inherit;width:100%;min-height:20px}.empty{text-align:center;padding:27px;color:var(--muted)}.ledger-total{display:flex;justify-content:space-between;gap:14px;background:var(--well);border-top:1px solid var(--border);padding:8px 12px;font:10px var(--mono)}.ledger-total span{display:flex;gap:8px}
+.taskbar{padding:5px 7px;display:flex;gap:6px;align-items:center;border-top:1px solid var(--border);z-index:51;box-shadow:inset 0 1px var(--white);min-width:0}.desktop-button{font-weight:650;padding:5px 11px;min-height:31px;flex-shrink:0}.task-list{display:flex;gap:4px;flex:1;min-width:0;overflow:auto;scrollbar-width:none}.task-button{display:flex;gap:7px;align-items:center;min-width:110px;max-width:190px;flex:1;padding:6px 10px;height:31px;font-size:10px;white-space:nowrap}.task-button.minimized{color:var(--muted)}.task-button .task-state{font:9px var(--mono);opacity:.6;margin-left:auto}.tray{display:flex;border:1px solid var(--bevel-low);box-shadow:inset 1px 1px #24374612,inset -1px -1px var(--white);min-height:30px;align-items:center;gap:13px;padding:4px 9px;font:9px var(--mono);flex-shrink:0}.tray span+span{border-left:1px solid var(--bevel-low);padding-left:12px}
+.empty-desktop{max-width:440px;margin:80px auto;text-align:center;color:var(--muted);padding:30px}.empty-desktop h1{font-size:18px;font-weight:500;letter-spacing:0;margin:0 0 12px}.empty-desktop p{font-size:12px;margin:0 0 18px}
+.window.maximized{position:fixed;inset:calc(var(--header) + var(--menu) + 8px) 8px calc(var(--taskbar) + 8px);z-index:40;animation:maximize .22s ease;box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),0 4px 16px #26394626}.maximized .client{overflow:auto}.maximized.capital .client{align-items:center}.maximized .capital-value{font-size:clamp(65px,12vw,125px)}.maximized .capital-meta{min-width:260px;max-width:100%}.maximized.analysis .analysis-content{max-width:1400px;margin:auto}.maximized .chart-panel svg{height:clamp(250px,48vh,560px)}.maximized .analysis-value{font-size:46px}.maximized.material .client{padding:30px max(25px,calc((100% - 550px)/2))}.maximized.ai .client{padding:35px max(25px,calc((100% - 640px)/2));justify-content:center}.maximized.ai .ai-delta{font-size:70px}.maximized.ai .ai-sample{margin-top:10px}.maximized.ai .system-button{margin-top:0}.maximized table th,.maximized table td{padding-top:12px;padding-bottom:12px}
+.toast{position:fixed;bottom:calc(var(--taskbar) + 12px);right:16px;z-index:80;border:1px solid var(--border);background:var(--body);padding:12px 16px;box-shadow:var(--shadow);max-width:calc(100vw - 32px);font-size:11px}
+dialog{width:min(720px,94vw);border:1px solid var(--border);border-radius:2px;padding:3px;background:var(--metal);color:var(--ink);box-shadow:inset 1px 1px var(--white),0 14px 50px #182b3540}dialog::backdrop{background:#23364540}.dialog-title{padding:8px 12px;background:linear-gradient(var(--active-light),var(--active-low));font-size:12px;font-weight:600}.dialog-client{background:var(--body);padding:15px;border:1px solid var(--border);margin-top:3px}.dialog-client p{font-size:11px;margin:0 0 12px}.dialog-client textarea{width:100%;height:240px;border:1px solid var(--border);background:var(--well);padding:10px;font:10px var(--mono);resize:vertical}.dialog-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
+.analysis-period strong.positive{color:var(--green)}
+@keyframes maximize{from{opacity:.65;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+@media(min-width:1600px){.workspace{padding-top:29px}.window-grid{grid-template-columns:minmax(320px,1fr) minmax(600px,2.2fr);gap:22px}.capital .client{min-height:183px}.analysis-content{padding:21px 27px 14px}.chart-panel svg{height:248px}.material .client{padding:17px}.material-option{min-height:34px}.ai .client{padding:23px}.ai-observation{margin:8px 0}}
+@media(max-width:1080px){.workspace{padding:15px}.window-grid{gap:12px;grid-template-columns:290px minmax(380px,1fr)}.environment{display:none}.tray .material-tray{display:none}.analysis-content{padding:15px}.analysis-value{font-size:30px}.capital-value{font-size:48px}.workspace-label{font-size:8px}.task-button{min-width:93px;padding:5px 7px}.task-button .task-state{display:none}.menu-meta .hint{display:none}}
+@media(max-width:760px){:root{--header:52px;--menu:38px;--taskbar:49px}.system-header{padding:8px 10px;gap:10px}.brand{font-size:20px}.brand span{display:none}.period{padding:5px 7px;gap:6px;font-size:10px}.period .mono{display:none}.header-actions{gap:7px}.header-actions .system-button{padding:5px 8px;font-size:10px}.menu-bar{padding:4px 8px;gap:0}.menu-label{display:none}.menu-button{padding:4px 8px;font-size:10px}.menu-meta{font-size:8px}.menu-meta .hint{display:none}.window-menu{left:8px;top:34px}.workspace{padding:12px 9px 20px}.workspace-label{margin-bottom:10px}.workspace-label span:last-child{display:none}.window-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:'capital' 'analysis' 'material' 'ai' 'log';gap:13px}.capital .client{min-height:160px;padding:20px}.capital-value{font-size:59px}.control{width:30px;height:27px}.window-title{min-height:34px}.module-toolbar{gap:7px;flex-wrap:wrap}.analysis-content{padding:17px 12px 10px}.analysis-summary{gap:12px}.analysis-value{font-size:31px}.analysis-period{font-size:9px}.chart-panel svg{height:220px}.chart-caption{font-size:8px}.chart-caption span:last-child{display:none}.material .client{padding:15px}.material-setting{font-size:11px}.material-option{min-height:35px}.material fieldset{padding:10px}.ai .client{padding:21px}.ai-delta{font-size:47px}.table-scroll{max-height:360px}.search{width:160px}.ledger-total{font-size:9px;gap:9px;flex-wrap:wrap}.tray{font-size:9px;padding:5px 7px;min-height:32px}.tray .material-tray,.tray .demo-tray{display:none}.desktop-button{padding:5px 8px;font-size:10px}.taskbar{padding:5px;gap:5px}.task-button{min-width:92px;height:34px;font-size:9px}.window.maximized{inset:calc(var(--header) + var(--menu) + 4px) 4px calc(var(--taskbar) + 4px)}.maximized .chart-panel svg{height:clamp(220px,37vh,370px)}.maximized.material .client,.maximized.ai .client{padding:22px}.maximized .capital-value{font-size:65px}.status-line{font-size:8px}.status-cell{padding:4px}.window-title h2{font-size:11px}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="system-header metal">
+    <div class="brand">Qesto<span>DESKTOP / 02</span></div>
+    <div class="environment"><strong>Финансовая рабочая среда</strong><small>WIN95 STRUCTURE × SOFT AERO MATERIAL</small></div>
+    <div class="header-actions"><div class="period"><span class="mono">Период</span><span>Сентябрь 2026</span></div><button class="system-button raised" id="copy-html">Копировать HTML</button></div>
+  </header>
+  <nav class="menu-bar" aria-label="Управление рабочим столом">
+    <span class="menu-label">Рабочая среда</span>
+    <button class="menu-button" id="windows-button" aria-expanded="false" aria-controls="window-menu">Окна</button>
+    <button class="menu-button" id="restore-layout">Восстановить окна</button>
+    <button class="menu-button" id="refresh-demo">Обновить демо</button>
+    <div class="menu-meta"><span class="hint">5 МОДУЛЕЙ / ЛОКАЛЬНЫЙ СТЕНД</span><span class="demo">DEMO</span></div>
+    <div class="window-menu" id="window-menu" hidden aria-label="Список окон"></div>
+  </nav>
+  <main class="workspace" id="workspace">
+    <div class="workspace-label"><strong>Рабочий стол / Обзор</strong><span>Двойной щелчок по заголовку — развернуть окно</span></div>
+    <div class="window-grid" id="window-grid">
+      <section class="window capital" id="capital" data-name="Капитал" aria-labelledby="capital-title" tabindex="-1">
+        <header class="window-title"><h2 id="capital-title"><span class="module-id">01</span>Капитал</h2><div class="window-controls"></div></header>
+        <div class="client"><span class="kicker">Общий капитал / RUB</span><div class="capital-value">84 320 ₽</div><div class="capital-meta"><span>Снимок на 14 сентября</span><span>Демо</span></div></div>
+        <footer class="status-line"><span class="status-cell">CAPITAL / POSITION</span><span class="status-cell">RUB</span><span class="grip" aria-hidden="true"></span></footer>
+      </section>
+      <section class="window analysis active" id="analysis" data-name="Расходы" aria-labelledby="analysis-title" tabindex="-1">
+        <header class="window-title"><h2 id="analysis-title"><span class="module-id">02</span>Анализ расходов</h2><div class="window-controls"></div></header>
+        <div class="client">
+          <div class="module-toolbar"><div class="tool-group" aria-label="Режим графика"><button class="system-button raised" data-chart="cumulative" aria-pressed="true">Накопительно</button><button class="system-button raised" data-chart="daily" aria-pressed="false">По дням</button></div><span class="mono muted">01–14 SEP / 2026</span></div>
+          <div class="analysis-content"><div class="analysis-summary"><div><span class="kicker">Расходы</span><div class="analysis-value negative">11 984 ₽</div></div><div class="analysis-period"><span>Доходы <strong class="positive">20 390 ₽</strong></span><span>Кэшфлоу <strong class="positive">+8 406 ₽</strong></span><span>6 расходов</span></div></div>
+            <div class="chart-panel"><svg id="chart" viewBox="0 0 760 250" role="img" tabindex="0" aria-label="Демо-график расходов. Стрелки влево и вправо — выбор дня."></svg><div class="chart-tip" id="chart-tip" hidden></div></div>
+            <div class="chart-caption"><span><i class="line"></i><span id="chart-label">Накопленные расходы</span></span><span>Указатель / касание / ← →</span></div>
+          </div>
+        </div><footer class="status-line"><span class="status-cell" id="chart-status">EXPENSE / CUMULATIVE</span><span class="status-cell">6 RECORDS</span><span class="grip" aria-hidden="true"></span></footer>
+      </section>
+      <section class="window material" id="material" data-name="Материал" aria-labelledby="material-title" tabindex="-1">
+        <header class="window-title"><h2 id="material-title"><span class="module-id">03</span>Материал среды</h2><div class="window-controls"></div></header>
+        <div class="client"><fieldset><legend>Поверхность</legend><div class="material-options" role="group" aria-label="Материал">
+          <button class="material-option" data-material="silver" aria-pressed="true"><span class="sample silver" aria-hidden="true"></span>Silver Aero<span class="material-check">ВЫБРАН</span></button>
+          <button class="material-option" data-material="graphite" aria-pressed="false"><span class="sample graphite" aria-hidden="true"></span>Graphite Aero<span class="material-check"></span></button>
+          <button class="material-option" data-material="paper" aria-pressed="false"><span class="sample paper" aria-hidden="true"></span>Paper Editorial<span class="material-check"></span></button>
+        </div></fieldset><label class="material-setting">Крупные суммы<select id="display-font"><option value="serif">Editorial serif</option><option value="sans">System sans</option><option value="mono">Technical mono</option></select></label><label class="material-setting">Свечение линии<input id="glow" type="range" min="0" max="100" value="25" aria-label="Свечение графика"></label></div>
+        <footer class="status-line"><span class="status-cell" id="material-status">SILVER AERO</span><span class="status-cell">LIVE</span><span class="grip" aria-hidden="true"></span></footer>
+      </section>
+      <section class="window ai" id="ai" data-name="AI-отчёт" aria-labelledby="ai-title" tabindex="-1">
+        <header class="window-title"><h2 id="ai-title"><span class="module-id">04</span>Qesto AI / Отчёт</h2><div class="window-controls"></div></header>
+        <div class="client"><div class="report-number"><span>REPORT 014</span><span>ОБРАЗЕЦ</span></div><div class="ai-observation"><span class="ai-delta">+12%</span><p>Изменение расходов<br><span class="muted">к прошлому месяцу</span></p></div><div class="report-action"><span class="kicker">Рекомендация</span>Пересмотрите подписки.</div><button class="system-button raised" id="report-details" aria-expanded="false" aria-controls="ai-detail">Основание отчёта</button><p class="ai-detail" id="ai-detail" hidden>Пример текста для проверки интерфейса. Показатель 12% задан вручную, не рассчитан по журналу. AI и банки не подключены.</p><span class="ai-sample">AI REPORT / DEMO CONTENT</span></div>
+        <footer class="status-line"><span class="status-cell">INSIGHT / SAMPLE</span><span class="status-cell">014</span><span class="grip" aria-hidden="true"></span></footer>
+      </section>
+      <section class="window log" id="log" data-name="Журнал" aria-labelledby="log-title" tabindex="-1">
+        <header class="window-title"><h2 id="log-title"><span class="module-id">05</span>Журнал операций</h2><div class="window-controls"></div></header>
+        <div class="client"><div class="module-toolbar"><div class="tool-group" aria-label="Тип операций"><button class="system-button raised" data-filter="all" aria-pressed="true">Все</button><button class="system-button raised" data-filter="expense" aria-pressed="false">Расходы</button><button class="system-button raised" data-filter="income" aria-pressed="false">Доходы</button></div><input id="search" class="search" type="search" placeholder="Поиск в журнале…" aria-label="Поиск по описанию и категории"></div>
+          <div class="table-scroll"><table><thead><tr><th class="row-index" scope="col">№</th><th id="date-heading" scope="col" aria-sort="descending"><button class="sort" data-sort="date">Дата ↓</button></th><th scope="col">Описание</th><th scope="col">Категория</th><th class="amount" id="amount-heading" scope="col" aria-sort="none"><button class="sort" data-sort="amount">Сумма ↕</button></th></tr></thead><tbody id="rows"></tbody></table></div>
+          <div class="ledger-total"><span class="muted">Итог выборки <b id="selection-total" class="positive">+8 406 ₽</b></span><span class="muted" id="record-count">7 строк</span></div>
+        </div><footer class="status-line"><span class="status-cell">LEDGER / DEMO DATA</span><span class="status-cell">RUB</span><span class="grip" aria-hidden="true"></span></footer>
+      </section>
+    </div>
+    <div class="empty-desktop" id="empty-desktop" hidden><h1>Рабочий стол свободен</h1><p>Откройте модуль через меню «Окна» или верните все окна.</p><button class="system-button raised" id="restore-empty">Восстановить окна</button></div>
+  </main>
+  <footer class="taskbar metal"><button class="desktop-button raised" id="desktop-button" title="Свернуть все окна или восстановить свёрнутые">Qesto</button><div class="task-list" id="task-list" aria-label="Открытые и свёрнутые окна"></div><div class="tray"><span class="material-tray" id="tray-material">SILVER</span><span class="demo-tray">DEMO / READY</span><span id="last-refresh" title="Последнее обновление локального демо"></span></div></footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-title" id="source-title">Qesto / Копирование HTML</div><div class="dialog-client"><p>Браузер ограничил буфер обмена. Код выделен — нажмите Ctrl+C или ⌘C.</p><textarea id="source-code" readonly aria-label="Весь HTML-файл"></textarea><div class="dialog-actions"><button class="system-button raised" id="select-source">Выделить всё</button><button class="system-button raised" id="close-source">Закрыть</button></div></div></dialog>
+<script>
+'use strict';
+// The clean source is captured before any UI mutation. It can be copied offline.
+const pristineSource='<!DOCTYPE html>\n'+document.documentElement.outerHTML+'\n<!--\nQesto Design Lab Prototype\nVersion 2.0 — Win95 Aero\n-->\n';
+const root=document.documentElement;
+const data=Object.freeze([
+ {day:14,description:'Аренда студии',category:'Жильё',amount:-5400},
+ {day:12,description:'Кофейня «Ритм»',category:'Кафе',amount:-860},
+ {day:9,description:'Книжный магазин',category:'Покупки',amount:-2480},
+ {day:7,description:'Продуктовая лавка',category:'Продукты',amount:-1704},
+ {day:4,description:'Городской транспорт',category:'Транспорт',amount:-300},
+ {day:2,description:'Продуктовая лавка',category:'Продукты',amount:-1240},
+ {day:1,description:'Поступление',category:'Доход',amount:20390}
+]);
+const money=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₽';
+const signed=n=>(n>0?'+':n<0?'−':'')+money(Math.abs(n));
+const panels=[...document.querySelectorAll('.window')];
+const state=new Map(panels.map(p=>[p.id,{mode:'normal',previous:'normal'}]));
+const taskButtons=new Map(),menuButtons=new Map();
+let activeId='analysis',maximizedId=null,chartMode='cumulative',selectedDay=null,sortKey='date',sortDirection=-1,filter='all',toastTimer;
+const daily=Array.from({length:14},(_,i)=>data.filter(t=>t.day===i+1&&t.amount<0).reduce((sum,t)=>sum-t.amount,0));
+const cumulative=daily.map((_,i)=>daily.slice(0,i+1).reduce((sum,n)=>sum+n,0));
+function notify(message){const el=document.getElementById('toast');el.textContent=message;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,2600)}
+function isVisible(id){return ['normal','maximized'].includes(state.get(id).mode)}
+function updateWindows(){
+ const labels={normal:'Открыто',maximized:'Развёрнуто',minimized:'Свёрнуто',closed:'Закрыто'};
+ panels.forEach(panel=>{
+  const item=state.get(panel.id),visible=isVisible(panel.id);panel.hidden=!visible;panel.inert=!!maximizedId&&maximizedId!==panel.id;
+  panel.classList.toggle('active',panel.id===activeId);panel.classList.toggle('maximized',item.mode==='maximized');
+  const maxButton=panel.querySelector('[data-control="maximize"]');maxButton.setAttribute('aria-pressed',String(item.mode==='maximized'));maxButton.textContent=item.mode==='maximized'?'❐':'□';maxButton.title=item.mode==='maximized'?'Восстановить размер':'Развернуть';maxButton.setAttribute('aria-label',maxButton.title+' — '+panel.dataset.name);
+  const task=taskButtons.get(panel.id);task.hidden=item.mode==='closed';task.classList.toggle('minimized',item.mode==='minimized');task.setAttribute('aria-pressed',String(visible&&activeId===panel.id));task.title=panel.dataset.name+' · '+labels[item.mode];task.querySelector('.task-state').textContent=item.mode==='minimized'?'_':item.mode==='maximized'?'□':'';
+  menuButtons.get(panel.id).querySelector('small').textContent=labels[item.mode];
+ });
+ document.getElementById('empty-desktop').hidden=panels.some(p=>isVisible(p.id));
+ document.getElementById('workspace').style.overflow=maximizedId?'hidden':'';
+}
+function exitMaximum(){if(maximizedId){state.get(maximizedId).mode='normal';maximizedId=null}}
+function focusWindow(id,moveFocus=false){
+ if(maximizedId&&maximizedId!==id)exitMaximum();
+ const item=state.get(id);if(item.mode==='closed'){item.mode='normal';item.previous='normal'}
+ if(item.mode==='minimized'){item.mode=item.previous;if(item.mode==='maximized')maximizedId=id}
+ activeId=id;updateWindows();if(moveFocus)document.getElementById(id).querySelector('[data-control="maximize"]').focus({preventScroll:true});
+}
+function toggleMaximum(id){
+ const item=state.get(id);
+ if(item.mode==='maximized'){item.mode='normal';maximizedId=null}else{exitMaximum();item.mode='maximized';maximizedId=id}
+ activeId=id;selectedDay=null;updateWindows();drawChart();
+ document.getElementById(id).querySelector('[data-control="maximize"]').focus({preventScroll:true});
+}
+function hideWindow(id,mode){
+ const item=state.get(id);if(mode==='minimized')item.previous=item.mode;
+ item.mode=mode;if(maximizedId===id)maximizedId=null;
+ if(activeId===id)activeId=panels.find(p=>isVisible(p.id))?.id??null;
+ updateWindows();(mode==='minimized'?taskButtons.get(id):document.getElementById('windows-button')).focus({preventScroll:true});
+ if(mode==='closed')notify('Окно скрыто. Вернуть: Окна → '+document.getElementById(id).dataset.name);
+}
+function closeMenu(){document.getElementById('window-menu').hidden=true;document.getElementById('windows-button').setAttribute('aria-expanded','false')}
+function restoreLayout(){maximizedId=null;activeId='analysis';state.forEach(item=>{item.mode='normal';item.previous='normal'});closeMenu();updateWindows();drawChart();document.getElementById('workspace').scrollTo({top:0,behavior:'instant'})}
+panels.forEach(panel=>{
+ const actions=[['minimize','−','Свернуть'],['maximize','□','Развернуть'],['close','×','Закрыть / скрыть']];
+ actions.forEach(([action,glyph,label])=>{const b=document.createElement('button');b.className='control raised '+action;b.dataset.control=action;b.textContent=glyph;b.title=label;b.setAttribute('aria-label',label+' — '+panel.dataset.name);b.addEventListener('click',()=>action==='maximize'?toggleMaximum(panel.id):hideWindow(panel.id,action==='minimize'?'minimized':'closed'));panel.querySelector('.window-controls').append(b)});
+ panel.addEventListener('pointerdown',event=>{if(!event.target.closest('.window-controls'))focusWindow(panel.id)});
+ panel.addEventListener('focusin',()=>{if(activeId!==panel.id)focusWindow(panel.id)});
+ panel.querySelector('.window-title').addEventListener('dblclick',event=>{if(!event.target.closest('button'))toggleMaximum(panel.id)});
+ const task=document.createElement('button');task.className='task-button raised';task.setAttribute('aria-controls',panel.id);const name=document.createElement('span');name.textContent=panel.dataset.name;const status=document.createElement('span');status.className='task-state';status.setAttribute('aria-hidden','true');task.append(name,status);task.addEventListener('click',()=>{if(activeId===panel.id&&isVisible(panel.id))hideWindow(panel.id,'minimized');else focusWindow(panel.id,true)});document.getElementById('task-list').append(task);taskButtons.set(panel.id,task);
+ const menu=document.createElement('button');const label=document.createElement('span');label.textContent=panel.dataset.name;menu.append(label,document.createElement('small'));menu.addEventListener('click',()=>{closeMenu();focusWindow(panel.id,true)});document.getElementById('window-menu').append(menu);menuButtons.set(panel.id,menu);
+});
+document.getElementById('windows-button').addEventListener('click',()=>{const menu=document.getElementById('window-menu');menu.hidden=!menu.hidden;document.getElementById('windows-button').setAttribute('aria-expanded',String(!menu.hidden));if(!menu.hidden)menu.querySelector('button').focus()});
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('#window-menu,#windows-button'))closeMenu()});
+document.getElementById('window-menu').addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...menuButtons.values()],i=buttons.indexOf(document.activeElement);buttons[event.key==='Home'?0:event.key==='End'?buttons.length-1:(i+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus()}});
+document.getElementById('restore-layout').addEventListener('click',restoreLayout);document.getElementById('restore-empty').addEventListener('click',restoreLayout);
+document.getElementById('desktop-button').addEventListener('click',()=>{
+ const visible=panels.filter(p=>isVisible(p.id));
+ if(visible.length){visible.forEach(p=>{const item=state.get(p.id);item.previous=item.mode;item.mode='minimized'});maximizedId=null;activeId=null;updateWindows()}
+ else {let restored=false;state.forEach((item,id)=>{if(item.mode==='minimized'){item.mode='normal';activeId=id;restored=true}});if(restored)updateWindows();else document.getElementById('windows-button').click()}
+});
+document.addEventListener('keydown',event=>{if(event.key!=='Escape'||document.getElementById('source-dialog').open)return;if(!document.getElementById('window-menu').hidden){closeMenu();document.getElementById('windows-button').focus()}else if(maximizedId){event.preventDefault();toggleMaximum(maximizedId)}});
+function setMaterial(value){root.dataset.material=value;document.querySelectorAll('[data-material]').forEach(b=>{if(b.tagName!=='BUTTON')return;const active=b.dataset.material===value;b.setAttribute('aria-pressed',String(active));b.querySelector('.material-check').textContent=active?'ВЫБРАН':''});const names={silver:'SILVER AERO',graphite:'GRAPHITE AERO',paper:'PAPER EDITORIAL'};document.getElementById('material-status').textContent=names[value];document.getElementById('tray-material').textContent=value.toUpperCase();drawChart()}
+document.querySelectorAll('button[data-material]').forEach(b=>b.addEventListener('click',()=>setMaterial(b.dataset.material)));
+document.getElementById('display-font').addEventListener('change',event=>root.style.setProperty('--display',({serif:"Georgia,'Times New Roman',serif",sans:"'Segoe UI',Arial,sans-serif",mono:"Consolas,'Liberation Mono',monospace"})[event.target.value]));
+document.getElementById('glow').addEventListener('input',drawChart);
+const chart=document.getElementById('chart');
+function drawChart(){
+ const values=chartMode==='daily'?daily:cumulative,max=chartMode==='daily'?6000:12000,styles=getComputedStyle(root),red=styles.getPropertyValue('--red').trim(),muted=styles.getPropertyValue('--muted').trim(),line=styles.getPropertyValue('--line').trim(),surface=styles.getPropertyValue('--body').trim();
+ const x=i=>53+i*52.4,y=n=>202-n/max*174,points=values.map((n,i)=>`${x(i)},${y(n)}`).join(' '),glow=Number(document.getElementById('glow').value)/200;
+ let svg=`<defs><linearGradient id="chart-area" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${red}" stop-opacity=".12"/><stop offset="1" stop-color="${red}" stop-opacity=".015"/></linearGradient><filter id="chart-glow" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="3"/></filter></defs>`;
+ [0,1,2,3].forEach(i=>{const n=max*i/3,yy=y(n);svg+=`<line x1="53" y1="${yy}" x2="734" y2="${yy}" stroke="${line}"/><text x="42" y="${yy+3}" text-anchor="end" fill="${muted}" font-size="10" font-family="Segoe UI,Arial,sans-serif">${i?n/1000+' т.':'0'}</text>`});
+ [0,3,6,9,13].forEach(i=>{svg+=`<line x1="${x(i)}" y1="28" x2="${x(i)}" y2="202" stroke="${line}" stroke-dasharray="2 5" opacity=".65"/><text x="${x(i)}" y="230" text-anchor="${i===0?'start':i===13?'end':'middle'}" fill="${muted}" font-size="10" font-family="Segoe UI,Arial,sans-serif">${String(i+1).padStart(2,'0')} сен</text>`});
+ svg+=`<polygon points="53,202 ${points} 734,202" fill="url(#chart-area)"/><polyline points="${points}" fill="none" stroke="${red}" stroke-width="5" opacity="${glow}" filter="url(#chart-glow)"/><polyline points="${points}" fill="none" stroke="${red}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+ if(selectedDay!==null){const i=selectedDay;svg+=`<line x1="${x(i)}" y1="27" x2="${x(i)}" y2="202" stroke="${muted}" stroke-dasharray="3 4"/><circle cx="${x(i)}" cy="${y(values[i])}" r="4" fill="${surface}" stroke="${red}" stroke-width="2"/>`}
+ else svg+=`<circle cx="${x(13)}" cy="${y(values[13])}" r="3" fill="${surface}" stroke="${red}" stroke-width="2"/>`;
+ chart.innerHTML=svg;chart.setAttribute('aria-label',`Демо-расходы ${chartMode==='daily'?'по дням':'накопительно'}. Всего 11 984 рубля. Стрелки — выбор дня.${selectedDay!==null?' '+(selectedDay+1)+' сентября: '+money(values[selectedDay]):''}`);
+ const tip=document.getElementById('chart-tip');tip.hidden=selectedDay===null;if(selectedDay!==null){tip.replaceChildren();const label=document.createElement('span');label.textContent=(selectedDay+1)+' сентября · '+(chartMode==='daily'?'за день':'всего');const amount=document.createElement('strong');amount.textContent=money(values[selectedDay]);tip.append(label,amount);const r=chart.getBoundingClientRect(),scale=Math.min(r.width/760,r.height/250),offset=(r.width-760*scale)/2;tip.style.left=Math.max(0,Math.min(r.width-155,offset+x(selectedDay)*scale-70))+'px'}
+}
+function selectPoint(event){const r=chart.getBoundingClientRect(),scale=Math.min(r.width/760,r.height/250);if(!scale)return;const left=(r.width-760*scale)/2;selectedDay=Math.max(0,Math.min(13,Math.round(((event.clientX-r.left-left)/scale-53)/52.4)));drawChart()}
+chart.addEventListener('pointermove',selectPoint);chart.addEventListener('pointerdown',selectPoint);chart.addEventListener('pointerleave',()=>{if(document.activeElement!==chart){selectedDay=null;drawChart()}});chart.addEventListener('blur',()=>{selectedDay=null;drawChart()});chart.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();selectedDay=event.key==='Home'?0:event.key==='End'?13:Math.max(0,Math.min(13,(selectedDay??0)+(event.key==='ArrowRight'?1:-1)));drawChart()}});
+document.querySelectorAll('[data-chart]').forEach(b=>b.addEventListener('click',()=>{chartMode=b.dataset.chart;document.querySelectorAll('[data-chart]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)));document.getElementById('chart-label').textContent=chartMode==='daily'?'Расходы по дням':'Накопленные расходы';document.getElementById('chart-status').textContent='EXPENSE / '+chartMode.toUpperCase();drawChart()}));
+function drawTable(){
+ const query=document.getElementById('search').value.toLocaleLowerCase('ru'),rows=data.filter(t=>(t.description+' '+t.category).toLocaleLowerCase('ru').includes(query)&&(filter==='all'||(filter==='expense'?t.amount<0:t.amount>0))).slice().sort((a,b)=>sortDirection*(sortKey==='date'?a.day-b.day:a.amount-b.amount));
+ const tbody=document.getElementById('rows');tbody.replaceChildren();rows.forEach((t,i)=>{const row=document.createElement('tr');[['row-index',i+1],['date',String(t.day).padStart(2,'0')+'.09.26'],['description',t.description],['category',t.category],['amount '+(t.amount<0?'negative':'positive'),signed(t.amount)]].forEach(([className,text])=>{const cell=document.createElement('td');cell.className=className;cell.textContent=text;row.append(cell)});tbody.append(row)});
+ if(!rows.length){const cell=tbody.insertRow().insertCell();cell.colSpan=5;cell.className='empty';cell.textContent='Операций не найдено'}
+ const total=rows.reduce((sum,t)=>sum+t.amount,0),totalEl=document.getElementById('selection-total');totalEl.textContent=signed(total);totalEl.className=total<0?'negative':total>0?'positive':'muted';document.getElementById('record-count').textContent=rows.length+' / '+data.length+' строк';
+ ['date','amount'].forEach(key=>{document.getElementById(key+'-heading').setAttribute('aria-sort',sortKey===key?(sortDirection===1?'ascending':'descending'):'none');document.querySelector('[data-sort="'+key+'"]').textContent=(key==='date'?'Дата':'Сумма')+' '+(sortKey===key?(sortDirection===1?'↑':'↓'):'↕')});
+}
+document.getElementById('search').addEventListener('input',drawTable);document.querySelectorAll('[data-sort]').forEach(b=>b.addEventListener('click',()=>{sortDirection=sortKey===b.dataset.sort?-sortDirection:-1;sortKey=b.dataset.sort;drawTable()}));document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)));drawTable()}));
+document.getElementById('report-details').addEventListener('click',event=>{const detail=document.getElementById('ai-detail');detail.hidden=!detail.hidden;event.currentTarget.setAttribute('aria-expanded',String(!detail.hidden))});
+function refreshDemo(){drawChart();drawTable();document.getElementById('last-refresh').textContent=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(new Date())}
+document.getElementById('refresh-demo').addEventListener('click',()=>{refreshDemo();notify('Локальное демо обновлено. Запросов к банкам нет.')});
+document.getElementById('copy-html').addEventListener('click',async()=>{try{if(!navigator.clipboard)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(pristineSource);notify('Весь HTML скопирован')}catch{const dialog=document.getElementById('source-dialog'),field=document.getElementById('source-code');field.value=pristineSource;dialog.showModal();field.focus();field.select()}});document.getElementById('select-source').addEventListener('click',()=>{const field=document.getElementById('source-code');field.focus();field.select()});document.getElementById('close-source').addEventListener('click',()=>document.getElementById('source-dialog').close());
+updateWindows();refreshDemo();
+</script>
+</body>
+</html>
+<!--
+Qesto Design Lab Prototype
+Version 2.0 — Win95 Aero
+-->

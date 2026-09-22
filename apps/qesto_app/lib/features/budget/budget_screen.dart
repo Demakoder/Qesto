@@ -204,7 +204,7 @@ class BudgetScreenState extends State<BudgetScreen> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: QestoColors.surface,
+      backgroundColor: context.qestoColors.surface,
       builder: (sheetContext) => Padding(
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
         child: SingleChildScrollView(
@@ -476,16 +476,16 @@ class _AddMenuItem extends StatelessWidget {
       leading: Container(
         width: 42,
         height: 42,
-        decoration: const BoxDecoration(
-          color: QestoColors.primarySoft,
+        decoration: BoxDecoration(
+          color: context.qestoColors.primarySoft,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: QestoColors.primary),
+        child: Icon(icon, color: context.qestoColors.primary),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.chevron_right_rounded,
-        color: QestoColors.secondaryText,
+        color: context.qestoColors.secondaryText,
       ),
     );
   }

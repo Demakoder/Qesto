@@ -63,6 +63,7 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
                     Positioned.fill(
                       child: CustomPaint(
                         painter: _ExpenseMapPainter(
+                          c: context.qestoColors,
                           data: widget.data,
                           geometry: geometry,
                           hoveredId: _hoveredId,
@@ -111,12 +112,16 @@ class _FlowTooltip extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 250),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF172033),
-        borderRadius: BorderRadius.circular(11),
+        color: const Color(0xFF171B1E),
+        borderRadius: QestoGeometry.control,
         boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 16)],
       ),
       child: DefaultTextStyle(
-        style: const TextStyle(color: Colors.white, fontSize: 11),
+        style: const TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: Colors.white,
+          fontSize: 11,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -124,17 +129,26 @@ class _FlowTooltip extends StatelessWidget {
               hit.label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(
+                fontFamily: QestoTypography.uiFamily,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               '${formatMoney(hit.amount, currency)} · ${formatPercent(percent, decimals: 1)}',
-              style: const TextStyle(color: Color(0xFFD3DBEA)),
+              style: const TextStyle(
+                fontFamily: QestoTypography.uiFamily,
+                color: Color(0xFFD3DBEA),
+              ),
             ),
             if (hit.transactionCount > 0)
               Text(
                 _operationCount(hit.transactionCount),
-                style: const TextStyle(color: Color(0xFF9FAAC0)),
+                style: const TextStyle(
+                  fontFamily: QestoTypography.uiFamily,
+                  color: Color(0xFF9FAAC0),
+                ),
               ),
           ],
         ),
@@ -386,7 +400,9 @@ class _FlowHit {
 }
 
 class _ExpenseMapPainter extends CustomPainter {
+  final QestoSemanticColors c;
   const _ExpenseMapPainter({
+    required this.c,
     required this.data,
     required this.geometry,
     required this.hoveredId,
@@ -438,7 +454,9 @@ class _ExpenseMapPainter extends CustomPainter {
       canvas.drawPath(
         geometry.branchPaths[index],
         Paint()
-          ..color = branch.color.withValues(alpha: highlighted ? 0.30 : 0.09),
+          ..color = _branchColor(
+            branch,
+          ).withValues(alpha: highlighted ? 0.30 : 0.09),
       );
       for (
         var destinationIndex = 0;
@@ -451,9 +469,9 @@ class _ExpenseMapPainter extends CustomPainter {
         canvas.drawPath(
           geometry.destinationPaths[index][destinationIndex],
           Paint()
-            ..color = branch.color.withValues(
-              alpha: destinationHighlighted ? 0.25 : 0.07,
-            ),
+            ..color = _branchColor(
+              branch,
+            ).withValues(alpha: destinationHighlighted ? 0.25 : 0.07),
         );
       }
     }
@@ -483,7 +501,7 @@ class _ExpenseMapPainter extends CustomPainter {
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(geometry.rootRect, const Radius.circular(5)),
-      Paint()..color = const Color(0xFF2A92C8),
+      Paint()..color = c.primary,
     );
     final rootLabel = data.total == data.income ? 'Доходы' : 'Деньги периода';
     _nodeText(
@@ -504,7 +522,7 @@ class _ExpenseMapPainter extends CustomPainter {
       final rect = geometry.branchRects[index];
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(5)),
-        Paint()..color = branch.color,
+        Paint()..color = _branchColor(branch),
       );
       if (rect.height >= 11) {
         _nodeText(
@@ -532,7 +550,7 @@ class _ExpenseMapPainter extends CustomPainter {
             geometry.destinationRects[index][destinationIndex];
         canvas.drawRRect(
           RRect.fromRectAndRadius(destinationRect, const Radius.circular(4)),
-          Paint()..color = branch.color.withValues(alpha: 0.92),
+          Paint()..color = _branchColor(branch).withValues(alpha: 0.92),
         );
         if (!compact && destinationRect.height >= 12) {
           _nodeText(
@@ -553,14 +571,20 @@ class _ExpenseMapPainter extends CustomPainter {
     }
   }
 
+  Color _branchColor(OverviewFlowBranch branch) => switch (branch.id) {
+    'remaining-income' => c.positive,
+    'savings' => c.primary,
+    _ => branch.color, // Preserve the user's category appearance.
+  };
+
   void _columnLabel(Canvas canvas, String text, Offset offset, double width) {
     _paintText(
       canvas,
       text,
       offset,
       width,
-      const TextStyle(
-        color: QestoColors.secondaryText,
+      TextStyle(
+        color: c.secondaryText,
         fontSize: 8,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.55,
@@ -582,7 +606,7 @@ class _ExpenseMapPainter extends CustomPainter {
       rect.topLeft,
       rect.width,
       TextStyle(
-        color: QestoColors.text,
+        color: c.text,
         fontSize: compact ? 8.5 : 9.5,
         fontWeight: FontWeight.w800,
       ),
@@ -594,7 +618,7 @@ class _ExpenseMapPainter extends CustomPainter {
       Offset(rect.left, rect.top + (compact ? 13 : 15)),
       rect.width,
       TextStyle(
-        color: QestoColors.secondaryText,
+        color: c.secondaryText,
         fontSize: compact ? 7.5 : 8.5,
         fontWeight: FontWeight.w600,
       ),
@@ -611,7 +635,10 @@ class _ExpenseMapPainter extends CustomPainter {
     TextAlign align = TextAlign.left,
   }) {
     final painter = TextPainter(
-      text: TextSpan(text: value, style: style),
+      text: TextSpan(
+        text: value,
+        style: style.copyWith(fontFamily: QestoTypography.uiFamily),
+      ),
       textDirection: TextDirection.ltr,
       textAlign: align,
       maxLines: 1,
@@ -622,6 +649,7 @@ class _ExpenseMapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ExpenseMapPainter oldDelegate) =>
+      oldDelegate.c != c ||
       oldDelegate.data != data ||
       oldDelegate.geometry != geometry ||
       oldDelegate.hoveredId != hoveredId ||

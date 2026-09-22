@@ -421,10 +421,10 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         QestoCard(
           child: Column(
             children: [
-              const Icon(
+              Icon(
                 Icons.qr_code_scanner_rounded,
                 size: 58,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(height: 14),
               Text(
@@ -446,9 +446,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                 const SizedBox(height: 14),
                 Text(
                   _error!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: QestoColors.orange),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.qestoColors.orange,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -524,9 +524,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                 Text(
                   'В бюджете сумма будет округлена до ближайшего рубля. '
                   'Точная сумма сохранится в комментарии.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.qestoColors.orange,
+                  ),
                 ),
               ],
             ],
@@ -605,7 +605,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
             _error!,
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: QestoColors.orange),
+            ).textTheme.bodyMedium?.copyWith(color: context.qestoColors.orange),
             textAlign: TextAlign.center,
           ),
         ],
@@ -622,9 +622,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.document_scanner_rounded,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -670,9 +670,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
               Text(
                 'Текст прочитан, но надёжно выделить товары не удалось. '
                 'Название магазина можно указать вручную.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.qestoColors.orange,
+                ),
               )
             else ...[
               Text(
@@ -738,7 +738,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           onTap: _pickCategory,
           child: Row(
             children: [
-              const Icon(Icons.category_rounded, color: QestoColors.primary),
+              Icon(Icons.category_rounded, color: context.qestoColors.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -802,7 +802,9 @@ class _ReceiptChoice extends StatelessWidget {
             selected
                 ? Icons.radio_button_checked_rounded
                 : Icons.radio_button_off_rounded,
-            color: selected ? QestoColors.primary : QestoColors.secondaryText,
+            color: selected
+                ? context.qestoColors.primary
+                : context.qestoColors.secondaryText,
           ),
           const SizedBox(width: 12),
           Expanded(

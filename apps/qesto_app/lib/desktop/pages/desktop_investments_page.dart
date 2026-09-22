@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_window.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/capital/domain/investment_analytics_service.dart';
@@ -183,7 +184,7 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
                   ),
                   Text(
                     '${_investmentTypeLabel(account.type)} · ${account.brokerName ?? 'ручной счёт'}',
-                    style: const TextStyle(color: QestoColors.secondaryText),
+                    style: TextStyle(color: context.qestoColors.secondaryText),
                   ),
                 ],
               ),
@@ -216,13 +217,13 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
               label: 'Пополнено',
               value: formatMoney(insight.contributions, account.currency),
               icon: Icons.south_west_rounded,
-              accent: QestoColors.positive,
+              accent: context.qestoColors.positive,
             ),
             _InvestmentMetric(
               label: 'Выведено',
               value: formatMoney(insight.withdrawals, account.currency),
               icon: Icons.north_east_rounded,
-              accent: QestoColors.warning,
+              accent: context.qestoColors.warning,
             ),
             _InvestmentMetric(
               label: 'Чистые пополнения',
@@ -264,8 +265,8 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
                     value:
                         '${item.type == InvestmentContributionType.contribution ? '+' : '−'}${formatMoney(item.amount, item.currency)}',
                     color: item.type == InvestmentContributionType.contribution
-                        ? QestoColors.positive
-                        : QestoColors.warning,
+                        ? context.qestoColors.positive
+                        : context.qestoColors.warning,
                   ),
               ],
             );
@@ -514,7 +515,7 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
                     const SizedBox(height: 8),
                     Text(
                       error!,
-                      style: const TextStyle(color: QestoColors.danger),
+                      style: TextStyle(color: context.qestoColors.danger),
                     ),
                   ],
                 ],
@@ -643,7 +644,7 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
                 if (error != null)
                   Text(
                     error!,
-                    style: const TextStyle(color: QestoColors.danger),
+                    style: TextStyle(color: context.qestoColors.danger),
                   ),
               ],
             ),
@@ -758,7 +759,7 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
                   const SizedBox(height: 8),
                   Text(
                     error!,
-                    style: const TextStyle(color: QestoColors.danger),
+                    style: TextStyle(color: context.qestoColors.danger),
                   ),
                 ],
               ],
@@ -810,18 +811,15 @@ class _InvestmentHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Expanded(
+      Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Инвестиции',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-            ),
+            Text('Инвестиции', style: QestoTypography.sectionTitle),
             SizedBox(height: 4),
             Text(
               'Стоимость, пополнения и регулярность — без выдуманной доходности',
-              style: TextStyle(color: QestoColors.secondaryText),
+              style: TextStyle(color: context.qestoColors.secondaryText),
             ),
           ],
         ),
@@ -842,8 +840,8 @@ class _InvestmentHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => DesktopCard(
-    color: QestoColors.primarySoft.withValues(alpha: 0.5),
-    borderColor: QestoColors.primary.withValues(alpha: 0.15),
+    color: context.qestoColors.surface,
+    borderColor: context.qestoColors.primary.withValues(alpha: 0.15),
     child: Wrap(
       spacing: 42,
       runSpacing: 18,
@@ -854,20 +852,17 @@ class _InvestmentHero extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Инвестиционный капитал',
                 style: TextStyle(
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                   fontSize: 12,
                 ),
               ),
               const SizedBox(height: 7),
-              Text(
+              QestoHeroMoney(
                 formatMoney(data.totalBalance, data.baseCurrency),
-                style: const TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w900,
-                ),
+                large: false,
               ),
               const SizedBox(height: 6),
               Text(
@@ -876,10 +871,10 @@ class _InvestmentHero extends StatelessWidget {
                     : '${data.change! >= 0 ? '+' : '−'}${formatMoney(data.change!.abs(), data.baseCurrency)} · изменение стоимости',
                 style: TextStyle(
                   color: data.change == null
-                      ? QestoColors.secondaryText
+                      ? context.qestoColors.secondaryText
                       : data.change! >= 0
-                      ? QestoColors.positive
-                      : QestoColors.danger,
+                      ? context.qestoColors.positive
+                      : context.qestoColors.danger,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -921,8 +916,8 @@ class _HeroValue extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: QestoColors.secondaryText,
+          style: TextStyle(
+            color: context.qestoColors.secondaryText,
             fontSize: 10,
           ),
         ),
@@ -982,14 +977,15 @@ class _InvestmentValueCard extends StatelessWidget {
         SizedBox(
           height: 210,
           child: data.history.length < 2
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Недостаточно истории для графика',
-                    style: TextStyle(color: QestoColors.secondaryText),
+                    style: TextStyle(color: context.qestoColors.secondaryText),
                   ),
                 )
               : CustomPaint(
                   painter: _InvestmentLinePainter(
+                    context.qestoColors,
                     data.history,
                     Theme.of(context).brightness,
                   ),
@@ -1018,7 +1014,7 @@ class _InvestmentFlowCard extends StatelessWidget {
         Text(
           'Отдельно от изменения стоимости портфеля',
           style: TextStyle(
-            color: QestoColors.secondaryText.withValues(alpha: 0.9),
+            color: context.qestoColors.secondaryText.withValues(alpha: 0.9),
             fontSize: 11,
           ),
         ),
@@ -1026,7 +1022,10 @@ class _InvestmentFlowCard extends StatelessWidget {
         SizedBox(
           height: 155,
           child: CustomPaint(
-            painter: _InvestmentBarPainter(data.monthlyContributions),
+            painter: _InvestmentBarPainter(
+              context.qestoColors,
+              data.monthlyContributions,
+            ),
             size: Size.infinite,
           ),
         ),
@@ -1058,8 +1057,8 @@ class _InvestmentFlowCard extends StatelessWidget {
             data.monthlyPlanRemaining == 0
                 ? 'План выполнен'
                 : 'Осталось ${formatMoney(data.monthlyPlanRemaining, data.baseCurrency)}',
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
               fontSize: 10,
             ),
           ),
@@ -1089,12 +1088,12 @@ class _InvestmentAccountCard extends StatelessWidget {
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: QestoColors.purple.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  color: context.qestoColors.purple.withValues(alpha: 0.1),
+                  borderRadius: QestoGeometry.control,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.show_chart_rounded,
-                  color: QestoColors.purple,
+                  color: context.qestoColors.purple,
                 ),
               ),
               const SizedBox(width: 11),
@@ -1110,17 +1109,17 @@ class _InvestmentAccountCard extends StatelessWidget {
                     ),
                     Text(
                       _investmentTypeLabel(account.type),
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 10,
                       ),
                     ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: QestoColors.secondaryText,
+                color: context.qestoColors.secondaryText,
               ),
             ],
           ),
@@ -1136,10 +1135,10 @@ class _InvestmentAccountCard extends StatelessWidget {
                 : '${insight.change! >= 0 ? '+' : '−'}${formatMoney(insight.change!.abs(), account.currency)} за период',
             style: TextStyle(
               color: insight.change == null
-                  ? QestoColors.secondaryText
+                  ? context.qestoColors.secondaryText
                   : insight.change! >= 0
-                  ? QestoColors.positive
-                  : QestoColors.danger,
+                  ? context.qestoColors.positive
+                  : context.qestoColors.danger,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -1153,15 +1152,15 @@ class _InvestmentAccountCard extends StatelessWidget {
                     : Icons.check_circle_outline_rounded,
                 size: 15,
                 color: insight.freshness == InvestmentFreshness.stale
-                    ? QestoColors.warning
-                    : QestoColors.secondaryText,
+                    ? context.qestoColors.warning
+                    : context.qestoColors.secondaryText,
               ),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   freshness,
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 10,
                   ),
                 ),
@@ -1179,12 +1178,12 @@ class _InvestmentMetric extends StatelessWidget {
     required this.label,
     required this.value,
     required this.icon,
-    this.accent = QestoColors.primary,
+    this.accent,
   });
   final String label;
   final String value;
   final IconData icon;
-  final Color accent;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -1192,7 +1191,7 @@ class _InvestmentMetric extends StatelessWidget {
     child: DesktopCard(
       child: Row(
         children: [
-          Icon(icon, color: accent),
+          Icon(icon, color: accent ?? context.qestoColors.primary),
           const SizedBox(width: 11),
           Expanded(
             child: Column(
@@ -1200,8 +1199,8 @@ class _InvestmentMetric extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 10,
                   ),
                 ),
@@ -1262,7 +1261,7 @@ class _InvestmentHistoryCard extends StatelessWidget {
             child: Center(
               child: Text(
                 emptyText,
-                style: const TextStyle(color: QestoColors.secondaryText),
+                style: TextStyle(color: context.qestoColors.secondaryText),
               ),
             ),
           )
@@ -1279,13 +1278,13 @@ class _InvestmentHistoryRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.value,
-    this.color = QestoColors.text,
+    this.color,
   });
   final IconData icon;
   final String title;
   final String subtitle;
   final String? value;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1301,8 +1300,8 @@ class _InvestmentHistoryRow extends StatelessWidget {
               Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 10,
                 ),
               ),
@@ -1312,7 +1311,10 @@ class _InvestmentHistoryRow extends StatelessWidget {
         if (value != null)
           Text(
             value!,
-            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: color ?? context.qestoColors.text,
+              fontWeight: FontWeight.w800,
+            ),
           ),
       ],
     ),
@@ -1328,13 +1330,13 @@ class _InvestmentNote extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: QestoColors.primarySoft.withValues(alpha: 0.45),
-      borderRadius: BorderRadius.circular(12),
+      color: context.qestoColors.primarySoft.withValues(alpha: 0.45),
+      borderRadius: QestoGeometry.control,
     ),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: QestoColors.primary),
+        Icon(icon, size: 18, color: context.qestoColors.primary),
         const SizedBox(width: 9),
         Expanded(
           child: Text(text, style: const TextStyle(fontSize: 11, height: 1.4)),
@@ -1345,7 +1347,8 @@ class _InvestmentNote extends StatelessWidget {
 }
 
 class _InvestmentLinePainter extends CustomPainter {
-  _InvestmentLinePainter(this.points, this.brightness);
+  final QestoSemanticColors c;
+  _InvestmentLinePainter(this.c, this.points, this.brightness);
   final List<InvestmentBalancePoint> points;
   final Brightness brightness;
 
@@ -1381,15 +1384,15 @@ class _InvestmentLinePainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            QestoColors.primary.withValues(alpha: 0.24),
-            QestoColors.primary.withValues(alpha: 0.01),
+            c.primary.withValues(alpha: 0.24),
+            c.primary.withValues(alpha: 0.01),
           ],
         ).createShader(Offset.zero & size),
     );
     canvas.drawPath(
       line,
       Paint()
-        ..color = QestoColors.primary
+        ..color = c.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round
@@ -1397,7 +1400,7 @@ class _InvestmentLinePainter extends CustomPainter {
     );
     final gridColor = brightness == Brightness.dark
         ? Colors.white.withValues(alpha: 0.07)
-        : QestoColors.border.withValues(alpha: 0.7);
+        : c.border.withValues(alpha: 0.7);
     for (var index = 0; index < 4; index++) {
       final y = top + (bottom - top) * index / 3;
       canvas.drawLine(
@@ -1412,11 +1415,14 @@ class _InvestmentLinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _InvestmentLinePainter oldDelegate) =>
-      oldDelegate.points != points || oldDelegate.brightness != brightness;
+      oldDelegate.c != c ||
+      oldDelegate.points != points ||
+      oldDelegate.brightness != brightness;
 }
 
 class _InvestmentBarPainter extends CustomPainter {
-  _InvestmentBarPainter(this.values);
+  final QestoSemanticColors c;
+  _InvestmentBarPainter(this.c, this.values);
   final List<InvestmentMonthlyContribution> values;
 
   @override
@@ -1442,16 +1448,14 @@ class _InvestmentBarPainter extends CustomPainter {
       canvas.drawRRect(
         rect,
         Paint()
-          ..color = value <= 0
-              ? QestoColors.border
-              : QestoColors.purple.withValues(alpha: 0.82),
+          ..color = value <= 0 ? c.border : c.purple.withValues(alpha: 0.82),
       );
     }
   }
 
   @override
   bool shouldRepaint(covariant _InvestmentBarPainter oldDelegate) =>
-      oldDelegate.values != values;
+      oldDelegate.c != c || oldDelegate.values != values;
 }
 
 String _investmentTypeLabel(InvestmentAccountType type) => switch (type) {

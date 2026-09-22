@@ -61,9 +61,9 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
               decoration: BoxDecoration(
-                color: QestoColors.background,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: QestoColors.border),
+                color: context.qestoColors.background,
+                borderRadius: QestoGeometry.control,
+                border: Border.all(color: context.qestoColors.border),
               ),
               child: Text(
                 widget.cumulative ? 'По дням' : 'Интервалы',
@@ -87,6 +87,7 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
                   width: double.infinity,
                   child: CustomPaint(
                     painter: _LinePainter(
+                      c: context.qestoColors,
                       points: widget.points,
                       comparison: widget.comparison,
                       cumulative: widget.cumulative,
@@ -111,8 +112,8 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: QestoColors.primarySoft,
-                      borderRadius: BorderRadius.circular(14),
+                      color: context.qestoColors.primarySoft,
+                      borderRadius: QestoGeometry.control,
                     ),
                     child: Text(
                       '${formatDate(selected.date, includeYear: true)} · ${formatMoney(_amount(widget.cumulative ? selected.cumulative : selected.amount), widget.currency)} · ${selected.count} операций',
@@ -129,7 +130,9 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
 }
 
 class _LinePainter extends CustomPainter {
+  final QestoSemanticColors c;
   const _LinePainter({
+    required this.c,
     required this.points,
     required this.comparison,
     required this.cumulative,
@@ -154,7 +157,7 @@ class _LinePainter extends CustomPainter {
         cumulative ? point.cumulative : point.amount,
     ];
     final maximum = math.max(values.isEmpty ? 1 : values.reduce(math.max), 1);
-    final gridPaint = Paint()..color = QestoColors.border;
+    final gridPaint = Paint()..color = c.border;
     for (var i = 0; i <= 4; i++) {
       final y = plot.top + plot.height * i / 4;
       canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), gridPaint);
@@ -189,8 +192,8 @@ class _LinePainter extends CustomPainter {
       );
     }
 
-    drawSeries(comparison, QestoColors.primary.withValues(alpha: 0.26), 2);
-    drawSeries(points, QestoColors.primary, 3);
+    drawSeries(comparison, c.primary.withValues(alpha: 0.26), 2);
+    drawSeries(points, c.primary, 3);
     if (selectedIndex != null && points.isNotEmpty) {
       final index = selectedIndex!.clamp(0, points.length - 1);
       final value = cumulative
@@ -203,14 +206,14 @@ class _LinePainter extends CustomPainter {
       canvas.drawLine(
         Offset(x, plot.top),
         Offset(x, plot.bottom),
-        Paint()..color = QestoColors.secondaryText.withValues(alpha: 0.5),
+        Paint()..color = c.secondaryText.withValues(alpha: 0.5),
       );
       canvas.drawCircle(Offset(x, y), 6, Paint()..color = Colors.white);
       canvas.drawCircle(
         Offset(x, y),
         5,
         Paint()
-          ..color = QestoColors.primary
+          ..color = c.primary
           ..style = PaintingStyle.stroke
           ..strokeWidth = 3,
       );
@@ -221,7 +224,11 @@ class _LinePainter extends CustomPainter {
         amountConverter?.call(maximum) ?? maximum,
         currency,
       ),
-      style: const TextStyle(fontSize: 11, color: QestoColors.secondaryText),
+      style: TextStyle(
+        fontFamily: QestoTypography.uiFamily,
+        fontSize: 11,
+        color: c.secondaryText,
+      ),
     );
     labelPainter.layout();
     labelPainter.paint(canvas, Offset(plot.left, 0));
@@ -229,6 +236,7 @@ class _LinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _LinePainter oldDelegate) =>
+      oldDelegate.c != c ||
       oldDelegate.points != points ||
       oldDelegate.comparison != comparison ||
       oldDelegate.selectedIndex != selectedIndex ||
@@ -282,7 +290,7 @@ class _StatisticsPeriodBarsCardState extends State<StatisticsPeriodBarsCard> {
                           '${formatBudgetPeriod(visible[index].period.month, visible[index].period.year)}: расходы ${formatMoney(visible[index].expenses, 'RUB')}',
                       child: InkWell(
                         onTap: () => setState(() => selected = index),
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: QestoGeometry.control,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 3),
                           child: Column(
@@ -307,8 +315,8 @@ class _StatisticsPeriodBarsCardState extends State<StatisticsPeriodBarsCard> {
                                     126 * visible[index].expenses / maxValue,
                                 decoration: BoxDecoration(
                                   color: selected == index
-                                      ? QestoColors.primary
-                                      : QestoColors.primary.withValues(
+                                      ? context.qestoColors.primary
+                                      : context.qestoColors.primary.withValues(
                                           alpha: 0.62,
                                         ),
                                   borderRadius: const BorderRadius.vertical(
@@ -319,9 +327,9 @@ class _StatisticsPeriodBarsCardState extends State<StatisticsPeriodBarsCard> {
                               const SizedBox(height: 7),
                               Text(
                                 _monthShort(visible[index].period.month),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 11,
-                                  color: QestoColors.secondaryText,
+                                  color: context.qestoColors.secondaryText,
                                 ),
                               ),
                             ],
@@ -376,7 +384,9 @@ class StatisticsDonut extends StatelessWidget {
             SizedBox(
               width: 148,
               height: 148,
-              child: CustomPaint(painter: _DonutPainter(top)),
+              child: CustomPaint(
+                painter: _DonutPainter(top, context.qestoColors),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -394,7 +404,7 @@ class StatisticsDonut extends StatelessWidget {
                             decoration: BoxDecoration(
                               color: Color(
                                 item.colorValue ??
-                                    QestoColors.primary.toARGB32(),
+                                    context.qestoColors.primary.toARGB32(),
                               ),
                               shape: BoxShape.circle,
                             ),
@@ -425,7 +435,8 @@ class StatisticsDonut extends StatelessWidget {
 }
 
 class _DonutPainter extends CustomPainter {
-  const _DonutPainter(this.items);
+  final QestoSemanticColors c;
+  const _DonutPainter(this.items, this.c);
   final List<StatisticsGroupStat> items;
 
   @override
@@ -439,7 +450,7 @@ class _DonutPainter extends CustomPainter {
         math.pi * 2,
         false,
         Paint()
-          ..color = QestoColors.border
+          ..color = c.border
           ..style = PaintingStyle.stroke
           ..strokeWidth = 22,
       );
@@ -453,7 +464,7 @@ class _DonutPainter extends CustomPainter {
         sweep,
         false,
         Paint()
-          ..color = Color(item.colorValue ?? QestoColors.primary.toARGB32())
+          ..color = Color(item.colorValue ?? c.primary.toARGB32())
           ..style = PaintingStyle.stroke
           ..strokeWidth = 24,
       );
@@ -463,7 +474,7 @@ class _DonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DonutPainter oldDelegate) =>
-      oldDelegate.items != items;
+      oldDelegate.c != c || oldDelegate.items != items;
 }
 
 class StatisticsHeatmap extends StatelessWidget {
@@ -505,13 +516,15 @@ class StatisticsHeatmap extends StatelessWidget {
                 '${formatDate(point.date)}, расходы ${formatMoney(point.amount, 'RUB')}',
             child: InkWell(
               onTap: () => onDayTap(point),
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: QestoGeometry.control,
               child: Container(
                 decoration: BoxDecoration(
-                  color: QestoColors.primary.withValues(alpha: intensity),
-                  borderRadius: BorderRadius.circular(9),
+                  color: context.qestoColors.primary.withValues(
+                    alpha: intensity,
+                  ),
+                  borderRadius: QestoGeometry.control,
                   border: point.amount == 0
-                      ? Border.all(color: QestoColors.border)
+                      ? Border.all(color: context.qestoColors.border)
                       : null,
                 ),
                 alignment: Alignment.center,
@@ -520,7 +533,9 @@ class StatisticsHeatmap extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: intensity > 0.55 ? Colors.white : QestoColors.text,
+                    color: intensity > 0.55
+                        ? Theme.of(context).colorScheme.onPrimary
+                        : context.qestoColors.text,
                   ),
                 ),
               ),
@@ -557,12 +572,12 @@ class StatisticsScatter extends StatelessWidget {
           ActionChip(
             onPressed: () => onTap(item),
             avatar: CircleAvatar(
-              backgroundColor: QestoColors.primary.withValues(
+              backgroundColor: context.qestoColors.primary.withValues(
                 alpha: (0.2 + item.share).clamp(0.2, 0.9),
               ),
               child: Text(
                 '${item.count}',
-                style: const TextStyle(fontSize: 11, color: QestoColors.text),
+                style: TextStyle(fontSize: 11, color: context.qestoColors.text),
               ),
             ),
             label: Text(

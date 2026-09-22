@@ -24,10 +24,19 @@ if (-not [System.IO.File]::Exists($resourceSource)) {
 # This helper only uses framework assemblies, so an empty LIB is intentional.
 $env:LIB = $null
 
-Add-Type @'
+# CMake invokes Windows PowerShell 5.1 (.NET Framework); unlike PowerShell 7,
+# its default C# references do not include System.Xml.
+$patchCompiler = @{}
+if ($PSVersionTable.PSEdition -eq 'Desktop') {
+    $patchCompiler.ReferencedAssemblies = @('System.dll', 'System.Xml.dll')
+}
+Add-Type @patchCompiler -TypeDefinition @'
 using System;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
+using System.Text;
+using System.Xml;
+using System.Collections.Generic;
 
 public static class QestoVersionResourcePatch {
     private const uint LoadLibraryAsDataFile = 0x00000002;
@@ -75,6 +84,82 @@ public static class QestoVersionResourcePatch {
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool EndUpdateResourceW(IntPtr update, bool discard);
 
+    private delegate bool ResourceLanguageCallback(IntPtr module, IntPtr type,
+        IntPtr name, ushort language, IntPtr parameter);
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool EnumResourceLanguagesW(IntPtr module, IntPtr type,
+        IntPtr name, ResourceLanguageCallback callback, IntPtr parameter);
+
+    private static byte[] ReadResource(IntPtr module, int type, int id) {
+        IntPtr resource = FindResourceW(module, new IntPtr(id), new IntPtr(type));
+        if (resource == IntPtr.Zero) throw Error("FindResourceW");
+        uint size = SizeofResource(module, resource);
+        IntPtr data = LockResource(LoadResource(module, resource));
+        if (size == 0 || data == IntPtr.Zero) throw Error("ReadResource");
+        byte[] bytes = new byte[size];
+        Marshal.Copy(data, bytes, 0, checked((int)size));
+        return bytes;
+    }
+
+    public static void MergeDpiManifest(string sourcePath, string targetPath) {
+        // A DLL manifest does not establish the executable's process DPI mode.
+        // Preserve the official bootstrap's trust, Common Controls and sandbox
+        // compatibility entries; merge only our Windows DPI declarations.
+        var source = LoadLibraryExW(sourcePath, IntPtr.Zero, LoadLibraryAsDataFile);
+        var target = LoadLibraryExW(targetPath, IntPtr.Zero, LoadLibraryAsDataFile);
+        if (source == IntPtr.Zero || target == IntPtr.Zero) {
+            var failure = Error("Load manifest module");
+            if (source != IntPtr.Zero) FreeLibrary(source);
+            if (target != IntPtr.Zero) FreeLibrary(target);
+            throw failure;
+        }
+        var languages = new List<ushort>();
+        byte[] merged;
+        try {
+            var src = new XmlDocument();
+            src.LoadXml(Encoding.UTF8.GetString(ReadResource(source, 24, 2)).TrimStart('\uFEFF'));
+            var dst = new XmlDocument();
+            dst.LoadXml(Encoding.UTF8.GetString(ReadResource(target, 24, 1)).TrimStart('\uFEFF'));
+            const string v3 = "urn:schemas-microsoft-com:asm.v3";
+            var application = dst.DocumentElement.SelectSingleNode("*[local-name()='application' and namespace-uri()='" + v3 + "']");
+            if (application == null) application = dst.DocumentElement.AppendChild(dst.CreateElement("application", v3));
+            var settings = application.SelectSingleNode("*[local-name()='windowsSettings']");
+            if (settings == null) settings = application.AppendChild(dst.CreateElement("windowsSettings", v3));
+            foreach (XmlNode node in src.SelectNodes("//*[local-name()='windowsSettings']/*")) {
+                if (node.LocalName != "dpiAwareness" && node.LocalName != "dpiAware") continue;
+                var previous = settings.SelectSingleNode("*[local-name()='" + node.LocalName + "']");
+                if (previous != null) settings.RemoveChild(previous);
+                settings.AppendChild(dst.ImportNode(node, true));
+            }
+            var mode = settings.SelectSingleNode("*[local-name()='dpiAwareness']");
+            if (mode == null || mode.InnerText != "PerMonitorV2") throw new Exception("Missing PerMonitorV2 declaration");
+            merged = new UTF8Encoding(false).GetBytes(dst.OuterXml);
+            ResourceLanguageCallback callback = (m,t,n,l,p) => { languages.Add(l); return true; };
+            if (!EnumResourceLanguagesW(target, new IntPtr(24), new IntPtr(1), callback, IntPtr.Zero)) throw Error("Manifest languages");
+            GC.KeepAlive(callback);
+        } finally {
+            if (source != IntPtr.Zero) FreeLibrary(source);
+            if (target != IntPtr.Zero) FreeLibrary(target);
+        }
+        IntPtr update = BeginUpdateResourceW(targetPath, false);
+        if (update == IntPtr.Zero) throw Error("BeginUpdateResourceW(manifest)");
+        bool committed = false;
+        try {
+            foreach (ushort language in languages) {
+                if (!UpdateResourceW(update, new IntPtr(24), new IntPtr(1), language, merged, (uint)merged.Length)) throw Error("Update manifest");
+            }
+            if (!EndUpdateResourceW(update, false)) throw Error("Commit manifest");
+            committed = true;
+        } finally { if (!committed) EndUpdateResourceW(update, true); }
+        var verify = LoadLibraryExW(targetPath, IntPtr.Zero, LoadLibraryAsDataFile);
+        if (verify == IntPtr.Zero) throw Error("Load manifest verification module");
+        try {
+            var xml = new XmlDocument();
+            xml.LoadXml(Encoding.UTF8.GetString(ReadResource(verify, 24, 1)).TrimStart('\uFEFF'));
+            if (xml.SelectSingleNode("//*[local-name()='dpiAwareness']").InnerText != "PerMonitorV2") throw new Exception("DPI manifest verification failed");
+        } finally { FreeLibrary(verify); }
+    }
+
     private static Win32Exception Error(string operation) {
         return new Win32Exception(Marshal.GetLastWin32Error(), operation);
     }
@@ -118,9 +203,10 @@ public static class QestoVersionResourcePatch {
 '@
 
 [QestoVersionResourcePatch]::CopyVersion($resourceSource, $bootstrap)
+[QestoVersionResourcePatch]::MergeDpiManifest($resourceSource, $bootstrap)
 $version = [System.Diagnostics.FileVersionInfo]::GetVersionInfo($bootstrap)
 if ($version.ProductName -ne 'Qesto' -or $version.CompanyName -ne 'ru.qesto') {
     throw "CEF bootstrap identity patch verification failed: '$($version.CompanyName)' / '$($version.ProductName)'"
 }
 
-Write-Output "Patched CEF bootstrap identity: $($version.CompanyName) / $($version.ProductName)"
+Write-Output "Patched CEF bootstrap identity and PerMonitorV2 manifest: $($version.CompanyName) / $($version.ProductName)"

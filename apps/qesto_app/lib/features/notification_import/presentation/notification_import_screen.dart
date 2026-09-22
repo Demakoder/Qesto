@@ -98,7 +98,9 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
           ),
           FilledButton.icon(
             key: const Key('confirm-delete-all-data'),
-            style: FilledButton.styleFrom(backgroundColor: QestoColors.orange),
+            style: FilledButton.styleFrom(
+              backgroundColor: context.qestoColors.orange,
+            ),
             onPressed: () => Navigator.of(context).pop(true),
             icon: const Icon(Icons.delete_forever_rounded),
             label: const Text('Удалить всё'),
@@ -397,9 +399,9 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
                     dimension: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Icon(
+                : Icon(
                     Icons.delete_sweep_outlined,
-                    color: QestoColors.orange,
+                    color: context.qestoColors.orange,
                   ),
           ),
           const SizedBox(width: 6),
@@ -488,13 +490,13 @@ class _ParsedTransactionCard extends StatelessWidget {
               Container(
                 width: 44,
                 height: 44,
-                decoration: const BoxDecoration(
-                  color: QestoColors.primarySoft,
+                decoration: BoxDecoration(
+                  color: context.qestoColors.primarySoft,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
+                child: Icon(
                   Icons.restaurant_rounded,
-                  color: QestoColors.primary,
+                  color: context.qestoColors.primary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -526,9 +528,9 @@ class _ParsedTransactionCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               'Для даты операции не найден бюджетный период',
-              style: Theme.of(
-                context,
-              ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: context.qestoColors.orange,
+              ),
             ),
           ],
           const SizedBox(height: 14),
@@ -611,7 +613,7 @@ class _MessageState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 52, color: QestoColors.secondaryText),
+            Icon(icon, size: 52, color: context.qestoColors.secondaryText),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             if (actionLabel != null && onAction != null) ...[

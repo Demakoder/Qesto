@@ -24,7 +24,7 @@ class DesktopRecurringPage extends StatelessWidget {
                 .toList()
               ..sort((a, b) => a.plannedDate.compareTo(b.plannedDate));
         return Padding(
-          padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
+          padding: QestoSpacing.workspace(context),
           child: Column(
             children: [
               LayoutBuilder(
@@ -52,7 +52,7 @@ class DesktopRecurringPage extends StatelessWidget {
                                   ),
                                   detail: 'Оценка Synoball',
                                   icon: Icons.event_repeat_outlined,
-                                  accent: QestoColors.purple,
+                                  accent: context.qestoColors.purple,
                                 ),
                                 const SizedBox(width: 14),
                                 DesktopKpiCard(
@@ -67,7 +67,7 @@ class DesktopRecurringPage extends StatelessWidget {
                                   value: '${streams.length}',
                                   detail: 'По повторениям операций',
                                   icon: Icons.auto_awesome_outlined,
-                                  accent: QestoColors.positive,
+                                  accent: context.qestoColors.positive,
                                 ),
                               ]
                               .map(
@@ -151,8 +151,8 @@ class _UpcomingRow extends StatelessWidget {
         ? Icons.edit_calendar_outlined
         : Icons.schedule_rounded,
     color: item.source == UpcomingExpenseSource.manual
-        ? QestoColors.primary
-        : QestoColors.purple,
+        ? context.qestoColors.primary
+        : context.qestoColors.purple,
   );
 }
 
@@ -167,7 +167,7 @@ class _StreamRow extends StatelessWidget {
     currency: stream.typicalAmount.currency,
     status: '≈ прогноз · ${(stream.confidence * 100).round()}%',
     icon: Icons.auto_awesome_outlined,
-    color: QestoColors.warning,
+    color: context.qestoColors.warning,
   );
 }
 
@@ -210,8 +210,8 @@ class _RecurringRow extends StatelessWidget {
                     width: 72,
                     child: Text(
                       formatDate(date),
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 11,
                       ),
                     ),

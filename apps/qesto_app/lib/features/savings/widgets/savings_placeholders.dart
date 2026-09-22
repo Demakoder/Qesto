@@ -10,20 +10,24 @@ class SavingsHistoryChartPlaceholder extends StatelessWidget {
     return Container(
       height: 150,
       decoration: BoxDecoration(
-        color: QestoColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: QestoColors.border),
+        color: context.qestoColors.surface,
+        borderRadius: QestoGeometry.control,
+        border: Border.all(color: context.qestoColors.border),
       ),
-      child: CustomPaint(painter: _PlaceholderChartPainter()),
+      child: CustomPaint(
+        painter: _PlaceholderChartPainter(context.qestoColors),
+      ),
     );
   }
 }
 
 class _PlaceholderChartPainter extends CustomPainter {
+  _PlaceholderChartPainter(this.c);
+  final QestoSemanticColors c;
   @override
   void paint(Canvas canvas, Size size) {
     final grid = Paint()
-      ..color = QestoColors.border
+      ..color = c.border
       ..strokeWidth = 1;
     for (var row = 1; row < 4; row++) {
       final y = size.height / 4 * row;
@@ -50,7 +54,7 @@ class _PlaceholderChartPainter extends CustomPainter {
     canvas.drawPath(
       line,
       Paint()
-        ..color = QestoColors.green.withValues(alpha: 0.45)
+        ..color = c.green.withValues(alpha: 0.45)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 5
         ..strokeCap = StrokeCap.round,
@@ -58,7 +62,8 @@ class _PlaceholderChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _PlaceholderChartPainter oldDelegate) =>
+      oldDelegate.c != c;
 }
 
 class SeriesCalendarPlaceholder extends StatelessWidget {
@@ -69,9 +74,9 @@ class SeriesCalendarPlaceholder extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: QestoColors.surface,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: QestoColors.border),
+        color: context.qestoColors.surface,
+        borderRadius: QestoGeometry.control,
+        border: Border.all(color: context.qestoColors.border),
       ),
       child: GridView.builder(
         shrinkWrap: true,
@@ -85,7 +90,7 @@ class SeriesCalendarPlaceholder extends StatelessWidget {
         itemBuilder: (context, index) => DecoratedBox(
           decoration: BoxDecoration(
             color: index < 19
-                ? QestoColors.orange.withValues(alpha: 0.65)
+                ? context.qestoColors.orange.withValues(alpha: 0.65)
                 : const Color(0xFFEEF1F6),
             shape: BoxShape.circle,
           ),

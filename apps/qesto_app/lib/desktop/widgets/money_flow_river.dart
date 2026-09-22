@@ -62,12 +62,12 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
   @override
   Widget build(BuildContext context) {
     if (widget.categories.isEmpty) {
-      return const SizedBox(
+      return SizedBox(
         height: 260,
         child: Center(
           child: Text(
             'Недостаточно операций для построения потока',
-            style: TextStyle(color: QestoColors.secondaryText),
+            style: TextStyle(color: context.qestoColors.secondaryText),
           ),
         ),
       );
@@ -111,6 +111,7 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
                     Positioned.fill(
                       child: CustomPaint(
                         painter: _MoneyFlowPainter(
+                          c: context.qestoColors,
                           layout: layout,
                           categories: widget.categories,
                           income: widget.income,
@@ -134,8 +135,8 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
                               vertical: 10,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF172033),
-                              borderRadius: BorderRadius.circular(11),
+                              color: const Color(0xFF171B1E),
+                              borderRadius: QestoGeometry.control,
                               boxShadow: const [
                                 BoxShadow(
                                   color: Color(0x33000000),
@@ -152,6 +153,7 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
+                                    fontFamily: QestoTypography.uiFamily,
                                     color: Colors.white,
                                     fontSize: 12,
                                     fontWeight: FontWeight.w800,
@@ -166,6 +168,7 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
                                           widget.currency,
                                         ),
                                   style: const TextStyle(
+                                    fontFamily: QestoTypography.uiFamily,
                                     color: Color(0xFFBFC9DC),
                                     fontSize: 11,
                                   ),
@@ -335,7 +338,9 @@ class _FlowHit {
 }
 
 class _MoneyFlowPainter extends CustomPainter {
+  final QestoSemanticColors c;
   const _MoneyFlowPainter({
+    required this.c,
     required this.layout,
     required this.categories,
     required this.income,
@@ -423,7 +428,7 @@ class _MoneyFlowPainter extends CustomPainter {
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(layout.root, const Radius.circular(6)),
-      Paint()..color = const Color(0xFF22304A),
+      Paint()..color = c.primary,
     );
     final deficit = math.max(0, expenses - income);
     _text(
@@ -431,8 +436,9 @@ class _MoneyFlowPainter extends CustomPainter {
       'Доступно',
       Offset(0, layout.root.center.dy - 25),
       width: layout.root.left - 12,
-      style: const TextStyle(
-        color: QestoColors.text,
+      style: TextStyle(
+        fontFamily: QestoTypography.uiFamily,
+        color: c.text,
         fontSize: 12,
         fontWeight: FontWeight.w800,
       ),
@@ -443,8 +449,9 @@ class _MoneyFlowPainter extends CustomPainter {
       hideAmounts ? '••••' : formatMoney(math.max(income, expenses), currency),
       Offset(0, layout.root.center.dy - 6),
       width: layout.root.left - 12,
-      style: const TextStyle(
-        color: Color(0xFF22304A),
+      style: TextStyle(
+        fontFamily: QestoTypography.uiFamily,
+        color: c.text,
         fontSize: 16,
         fontWeight: FontWeight.w900,
       ),
@@ -458,8 +465,9 @@ class _MoneyFlowPainter extends CustomPainter {
             : '+${formatMoney(deficit, currency)} из резерва',
         Offset(0, layout.root.center.dy + 17),
         width: layout.root.left - 12,
-        style: const TextStyle(
-          color: QestoColors.negative,
+        style: TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: c.negative,
           fontSize: 9,
           fontWeight: FontWeight.w700,
         ),
@@ -499,8 +507,9 @@ class _MoneyFlowPainter extends CustomPainter {
               rect.left -
               52,
         ),
-        style: const TextStyle(
-          color: QestoColors.text,
+        style: TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: c.text,
           fontSize: 10,
           fontWeight: FontWeight.w800,
         ),
@@ -515,8 +524,9 @@ class _MoneyFlowPainter extends CustomPainter {
               rect.left -
               52,
         ),
-        style: const TextStyle(
-          color: QestoColors.secondaryText,
+        style: TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: c.secondaryText,
           fontSize: 9,
           fontWeight: FontWeight.w700,
         ),
@@ -540,8 +550,9 @@ class _MoneyFlowPainter extends CustomPainter {
           Offset(purchaseRect.right + 8, purchaseRect.center.dy - 12),
           width: size.width - purchaseRect.right - 12,
           maxLines: 1,
-          style: const TextStyle(
-            color: QestoColors.text,
+          style: TextStyle(
+            fontFamily: QestoTypography.uiFamily,
+            color: c.text,
             fontSize: 9,
             fontWeight: FontWeight.w700,
           ),
@@ -553,8 +564,9 @@ class _MoneyFlowPainter extends CustomPainter {
             Offset(purchaseRect.right + 8, purchaseRect.center.dy + 1),
             width: size.width - purchaseRect.right - 12,
             maxLines: 1,
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              fontFamily: QestoTypography.uiFamily,
+              color: c.secondaryText,
               fontSize: 8,
             ),
           );
@@ -593,8 +605,9 @@ class _MoneyFlowPainter extends CustomPainter {
     value,
     offset,
     width: 210,
-    style: const TextStyle(
-      color: QestoColors.secondaryText,
+    style: TextStyle(
+      fontFamily: QestoTypography.uiFamily,
+      color: c.secondaryText,
       fontSize: 8,
       fontWeight: FontWeight.w800,
       letterSpacing: 0.55,
@@ -611,7 +624,10 @@ class _MoneyFlowPainter extends CustomPainter {
     int maxLines = 2,
   }) {
     final painter = TextPainter(
-      text: TextSpan(text: value, style: style),
+      text: TextSpan(
+        text: value,
+        style: style.copyWith(fontFamily: QestoTypography.uiFamily),
+      ),
       textDirection: TextDirection.ltr,
       textAlign: align,
       maxLines: maxLines,
@@ -622,6 +638,7 @@ class _MoneyFlowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MoneyFlowPainter oldDelegate) =>
+      oldDelegate.c != c ||
       oldDelegate.categories != categories ||
       oldDelegate.income != income ||
       oldDelegate.expenses != expenses ||

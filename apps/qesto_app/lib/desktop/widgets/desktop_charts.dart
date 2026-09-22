@@ -59,6 +59,7 @@ class _SpendingTrajectoryChartState extends State<SpendingTrajectoryChart> {
                   Positioned.fill(
                     child: CustomPaint(
                       painter: _TrajectoryPainter(
+                        c: context.qestoColors,
                         actual: widget.actual,
                         plan: widget.plan,
                         forecast: widget.forecast,
@@ -115,20 +116,27 @@ class _TrajectoryTooltip extends StatelessWidget {
         width: 152,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: const Color(0xFF172033),
-          borderRadius: BorderRadius.circular(10),
+          color: context.qestoColors.chartTooltip,
+          borderRadius: QestoGeometry.control,
           boxShadow: const [
             BoxShadow(color: Color(0x33000000), blurRadius: 12),
           ],
         ),
         child: DefaultTextStyle(
-          style: const TextStyle(color: Colors.white, fontSize: 11),
+          style: TextStyle(
+            fontFamily: QestoTypography.uiFamily,
+            color: context.qestoColors.text,
+            fontSize: 11,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 '$day число',
-                style: const TextStyle(fontWeight: FontWeight.w800),
+                style: const TextStyle(
+                  fontFamily: QestoTypography.uiFamily,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               const SizedBox(height: 6),
               Text(
@@ -142,8 +150,8 @@ class _TrajectoryTooltip extends StatelessWidget {
                   'Разница: ${formatMoney((actual! - plan!).round(), currency, showSign: true)}',
                   style: TextStyle(
                     color: actual! <= plan!
-                        ? const Color(0xFF84E397)
-                        : const Color(0xFFFF9A91),
+                        ? context.qestoColors.positive
+                        : context.qestoColors.negative,
                   ),
                 ),
             ],
@@ -155,7 +163,9 @@ class _TrajectoryTooltip extends StatelessWidget {
 }
 
 class _TrajectoryPainter extends CustomPainter {
+  final QestoSemanticColors c;
   const _TrajectoryPainter({
+    required this.c,
     required this.actual,
     required this.plan,
     required this.forecast,
@@ -183,7 +193,7 @@ class _TrajectoryPainter extends CustomPainter {
     final maxValue = values.isEmpty
         ? 1.0
         : math.max(1.0, values.reduce(math.max) * 1.12);
-    final grid = Paint()..color = const Color(0xFFE9EDF4);
+    final grid = Paint()..color = c.chartGrid;
     for (var i = 0; i <= 4; i++) {
       final y = rect.bottom - rect.height * i / 4;
       canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), grid);
@@ -220,7 +230,7 @@ class _TrajectoryPainter extends CustomPainter {
       length,
       rect,
       maxValue,
-      QestoColors.purple.withValues(alpha: 0.75),
+      c.purple.withValues(alpha: 0.75),
       dashed: true,
       width: 2,
     );
@@ -230,7 +240,7 @@ class _TrajectoryPainter extends CustomPainter {
       length,
       rect,
       maxValue,
-      QestoColors.primary,
+      c.primary,
       width: 2.7,
       fill: true,
     );
@@ -239,16 +249,12 @@ class _TrajectoryPainter extends CustomPainter {
       canvas.drawLine(
         Offset(x, rect.top),
         Offset(x, rect.bottom),
-        Paint()..color = QestoColors.text.withValues(alpha: 0.17),
+        Paint()..color = c.text.withValues(alpha: 0.17),
       );
       if (index < actual.length) {
         final y = _y(actual[index], rect, maxValue);
         canvas.drawCircle(Offset(x, y), 4, Paint()..color = Colors.white);
-        canvas.drawCircle(
-          Offset(x, y),
-          3,
-          Paint()..color = QestoColors.primary,
-        );
+        canvas.drawCircle(Offset(x, y), 3, Paint()..color = c.primary);
       }
     }
   }
@@ -326,7 +332,11 @@ class _TrajectoryPainter extends CustomPainter {
     final painter = TextPainter(
       text: TextSpan(
         text: value,
-        style: const TextStyle(color: QestoColors.secondaryText, fontSize: 9),
+        style: TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: c.secondaryText,
+          fontSize: 9,
+        ),
       ),
       textDirection: TextDirection.ltr,
       maxLines: 1,
@@ -336,6 +346,7 @@ class _TrajectoryPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _TrajectoryPainter oldDelegate) =>
+      oldDelegate.c != c ||
       oldDelegate.actual != actual ||
       oldDelegate.plan != plan ||
       oldDelegate.forecast != forecast ||
@@ -398,6 +409,7 @@ class _CashFlowBarChartState extends State<CashFlowBarChart> {
               Positioned.fill(
                 child: CustomPaint(
                   painter: _CashFlowPainter(
+                    c: context.qestoColors,
                     points: widget.points,
                     hoveredIndex: _hoveredIndex,
                   ),
@@ -410,17 +422,24 @@ class _CashFlowBarChartState extends State<CashFlowBarChart> {
                   child: Container(
                     padding: const EdgeInsets.all(9),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF172033),
-                      borderRadius: BorderRadius.circular(9),
+                      color: context.qestoColors.chartTooltip,
+                      borderRadius: QestoGeometry.control,
                     ),
                     child: DefaultTextStyle(
-                      style: const TextStyle(color: Colors.white, fontSize: 10),
+                      style: TextStyle(
+                        fontFamily: QestoTypography.uiFamily,
+                        color: context.qestoColors.text,
+                        fontSize: 10,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             widget.points[index].label,
-                            style: const TextStyle(fontWeight: FontWeight.w800),
+                            style: const TextStyle(
+                              fontFamily: QestoTypography.uiFamily,
+                              fontWeight: FontWeight.w800,
+                            ),
                           ),
                           Text(
                             'Доходы: ${formatMoney(widget.points[index].income, widget.currency)}',
@@ -445,7 +464,12 @@ class _CashFlowBarChartState extends State<CashFlowBarChart> {
 }
 
 class _CashFlowPainter extends CustomPainter {
-  const _CashFlowPainter({required this.points, required this.hoveredIndex});
+  final QestoSemanticColors c;
+  const _CashFlowPainter({
+    required this.c,
+    required this.points,
+    required this.hoveredIndex,
+  });
 
   final List<DesktopCashFlowPoint> points;
   final int? hoveredIndex;
@@ -468,7 +492,7 @@ class _CashFlowPainter extends CustomPainter {
         .fold<int>(1, math.max)
         .toDouble();
     final zeroY = rect.center.dy;
-    final gridPaint = Paint()..color = const Color(0xFFE9EDF4);
+    final gridPaint = Paint()..color = c.chartGrid;
     for (var i = 0; i <= 4; i++) {
       final y = rect.top + rect.height * i / 4;
       canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), gridPaint);
@@ -476,7 +500,7 @@ class _CashFlowPainter extends CustomPainter {
     canvas.drawLine(
       Offset(rect.left, zeroY),
       Offset(rect.right, zeroY),
-      Paint()..color = const Color(0xFFCBD2DE),
+      Paint()..color = c.border,
     );
     final slot = rect.width / points.length;
     final barWidth = math.min(34.0, slot * 0.48);
@@ -487,9 +511,7 @@ class _CashFlowPainter extends CustomPainter {
       final barRect = point.net >= 0
           ? Rect.fromLTWH(x - barWidth / 2, zeroY - height, barWidth, height)
           : Rect.fromLTWH(x - barWidth / 2, zeroY, barWidth, height);
-      final color = point.net >= 0
-          ? QestoColors.positive
-          : QestoColors.negative;
+      final color = point.net >= 0 ? c.positive : c.negative;
       canvas.drawRRect(
         RRect.fromRectAndRadius(barRect, const Radius.circular(5)),
         Paint()
@@ -500,8 +522,9 @@ class _CashFlowPainter extends CustomPainter {
       final label = TextPainter(
         text: TextSpan(
           text: point.label,
-          style: const TextStyle(
-            color: QestoColors.secondaryText,
+          style: TextStyle(
+            fontFamily: QestoTypography.uiFamily,
+            color: c.secondaryText,
             fontSize: 10,
           ),
         ),
@@ -513,22 +536,20 @@ class _CashFlowPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _CashFlowPainter oldDelegate) =>
-      oldDelegate.points != points || oldDelegate.hoveredIndex != hoveredIndex;
+      oldDelegate.c != c ||
+      oldDelegate.points != points ||
+      oldDelegate.hoveredIndex != hoveredIndex;
 }
 
 class DesktopSparkline extends StatelessWidget {
-  const DesktopSparkline({
-    required this.values,
-    this.color = QestoColors.primary,
-    super.key,
-  });
+  const DesktopSparkline({required this.values, this.color, super.key});
 
   final List<double> values;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => CustomPaint(
-    painter: _SparklinePainter(values, color),
+    painter: _SparklinePainter(values, color ?? context.qestoColors.primary),
     size: const Size(double.infinity, 42),
   );
 }

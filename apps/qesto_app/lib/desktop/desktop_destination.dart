@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 enum DesktopProductSection {
-  budget('Бюджет', Icons.donut_large_rounded, Color(0xFF3478F6)),
-  benefits('Выгода', Icons.local_offer_outlined, Color(0xFFFF9F43)),
-  capital('Капитал', Icons.account_balance_wallet_outlined, Color(0xFF8D63F6));
+  budget('Бюджет', Icons.donut_large_rounded, Color(0xFF424A50)),
+  benefits('Выгода', Icons.local_offer_outlined, Color(0xFF424A50)),
+  capital('Капитал', Icons.account_balance_wallet_outlined, Color(0xFF424A50));
 
   const DesktopProductSection(this.label, this.icon, this.color);
 

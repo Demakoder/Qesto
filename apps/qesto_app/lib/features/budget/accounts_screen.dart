@@ -47,7 +47,7 @@ class CapitalScreen extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 10, 18, 30),
         children: [
           QestoCard(
-            color: QestoColors.primary,
+            color: context.qestoColors.primary,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -79,31 +79,31 @@ class CapitalScreen extends StatelessWidget {
                   label: 'Доступные средства',
                   amount: available,
                   currency: currency,
-                  color: QestoColors.primary,
+                  color: context.qestoColors.primary,
                 ),
                 _CapitalMetric(
                   label: 'Вклады и накопления',
                   amount: deposits,
                   currency: currency,
-                  color: QestoColors.green,
+                  color: context.qestoColors.green,
                 ),
                 _CapitalMetric(
                   label: 'Инвестиции',
                   amount: investments,
                   currency: currency,
-                  color: QestoColors.purple,
+                  color: context.qestoColors.purple,
                 ),
                 _CapitalMetric(
                   label: 'Мне должны',
                   amount: receivables,
                   currency: currency,
-                  color: QestoColors.orange,
+                  color: context.qestoColors.orange,
                 ),
                 _CapitalMetric(
                   label: 'Мои обязательства',
                   amount: liabilities,
                   currency: currency,
-                  color: QestoColors.danger,
+                  color: context.qestoColors.danger,
                 ),
               ],
             ),
@@ -129,13 +129,13 @@ class CapitalScreen extends StatelessWidget {
                   Container(
                     width: 48,
                     height: 48,
-                    decoration: const BoxDecoration(
-                      color: QestoColors.primarySoft,
+                    decoration: BoxDecoration(
+                      color: context.qestoColors.primarySoft,
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       _iconFor(account.type),
-                      color: QestoColors.primary,
+                      color: context.qestoColors.primary,
                     ),
                   ),
                   const SizedBox(width: 13),
@@ -150,8 +150,8 @@ class CapitalScreen extends StatelessWidget {
                     style: TextStyle(
                       fontWeight: FontWeight.w800,
                       color: account.balance < 0
-                          ? QestoColors.danger
-                          : QestoColors.text,
+                          ? context.qestoColors.danger
+                          : context.qestoColors.text,
                     ),
                   ),
                 ],

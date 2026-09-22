@@ -90,19 +90,19 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                           ? 'Деньги остались в системе'
                           : 'Расходы потребовали резерв',
                       detailColor: net >= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                       icon: Icons.waterfall_chart_rounded,
                       accent: net >= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                     ),
                     DesktopKpiCard(
                       label: 'Доходы',
                       value: _money(totalIncome, currency),
                       detail: '${periods.length} мес. наблюдения',
                       icon: Icons.south_west_rounded,
-                      accent: QestoColors.positive,
+                      accent: context.qestoColors.positive,
                     ),
                     DesktopKpiCard(
                       label: 'Расходы',
@@ -113,10 +113,10 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                       detailColor: expenseChange == null
                           ? null
                           : expenseChange <= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                       icon: Icons.north_east_rounded,
-                      accent: QestoColors.orange,
+                      accent: context.qestoColors.orange,
                     ),
                     DesktopKpiCard(
                       label: 'Норма накопления',
@@ -131,10 +131,10 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                           ? 'Есть положительный остаток'
                           : 'Поток отрицательный',
                       detailColor: savingsRate >= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                       icon: Icons.savings_outlined,
-                      accent: QestoColors.purple,
+                      accent: context.qestoColors.purple,
                     ),
                   ];
                   return Wrap(
@@ -153,14 +153,14 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const DesktopSectionHeader(
+                    DesktopSectionHeader(
                       title: 'Река денег',
                       subtitle:
                           'Доход → категории → крупнейшие операции. Наведите курсор на любой поток.',
                       trailing: DesktopPill(
                         label: 'Тестовый режим',
                         icon: Icons.science_outlined,
-                        color: QestoColors.purple,
+                        color: context.qestoColors.purple,
                         background: Color(0xFFF1EDFF),
                       ),
                     ),
@@ -195,14 +195,14 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                   final stacked = constraints.maxWidth < 760;
                   final income = _FlowBreakdownCard(
                     title: 'Источники дохода',
-                    color: QestoColors.positive,
+                    color: context.qestoColors.positive,
                     values: _groupedIncome(transactions),
                     currency: currency,
                     hideAmounts: _hideAmounts,
                   );
                   final expenses = _FlowBreakdownCard(
                     title: 'Категории расходов',
-                    color: QestoColors.primary,
+                    color: context.qestoColors.primary,
                     values: _groupedExpenses(transactions),
                     currency: currency,
                     hideAmounts: _hideAmounts,
@@ -358,11 +358,11 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
           .where((item) => item.id == entry.key)
           .firstOrNull;
       final (label, color, icon) = switch (entry.key) {
-        '__savings' => ('Накопления', QestoColors.purple, 'savings'),
+        '__savings' => ('Накопления', context.qestoColors.purple, 'savings'),
         '__investment' => ('Инвестиции', const Color(0xFF2EC4B6), 'investment'),
         '__other_categories' => (
           'Остальные категории',
-          QestoColors.secondaryText,
+          context.qestoColors.secondaryText,
           'other',
         ),
         _ => (
@@ -390,7 +390,7 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
           id: '__remainder',
           label: 'Свободный остаток',
           amount: remainder,
-          color: QestoColors.positive,
+          color: context.qestoColors.positive,
           iconKey: 'savings',
           isRemainder: true,
           purchases: [
@@ -466,11 +466,11 @@ class _CashFlowToolbar extends StatelessWidget {
         style: const ButtonStyle(visualDensity: VisualDensity.compact),
       ),
       const Spacer(),
-      const DesktopPill(
+      DesktopPill(
         label: 'Сравнение: предыдущий период',
         icon: Icons.compare_arrows_rounded,
-        color: QestoColors.secondaryText,
-        background: QestoColors.surfaceSecondary,
+        color: context.qestoColors.secondaryText,
+        background: context.qestoColors.surfaceSecondary,
       ),
       const SizedBox(width: 8),
       IconButton.outlined(
@@ -484,8 +484,8 @@ class _CashFlowToolbar extends StatelessWidget {
           size: 19,
         ),
         style: IconButton.styleFrom(
-          foregroundColor: QestoColors.secondaryText,
-          side: const BorderSide(color: QestoColors.border),
+          foregroundColor: context.qestoColors.secondaryText,
+          side: BorderSide(color: context.qestoColors.border),
         ),
       ),
     ],
@@ -521,12 +521,12 @@ class _FlowBreakdownCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (sorted.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
                   'Нет данных',
-                  style: TextStyle(color: QestoColors.secondaryText),
+                  style: TextStyle(color: context.qestoColors.secondaryText),
                 ),
               ),
             ),

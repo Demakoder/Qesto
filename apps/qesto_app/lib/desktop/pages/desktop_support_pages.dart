@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/app_appearance_controller.dart';
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_window.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/capital/domain/goal_planning_service.dart';
@@ -85,7 +86,12 @@ class DesktopGoalsPage extends StatelessWidget {
               for (final plan in portfolio.goals)
                 SizedBox(
                   width: 350,
-                  height: 320,
+                  height:
+                      352 *
+                      math.max(
+                        1,
+                        MediaQuery.textScalerOf(context).scale(14) / 14,
+                      ),
                   child: _GoalCard(
                     plan: plan,
                     onOpen: () => _openDetails(context, plan.goal),
@@ -349,7 +355,7 @@ class DesktopGoalsPage extends StatelessWidget {
                           setDialogState(() => targetDate = value);
                         }
                       },
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: QestoGeometry.control,
                       child: InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Срок цели',
@@ -436,7 +442,7 @@ class DesktopGoalsPage extends StatelessWidget {
                     const SizedBox(height: 10),
                     Text(
                       error!,
-                      style: const TextStyle(color: QestoColors.danger),
+                      style: TextStyle(color: context.qestoColors.danger),
                     ),
                   ],
                 ],
@@ -615,18 +621,15 @@ class _GoalsHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      const Expanded(
+      Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Финансовые цели',
-              style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-            ),
+            Text('Финансовые цели', style: QestoTypography.sectionTitle),
             SizedBox(height: 4),
             Text(
               'Планируйте сумму и срок накопления',
-              style: TextStyle(color: QestoColors.secondaryText),
+              style: TextStyle(color: context.qestoColors.secondaryText),
             ),
           ],
         ),
@@ -644,50 +647,47 @@ class _GoalsHeader extends StatelessWidget {
 class _GoalsSummaryCard extends StatelessWidget {
   const _GoalsSummaryCard({required this.portfolio});
   final GoalPortfolioPlan portfolio;
-
   @override
-  Widget build(BuildContext context) => DesktopCard(
-    color: QestoColors.primarySoft.withValues(alpha: 0.55),
-    borderColor: QestoColors.primary.withValues(alpha: 0.16),
-    child: Row(
-      children: [
-        Container(
-          width: 44,
-          height: 44,
-          decoration: BoxDecoration(
-            color: QestoColors.primary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(13),
-          ),
-          child: const Icon(Icons.flag_outlined, color: QestoColors.primary),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: _GoalSummaryValue(
+  Widget build(BuildContext context) => QestoWindow(
+    title: 'Позиция по целям',
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 600 ? 4 : 2;
+        final values = [
+          _GoalSummaryValue(
             label: 'Активные цели',
             value: '${portfolio.activeCount}',
           ),
-        ),
-        Expanded(
-          child: _GoalSummaryValue(
+          _GoalSummaryValue(
             label: 'Нужно',
             value: formatMoney(portfolio.targetAmount, portfolio.baseCurrency),
+            isMoney: true,
           ),
-        ),
-        Expanded(
-          child: _GoalSummaryValue(
+          _GoalSummaryValue(
             label: 'Накоплено',
             value: formatMoney(portfolio.currentAmount, portfolio.baseCurrency),
+            isMoney: true,
           ),
-        ),
-        Expanded(
-          child: _GoalSummaryValue(
+          _GoalSummaryValue(
             label: 'План в месяц',
             value: portfolio.monthlyPlan == 0
                 ? 'Не рассчитан'
                 : formatMoney(portfolio.monthlyPlan, portfolio.baseCurrency),
+            isMoney: portfolio.monthlyPlan != 0,
           ),
-        ),
-      ],
+        ];
+        return Wrap(
+          spacing: 16,
+          runSpacing: 20,
+          children: [
+            for (final value in values)
+              SizedBox(
+                width: (constraints.maxWidth - 16 * (columns - 1)) / columns,
+                child: value,
+              ),
+          ],
+        );
+      },
     ),
   );
 }
@@ -707,12 +707,12 @@ class _GoalsMonthlyCard extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: QestoColors.purple.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: context.qestoColors.purple.withValues(alpha: 0.1),
+                borderRadius: QestoGeometry.control,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.calendar_month_outlined,
-                color: QestoColors.purple,
+                color: context.qestoColors.purple,
               ),
             ),
             const SizedBox(width: 12),
@@ -726,8 +726,8 @@ class _GoalsMonthlyCard extends StatelessWidget {
               portfolio.monthlyPlan == 0
                   ? 'План не задан'
                   : '${(portfolio.monthlyProgress * 100).round()}%',
-              style: const TextStyle(
-                color: QestoColors.primary,
+              style: TextStyle(
+                color: context.qestoColors.primary,
                 fontWeight: FontWeight.w900,
               ),
             ),
@@ -768,7 +768,12 @@ class _GoalsMonthlyCard extends StatelessWidget {
 }
 
 class _GoalSummaryValue extends StatelessWidget {
-  const _GoalSummaryValue({required this.label, required this.value});
+  const _GoalSummaryValue({
+    required this.label,
+    required this.value,
+    this.isMoney = false,
+  });
+  final bool isMoney;
   final String label;
   final String value;
 
@@ -778,15 +783,21 @@ class _GoalSummaryValue extends StatelessWidget {
     children: [
       Text(
         label,
-        style: const TextStyle(color: QestoColors.secondaryText, fontSize: 10),
+        style: TextStyle(
+          color: context.qestoColors.secondaryText,
+          fontSize: 10,
+        ),
       ),
       const SizedBox(height: 4),
-      Text(
-        value,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
-      ),
+      if (isMoney)
+        QestoHeroMoney(value, large: false)
+      else
+        Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+        ),
     ],
   );
 }
@@ -821,8 +832,8 @@ class _GoalCard extends StatelessWidget {
                 color:
                     status == GoalStatus.completed ||
                         status == GoalStatus.funded
-                    ? QestoColors.positive
-                    : QestoColors.primary,
+                    ? context.qestoColors.positive
+                    : context.qestoColors.primary,
               ),
               const SizedBox(width: 9),
               Expanded(
@@ -850,8 +861,8 @@ class _GoalCard extends StatelessWidget {
           ),
           Text(
             goal.category,
-            style: const TextStyle(
-              color: QestoColors.primary,
+            style: TextStyle(
+              color: context.qestoColors.primary,
               fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
@@ -874,8 +885,8 @@ class _GoalCard extends StatelessWidget {
                 : status == GoalStatus.funded
                 ? 'Необходимая сумма собрана'
                 : '${(plan.progressPercent * 100).round()}% накоплено',
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
               fontSize: 11,
             ),
           ),
@@ -899,8 +910,8 @@ class _GoalCard extends StatelessWidget {
                   : 'Укажите срок или ежемесячный взнос для прогноза',
               style: TextStyle(
                 color: plan.isTargetDateExpired
-                    ? QestoColors.warning
-                    : QestoColors.secondaryText,
+                    ? context.qestoColors.warning
+                    : context.qestoColors.secondaryText,
                 fontSize: 10,
               ),
             ),
@@ -908,8 +919,8 @@ class _GoalCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'В этом месяце: ${formatMoney(plan.actualContributionThisMonth, goal.currency)} / ${formatMoney(plan.plannedMonthlyContribution!, goal.currency)}',
-              style: const TextStyle(
-                color: QestoColors.secondaryText,
+              style: TextStyle(
+                color: context.qestoColors.secondaryText,
                 fontSize: 10,
               ),
             ),
@@ -917,18 +928,18 @@ class _GoalCard extends StatelessWidget {
           const Spacer(),
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.event_outlined,
                 size: 15,
-                color: QestoColors.secondaryText,
+                color: context.qestoColors.secondaryText,
               ),
               const SizedBox(width: 6),
               Text(
                 goal.targetDate == null
                     ? 'Срок не задан'
                     : 'До ${formatDate(goal.targetDate!, includeYear: true)}',
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 11,
                 ),
               ),
@@ -1002,14 +1013,14 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: QestoColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(14),
+                color: context.qestoColors.primary.withValues(alpha: 0.1),
+                borderRadius: QestoGeometry.control,
               ),
               child: Icon(
                 goal.type == GoalType.reserve
                     ? Icons.shield_outlined
                     : Icons.flag_outlined,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
             ),
             const SizedBox(width: 13),
@@ -1027,7 +1038,7 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
                   const SizedBox(height: 4),
                   Text(
                     '${_goalTypeLabel(goal.type)} · ${_goalPriorityLabel(goal.priority)} приоритет',
-                    style: const TextStyle(color: QestoColors.secondaryText),
+                    style: TextStyle(color: context.qestoColors.secondaryText),
                   ),
                 ],
               ),
@@ -1047,8 +1058,8 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         DesktopCard(
-          color: QestoColors.primarySoft.withValues(alpha: 0.45),
-          borderColor: QestoColors.primary.withValues(alpha: 0.14),
+          color: context.qestoColors.primarySoft.withValues(alpha: 0.45),
+          borderColor: context.qestoColors.primary.withValues(alpha: 0.14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1118,7 +1129,7 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
                 const SizedBox(height: 14),
                 Text(
                   goal.comment!,
-                  style: const TextStyle(color: QestoColors.secondaryText),
+                  style: TextStyle(color: context.qestoColors.secondaryText),
                 ),
               ],
             ],
@@ -1171,8 +1182,8 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
                     value:
                         '${item.type == GoalContributionType.contribution ? '+' : '−'}${formatMoney(item.amount, item.currency)}',
                     color: item.type == GoalContributionType.contribution
-                        ? QestoColors.positive
-                        : QestoColors.warning,
+                        ? context.qestoColors.positive
+                        : context.qestoColors.warning,
                   ),
               ],
             );
@@ -1290,7 +1301,7 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
                   const SizedBox(height: 8),
                   Text(
                     error!,
-                    style: const TextStyle(color: QestoColors.danger),
+                    style: TextStyle(color: context.qestoColors.danger),
                   ),
                 ],
               ],
@@ -1436,10 +1447,10 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Это логическая разметка. Реальный баланс счёта не изменится.',
                     style: TextStyle(
-                      color: QestoColors.secondaryText,
+                      color: context.qestoColors.secondaryText,
                       fontSize: 11,
                     ),
                   ),
@@ -1447,7 +1458,7 @@ class _DesktopGoalDetailsPage extends StatelessWidget {
                     const SizedBox(height: 8),
                     Text(
                       error!,
-                      style: const TextStyle(color: QestoColors.danger),
+                      style: TextStyle(color: context.qestoColors.danger),
                     ),
                   ],
                 ],
@@ -1542,8 +1553,8 @@ class _GoalDetailMetric extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: QestoColors.secondaryText,
+          style: TextStyle(
+            color: context.qestoColors.secondaryText,
             fontSize: 10,
           ),
         ),
@@ -1574,14 +1585,17 @@ class _GoalHistoryCard extends StatelessWidget {
         SizedBox(
           height: 160,
           child: goal.history.length < 2
-              ? const Center(
+              ? Center(
                   child: Text(
                     'Недостаточно истории для графика',
-                    style: TextStyle(color: QestoColors.secondaryText),
+                    style: TextStyle(color: context.qestoColors.secondaryText),
                   ),
                 )
               : CustomPaint(
-                  painter: _GoalHistoryPainter(goal.history),
+                  painter: _GoalHistoryPainter(
+                    context.qestoColors,
+                    goal.history,
+                  ),
                   size: Size.infinite,
                 ),
         ),
@@ -1624,8 +1638,8 @@ class _GoalMonthProgressCard extends StatelessWidget {
                 : plan.monthlyPlanGap == 0
                 ? 'План выполнен'
                 : 'Осталось ${formatMoney(plan.monthlyPlanGap, plan.goal.currency)}',
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
               fontSize: 11,
             ),
           ),
@@ -1667,11 +1681,11 @@ class _GoalAllocationsCard extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         if (plan.allocations.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 14),
             child: Text(
               'Средства пока не связаны с конкретными счетами. Текущая сумма учитывается как ручная.',
-              style: TextStyle(color: QestoColors.secondaryText),
+              style: TextStyle(color: context.qestoColors.secondaryText),
             ),
           )
         else
@@ -1683,7 +1697,7 @@ class _GoalAllocationsCard extends StatelessWidget {
                         GoalAllocationSourceType.investmentAccount
                     ? Icons.show_chart_rounded
                     : Icons.account_balance_wallet_outlined,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               title: Text(_allocationSourceTitle(controller, allocation)),
               subtitle: Text(
@@ -1767,9 +1781,9 @@ class _GoalWhatIfCardState extends State<_GoalWhatIfCard> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          const Icon(Icons.tune_rounded, color: QestoColors.purple),
+          Icon(Icons.tune_rounded, color: context.qestoColors.purple),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1781,7 +1795,7 @@ class _GoalWhatIfCardState extends State<_GoalWhatIfCard> {
                 Text(
                   'Измените сумму — расчёт не повлияет на текущий план',
                   style: TextStyle(
-                    color: QestoColors.secondaryText,
+                    color: context.qestoColors.secondaryText,
                     fontSize: 11,
                   ),
                 ),
@@ -1840,7 +1854,7 @@ class _GoalTimelineCard extends StatelessWidget {
             child: Center(
               child: Text(
                 emptyText,
-                style: const TextStyle(color: QestoColors.secondaryText),
+                style: TextStyle(color: context.qestoColors.secondaryText),
               ),
             ),
           )
@@ -1857,13 +1871,13 @@ class _GoalTimelineRow extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.value,
-    this.color = QestoColors.text,
+    this.color,
   });
   final IconData icon;
   final String title;
   final String subtitle;
   final String? value;
-  final Color color;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) => Padding(
@@ -1879,8 +1893,8 @@ class _GoalTimelineRow extends StatelessWidget {
               Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
               Text(
                 subtitle,
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 10,
                 ),
               ),
@@ -1890,7 +1904,10 @@ class _GoalTimelineRow extends StatelessWidget {
         if (value != null)
           Text(
             value!,
-            style: TextStyle(color: color, fontWeight: FontWeight.w800),
+            style: TextStyle(
+              color: color ?? context.qestoColors.text,
+              fontWeight: FontWeight.w800,
+            ),
           ),
       ],
     ),
@@ -1898,7 +1915,8 @@ class _GoalTimelineRow extends StatelessWidget {
 }
 
 class _GoalHistoryPainter extends CustomPainter {
-  _GoalHistoryPainter(this.points);
+  final QestoSemanticColors c;
+  _GoalHistoryPainter(this.c, this.points);
   final List<SavingsHistoryPoint> points;
 
   @override
@@ -1931,7 +1949,7 @@ class _GoalHistoryPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = QestoColors.primary
+        ..color = c.primary
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.5
         ..strokeCap = StrokeCap.round
@@ -1941,7 +1959,7 @@ class _GoalHistoryPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _GoalHistoryPainter oldDelegate) =>
-      oldDelegate.points != points;
+      oldDelegate.c != c || oldDelegate.points != points;
 }
 
 String _allocationSourceTitle(
@@ -1978,13 +1996,13 @@ class DesktopInsightsPage extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(26, 20, 26, 30),
       children: [
         DesktopCard(
-          color: const Color(0xFFF1F5FF),
-          borderColor: const Color(0xFFDCE7FF),
+          color: context.qestoColors.surfaceSecondary,
+          borderColor: const Color(0xFFD9DDE0),
           child: Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.auto_awesome_rounded,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2005,8 +2023,8 @@ class DesktopInsightsPage extends StatelessWidget {
                           : quality.overall >= 0.5
                           ? 'Частичная'
                           : 'Ограниченная',
-                      style: const TextStyle(
-                        color: QestoColors.primary,
+                      style: TextStyle(
+                        color: context.qestoColors.primary,
                         fontSize: 22,
                         fontWeight: FontWeight.w900,
                       ),
@@ -2014,8 +2032,8 @@ class DesktopInsightsPage extends StatelessWidget {
                     const SizedBox(height: 5),
                     Text(
                       '${(quality.overall * 100).round()}% · ${quality.warnings.isEmpty ? 'критичных предупреждений нет' : quality.warnings.join(' · ')}',
-                      style: const TextStyle(
-                        color: QestoColors.secondaryText,
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
                         fontSize: 10,
                       ),
                     ),
@@ -2028,7 +2046,7 @@ class DesktopInsightsPage extends StatelessWidget {
         const SizedBox(height: 14),
         _InsightFeedCard(
           icon: Icons.trending_up_rounded,
-          color: QestoColors.warning,
+          color: context.qestoColors.warning,
           title: 'Изменение расходов',
           message:
               'Qesto сравнивает категории и магазины только по каноническим операциям, исключая неподтверждённые дубли.',
@@ -2036,7 +2054,7 @@ class DesktopInsightsPage extends StatelessWidget {
         const SizedBox(height: 12),
         _InsightFeedCard(
           icon: Icons.event_repeat_outlined,
-          color: QestoColors.purple,
+          color: context.qestoColors.purple,
           title: 'Новые регулярные операции',
           message:
               'Найдено ${controller.synoballState.recurringStreams.length} повторяющихся потоков. Прогнозы помечены как expected/inferred.',
@@ -2044,7 +2062,7 @@ class DesktopInsightsPage extends StatelessWidget {
         const SizedBox(height: 12),
         _InsightFeedCard(
           icon: Icons.shield_outlined,
-          color: QestoColors.positive,
+          color: context.qestoColors.positive,
           title: 'Источники и provenance',
           message:
               '${controller.synoballState.evidence.length} evidence-записей поддерживают ${controller.synoballState.transactions.length} канонических транзакций.',
@@ -2075,7 +2093,7 @@ class _InsightFeedCard extends StatelessWidget {
           height: 42,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: QestoGeometry.control,
           ),
           child: Icon(icon, color: color, size: 21),
         ),
@@ -2094,8 +2112,8 @@ class _InsightFeedCard extends StatelessWidget {
               const SizedBox(height: 5),
               Text(
                 message,
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 12,
                   height: 1.45,
                 ),
@@ -2103,9 +2121,9 @@ class _InsightFeedCard extends StatelessWidget {
             ],
           ),
         ),
-        const Icon(
+        Icon(
           Icons.chevron_right_rounded,
-          color: QestoColors.secondaryText,
+          color: context.qestoColors.secondaryText,
         ),
       ],
     ),
@@ -2133,7 +2151,7 @@ class _DesktopAssistantPageState extends State<DesktopAssistantPage> {
   Widget build(BuildContext context) {
     final state = widget.controller.financialState;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
+      padding: QestoSpacing.workspace(context),
       child: Row(
         children: [
           SizedBox(
@@ -2179,14 +2197,14 @@ class _DesktopAssistantPageState extends State<DesktopAssistantPage> {
                   DesktopProgressBar(
                     value: state.dataQuality.overall,
                     color: state.dataQuality.overall >= 0.7
-                        ? QestoColors.positive
-                        : QestoColors.warning,
+                        ? context.qestoColors.positive
+                        : context.qestoColors.warning,
                   ),
                   const Spacer(),
-                  const Text(
+                  Text(
                     'Сырая полная история в LLM не отправляется.',
                     style: TextStyle(
-                      color: QestoColors.secondaryText,
+                      color: context.qestoColors.secondaryText,
                       fontSize: 10,
                       height: 1.4,
                     ),
@@ -2247,16 +2265,18 @@ class _DesktopAssistantPageState extends State<DesktopAssistantPage> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: index.isEven
-                                      ? QestoColors.primary
-                                      : QestoColors.surfaceSecondary,
-                                  borderRadius: BorderRadius.circular(13),
+                                      ? context.qestoColors.primary
+                                      : context.qestoColors.surfaceSecondary,
+                                  borderRadius: QestoGeometry.control,
                                 ),
                                 child: Text(
                                   _messages[index],
                                   style: TextStyle(
                                     color: index.isEven
-                                        ? Colors.white
-                                        : QestoColors.text,
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimary
+                                        : context.qestoColors.text,
                                     fontSize: 12,
                                     height: 1.45,
                                   ),
@@ -2284,7 +2304,7 @@ class _DesktopAssistantPageState extends State<DesktopAssistantPage> {
                           onPressed: () => _ask(_input.text),
                           icon: const Icon(Icons.arrow_upward_rounded),
                           style: IconButton.styleFrom(
-                            backgroundColor: QestoColors.primary,
+                            backgroundColor: context.qestoColors.primary,
                           ),
                         ),
                       ],
@@ -2337,8 +2357,8 @@ class _ContextLine extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
+            style: TextStyle(
+              color: context.qestoColors.secondaryText,
               fontSize: 11,
             ),
           ),
@@ -2370,12 +2390,15 @@ class DesktopBenefitsPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const DesktopCard(
-            color: Color(0xFFF1F5FF),
-            borderColor: Color(0xFFDCE7FF),
+          DesktopCard(
+            color: Color(0xFFF0F2F3),
+            borderColor: Color(0xFFD9DDE0),
             child: Row(
               children: [
-                Icon(Icons.savings_outlined, color: QestoColors.primary),
+                Icon(
+                  Icons.savings_outlined,
+                  color: context.qestoColors.primary,
+                ),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -2410,7 +2433,7 @@ class DesktopBenefitsPage extends StatelessWidget {
                       children: [
                         DesktopPill(
                           label: deal.category,
-                          color: QestoColors.purple,
+                          color: context.qestoColors.purple,
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -2427,8 +2450,8 @@ class DesktopBenefitsPage extends StatelessWidget {
                           deal.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: QestoColors.secondaryText,
+                          style: TextStyle(
+                            color: context.qestoColors.secondaryText,
                             fontSize: 11,
                           ),
                         ),
@@ -2444,9 +2467,9 @@ class DesktopBenefitsPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const DesktopPill(
+                        DesktopPill(
                           label: 'Отслеживается',
-                          color: QestoColors.positive,
+                          color: context.qestoColors.positive,
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -2459,8 +2482,8 @@ class DesktopBenefitsPage extends StatelessWidget {
                         const SizedBox(height: 5),
                         Text(
                           '${formatMoney(item.currentPrice, item.currency)} · ${item.changePercent}% · ${item.bestMarketplace}',
-                          style: const TextStyle(
-                            color: QestoColors.secondaryText,
+                          style: TextStyle(
+                            color: context.qestoColors.secondaryText,
                             fontSize: 11,
                           ),
                         ),
@@ -2543,17 +2566,20 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
       Text(
         'Профиль',
         style: context.qestoTypography.display(
-          const TextStyle(
+          TextStyle(
             fontSize: 22,
             fontWeight: FontWeight.w800,
-            color: QestoColors.text,
+            color: context.qestoColors.text,
           ),
         ),
       ),
       const SizedBox(height: 5),
-      const Text(
+      Text(
         'Личные настройки Qesto. Они не изменяют структуру или историю Synoball.',
-        style: TextStyle(color: QestoColors.secondaryText, fontSize: 12),
+        style: TextStyle(
+          color: context.qestoColors.secondaryText,
+          fontSize: 12,
+        ),
       ),
       const SizedBox(height: 16),
       DesktopCard(
@@ -2631,7 +2657,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
             radius: 29,
           ),
           const SizedBox(width: 13),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -2643,7 +2669,7 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                 Text(
                   'Имя, аватар и основная валюта',
                   style: TextStyle(
-                    color: QestoColors.secondaryText,
+                    color: context.qestoColors.secondaryText,
                     fontSize: 11,
                   ),
                 ),
@@ -2703,9 +2729,12 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         },
       ),
       const SizedBox(height: 7),
-      const Text(
+      Text(
         'Существующие операции сохраняют исходную валюту. Выбор применяется к интерфейсу и новым данным.',
-        style: TextStyle(color: QestoColors.secondaryText, fontSize: 10),
+        style: TextStyle(
+          color: context.qestoColors.secondaryText,
+          fontSize: 10,
+        ),
       ),
       const SizedBox(height: 16),
       FilledButton.icon(
@@ -2727,9 +2756,9 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Row(
+        Row(
           children: [
-            Icon(Icons.palette_outlined, color: QestoColors.primary),
+            Icon(Icons.palette_outlined, color: context.qestoColors.primary),
             SizedBox(width: 9),
             Text(
               'Оформление',
@@ -2738,9 +2767,12 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
           ],
         ),
         const SizedBox(height: 6),
-        const Text(
+        Text(
           'Тема применяется ко всему приложению и сохраняется на устройстве.',
-          style: TextStyle(color: QestoColors.secondaryText, fontSize: 11),
+          style: TextStyle(
+            color: context.qestoColors.secondaryText,
+            fontSize: 11,
+          ),
         ),
         const SizedBox(height: 14),
         Wrap(
@@ -2772,17 +2804,20 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: QestoColors.surfaceSecondary,
-            borderRadius: BorderRadius.circular(12),
+            color: context.qestoColors.surfaceSecondary,
+            borderRadius: QestoGeometry.control,
           ),
-          child: const Row(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.text_fields_rounded, color: QestoColors.primary),
+              Icon(
+                Icons.text_fields_rounded,
+                color: context.qestoColors.primary,
+              ),
               SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Шрифт B закреплён: IBM Plex Sans для заголовков, Manrope для интерфейса и IBM Plex Mono для чисел.',
+                  'White Silver: Onest для интерфейса, Prata для заголовков и Noto Serif Display Italic для крупных финансовых значений. Тёмный режим сохраняет светлые финансовые инструменты без инверсии цветов.',
                   style: TextStyle(fontSize: 11, height: 1.45),
                 ),
               ),
@@ -2821,7 +2856,10 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         if (!snapshot.hasData) {
           return Row(
             children: [
-              const Icon(Icons.cloud_off_outlined, color: QestoColors.warning),
+              Icon(
+                Icons.cloud_off_outlined,
+                color: context.qestoColors.warning,
+              ),
               const SizedBox(width: 11),
               const Expanded(
                 child: Text(
@@ -2843,12 +2881,12 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: QestoColors.primarySoft,
-                borderRadius: BorderRadius.circular(12),
+                color: context.qestoColors.primarySoft,
+                borderRadius: QestoGeometry.control,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.account_balance_rounded,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
             ),
             const SizedBox(width: 13),
@@ -2865,17 +2903,17 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
                     rate == null
                         ? 'Для $_currency курс не опубликован'
                         : '1 $_currency = ${_rateText(rate.rublesPerUnit)} ₽ · ${_dateText(value.date)}',
-                    style: const TextStyle(
-                      color: QestoColors.secondaryText,
+                    style: TextStyle(
+                      color: context.qestoColors.secondaryText,
                       fontSize: 11,
                     ),
                   ),
                 ],
               ),
             ),
-            const DesktopPill(
+            DesktopPill(
               label: 'ЦБ РФ',
-              color: QestoColors.positive,
+              color: context.qestoColors.positive,
               background: Color(0xFFEAF8ED),
             ),
           ],
@@ -2912,7 +2950,9 @@ class _ThemeChoice extends StatelessWidget {
     avatar: Icon(
       icon,
       size: 17,
-      color: selected ? QestoColors.primary : QestoColors.secondaryText,
+      color: selected
+          ? context.qestoColors.primary
+          : context.qestoColors.secondaryText,
     ),
     selected: selected,
     showCheckmark: false,
@@ -2940,10 +2980,10 @@ class _SettingsSection extends StatelessWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: QestoColors.primarySoft,
-              borderRadius: BorderRadius.circular(11),
+              color: context.qestoColors.primarySoft,
+              borderRadius: QestoGeometry.control,
             ),
-            child: Icon(icon, size: 19, color: QestoColors.primary),
+            child: Icon(icon, size: 19, color: context.qestoColors.primary),
           ),
           const SizedBox(width: 13),
           Expanded(
@@ -2960,8 +3000,8 @@ class _SettingsSection extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   description,
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 11,
                   ),
                 ),

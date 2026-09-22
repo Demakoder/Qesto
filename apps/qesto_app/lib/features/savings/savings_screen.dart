@@ -68,7 +68,7 @@ class SavingsScreenState extends State<SavingsScreen> {
                     Text(
                       'Цель: ${formatMoney(goal.targetAmount, goal.currency)}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: QestoColors.secondaryText,
+                        color: context.qestoColors.secondaryText,
                       ),
                     ),
                   ],
@@ -95,9 +95,9 @@ class SavingsScreenState extends State<SavingsScreen> {
               QestoCard(
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.local_fire_department_rounded,
-                      color: QestoColors.orange,
+                      color: context.qestoColors.orange,
                       size: 38,
                     ),
                     const SizedBox(width: 12),
@@ -168,7 +168,7 @@ class SavingsScreenState extends State<SavingsScreen> {
               Text(
                 'Накоплено',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ),
               const SizedBox(height: 6),
@@ -177,10 +177,10 @@ class SavingsScreenState extends State<SavingsScreen> {
                   Expanded(
                     child: Material(
                       color: Colors.transparent,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: QestoGeometry.control,
                       child: InkWell(
                         onTap: () => _openHistory(goal),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: QestoGeometry.control,
                         child: Padding(
                           padding: const EdgeInsets.symmetric(vertical: 4),
                           child: AmountText(
@@ -191,7 +191,7 @@ class SavingsScreenState extends State<SavingsScreen> {
                     ),
                   ),
                   Material(
-                    color: QestoColors.orange.withValues(alpha: 0.14),
+                    color: context.qestoColors.orange.withValues(alpha: 0.14),
                     borderRadius: BorderRadius.circular(99),
                     child: InkWell(
                       onTap: () => _openStreak(goal),
@@ -203,9 +203,9 @@ class SavingsScreenState extends State<SavingsScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.local_fire_department_rounded,
-                              color: QestoColors.orange,
+                              color: context.qestoColors.orange,
                               size: 20,
                             ),
                             const SizedBox(width: 5),
@@ -225,7 +225,10 @@ class SavingsScreenState extends State<SavingsScreen> {
                 ],
               ),
               const SizedBox(height: 14),
-              QestoProgressBar(value: goal.progress, color: QestoColors.green),
+              QestoProgressBar(
+                value: goal.progress,
+                color: context.qestoColors.green,
+              ),
               const SizedBox(height: 9),
               Text(
                 '${formatPercent(goal.progress)} до цели • ${goal.title}',
@@ -246,7 +249,7 @@ class SavingsScreenState extends State<SavingsScreen> {
           icon: Icons.add_rounded,
           title: 'Добавить новую цель',
           subtitle: 'Поставьте цель и начните копить',
-          iconColor: QestoColors.green,
+          iconColor: context.qestoColors.green,
           onTap: () => _openPlaceholder(
             'Новая цель',
             'Создание новой цели будет добавлено позднее',
@@ -258,7 +261,7 @@ class SavingsScreenState extends State<SavingsScreen> {
           icon: Icons.emoji_events_rounded,
           title: 'Трофеи',
           subtitle: 'Ваши достижения и награды',
-          iconColor: QestoColors.orange,
+          iconColor: context.qestoColors.orange,
           onTap: () => _openPlaceholder(
             'Трофеи',
             'Ваши достижения появятся здесь',

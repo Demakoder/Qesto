@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/qesto_theme.dart';
 import 'qesto_card.dart';
+import '../../design_system/qesto_silver.dart';
+import '../../design_system/qesto_window.dart';
 
 enum QestoButtonStyle { primary, secondary }
 
@@ -20,77 +22,31 @@ class QestoButton extends StatelessWidget {
   final QestoButtonStyle style;
 
   @override
-  Widget build(BuildContext context) {
-    final primary = style == QestoButtonStyle.primary;
-    final foreground = primary ? Colors.white : QestoColors.primary;
-    final background = primary ? QestoColors.primary : QestoColors.primarySoft;
-    final borderRadius = BorderRadius.circular(17);
-
-    return PressableScale(
-      onTap: onPressed,
-      borderRadius: borderRadius,
-      semanticsLabel: label,
-      child: Container(
-        constraints: const BoxConstraints(minHeight: 58),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: borderRadius,
-          border: Border.all(
-            color: primary ? QestoColors.primary : const Color(0xFFD7E5FF),
-          ),
-          boxShadow: primary
-              ? const [
-                  BoxShadow(
-                    color: Color(0x363478F6),
-                    blurRadius: 18,
-                    offset: Offset(0, 7),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (icon != null) ...[
-              Icon(icon, color: foreground, size: 24),
-              const SizedBox(width: 9),
-            ],
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SizedBox(
+    width: double.infinity,
+    child: style == QestoButtonStyle.primary
+        ? QestoPrimaryButton(label: label, icon: icon, onPressed: onPressed)
+        : QestoSecondaryButton(label: label, icon: icon, onPressed: onPressed),
+  );
 }
 
 class QestoProgressBar extends StatelessWidget {
   const QestoProgressBar({
     required this.value,
-    this.color = QestoColors.primary,
-    this.backgroundColor = const Color(0xFFEEF1F6),
+    this.color,
+    this.backgroundColor,
     this.height = 9,
     super.key,
   });
 
   final double value;
-  final Color color;
-  final Color backgroundColor;
+  final Color? color;
+  final Color? backgroundColor;
   final double height;
 
   @override
   Widget build(BuildContext context) {
+    final color = this.color ?? context.qestoColors.primary;
     return ClipRRect(
       borderRadius: BorderRadius.circular(99),
       child: SizedBox(
@@ -98,7 +54,9 @@ class QestoProgressBar extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            ColoredBox(color: backgroundColor),
+            ColoredBox(
+              color: backgroundColor ?? context.qestoColors.surfaceSecondary,
+            ),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: value.clamp(0, 1),
@@ -118,24 +76,14 @@ class QestoProgressBar extends StatelessWidget {
 }
 
 class AmountText extends StatelessWidget {
-  const AmountText(this.value, {this.color = QestoColors.text, super.key});
+  const AmountText(this.value, {this.color, super.key});
 
   final String value;
-  final Color color;
+  final Color? color;
 
   @override
-  Widget build(BuildContext context) {
-    return Text(
-      value,
-      style: TextStyle(
-        color: color,
-        fontSize: 28,
-        fontWeight: FontWeight.w800,
-        height: 1.1,
-        letterSpacing: -0.7,
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      QestoHeroMoney(value, color: color, large: false);
 }
 
 class SectionTitle extends StatelessWidget {
@@ -163,7 +111,7 @@ class QestoActionTile extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.onTap,
-    this.iconColor = QestoColors.primary,
+    this.iconColor,
     super.key,
   });
 
@@ -171,10 +119,11 @@ class QestoActionTile extends StatelessWidget {
   final String title;
   final String subtitle;
   final VoidCallback onTap;
-  final Color iconColor;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
+    final iconColor = this.iconColor ?? context.qestoColors.primary;
     return QestoCard(
       onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 14),
@@ -200,9 +149,9 @@ class QestoActionTile extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(
+          Icon(
             Icons.chevron_right_rounded,
-            color: QestoColors.secondaryText,
+            color: context.qestoColors.secondaryText,
           ),
         ],
       ),

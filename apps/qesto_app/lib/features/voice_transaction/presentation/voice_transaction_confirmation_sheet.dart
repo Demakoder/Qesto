@@ -19,7 +19,7 @@ Future<bool?> showVoiceTransactionConfirmation({
   isScrollControlled: true,
   useSafeArea: true,
   showDragHandle: true,
-  backgroundColor: QestoColors.surface,
+  backgroundColor: context.qestoColors.surface,
   builder: (_) => VoiceTransactionConfirmationSheet(
     controller: controller,
     period: period,

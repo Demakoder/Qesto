@@ -94,7 +94,7 @@ class _BudgetDynamicsChartState extends State<BudgetDynamicsChart> {
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child: selection == null
-              ? const SizedBox(
+              ? SizedBox(
                   key: ValueKey('hint'),
                   height: 44,
                   child: Align(
@@ -102,7 +102,7 @@ class _BudgetDynamicsChartState extends State<BudgetDynamicsChart> {
                     child: Text(
                       'Нажмите на линию, чтобы увидеть значение',
                       style: TextStyle(
-                        color: QestoColors.secondaryText,
+                        color: context.qestoColors.secondaryText,
                         fontSize: 12,
                       ),
                     ),
@@ -116,8 +116,11 @@ class _BudgetDynamicsChartState extends State<BudgetDynamicsChart> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: _seriesColor(selection.kind).withValues(alpha: 0.10),
-                    borderRadius: BorderRadius.circular(14),
+                    color: _seriesColor(
+                      selection.kind,
+                      context.qestoColors,
+                    ).withValues(alpha: 0.10),
+                    borderRadius: QestoGeometry.control,
                   ),
                   child: Row(
                     children: [
@@ -125,7 +128,10 @@ class _BudgetDynamicsChartState extends State<BudgetDynamicsChart> {
                         width: 9,
                         height: 9,
                         decoration: BoxDecoration(
-                          color: _seriesColor(selection.kind),
+                          color: _seriesColor(
+                            selection.kind,
+                            context.qestoColors,
+                          ),
                           shape: BoxShape.circle,
                         ),
                       ),
@@ -160,6 +166,7 @@ class _BudgetDynamicsChartState extends State<BudgetDynamicsChart> {
               child: CustomPaint(
                 size: size,
                 painter: _BudgetDynamicsPainter(
+                  c: context.qestoColors,
                   period: widget.period,
                   forecast: widget.forecast,
                   selected: selection,
@@ -173,10 +180,10 @@ class _BudgetDynamicsChartState extends State<BudgetDynamicsChart> {
   }
 }
 
-Color _seriesColor(_SeriesKind kind) => switch (kind) {
-  _SeriesKind.actual || _SeriesKind.projected => QestoColors.primary,
-  _SeriesKind.target => QestoColors.green,
-  _SeriesKind.limit => QestoColors.secondaryText,
+Color _seriesColor(_SeriesKind kind, QestoSemanticColors c) => switch (kind) {
+  _SeriesKind.actual || _SeriesKind.projected => c.primary,
+  _SeriesKind.target => c.green,
+  _SeriesKind.limit => c.secondaryText,
 };
 
 String _seriesLabel(_SeriesKind kind) => switch (kind) {
@@ -199,7 +206,9 @@ double _maxChartValue(BudgetForecast forecast, int totalPlan) {
 }
 
 class _BudgetDynamicsPainter extends CustomPainter {
+  final QestoSemanticColors c;
   const _BudgetDynamicsPainter({
+    required this.c,
     required this.period,
     required this.forecast,
     required this.selected,
@@ -221,7 +230,7 @@ class _BudgetDynamicsPainter extends CustomPainter {
     final maxY = _maxChartValue(forecast, period.totalPlan);
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
     final gridPaint = Paint()
-      ..color = QestoColors.border
+      ..color = c.border
       ..strokeWidth = 1;
 
     for (var index = 0; index <= 4; index++) {
@@ -230,7 +239,7 @@ class _BudgetDynamicsPainter extends CustomPainter {
       canvas.drawLine(Offset(rect.left, y), Offset(rect.right, y), gridPaint);
       textPainter.text = TextSpan(
         text: formatCompactMoney(maxY * ratio, period.currency),
-        style: const TextStyle(fontSize: 9.5, color: QestoColors.secondaryText),
+        style: TextStyle(fontSize: 9.5, color: c.secondaryText),
       );
       textPainter.layout(maxWidth: 47);
       textPainter.paint(canvas, Offset(0, y - textPainter.height / 2));
@@ -245,7 +254,7 @@ class _BudgetDynamicsPainter extends CustomPainter {
       final x = rect.left + rect.width * ratio;
       textPainter.text = TextSpan(
         text: '${day.day}',
-        style: const TextStyle(fontSize: 10, color: QestoColors.secondaryText),
+        style: TextStyle(fontSize: 10, color: c.secondaryText),
       );
       textPainter.layout();
       textPainter.paint(
@@ -280,14 +289,14 @@ class _BudgetDynamicsPainter extends CustomPainter {
       Offset(rect.left, limitY),
       Offset(rect.right, limitY),
       Paint()
-        ..color = QestoColors.secondaryText
+        ..color = c.secondaryText
         ..strokeWidth = 1.6,
     );
     if (forecast.targetPoints.length > 1) {
       canvas.drawPath(
         pathFor(forecast.targetPoints),
         Paint()
-          ..color = QestoColors.green
+          ..color = c.green
           ..strokeWidth = 2.6
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round,
@@ -297,7 +306,7 @@ class _BudgetDynamicsPainter extends CustomPainter {
       canvas.drawPath(
         pathFor(forecast.actualPoints),
         Paint()
-          ..color = QestoColors.primary
+          ..color = c.primary
           ..strokeWidth = 3.2
           ..style = PaintingStyle.stroke
           ..strokeCap = StrokeCap.round
@@ -310,7 +319,7 @@ class _BudgetDynamicsPainter extends CustomPainter {
         canvas,
         offsets,
         Paint()
-          ..color = QestoColors.primary
+          ..color = c.primary
           ..strokeWidth = 2.6,
       );
     }
@@ -327,25 +336,25 @@ class _BudgetDynamicsPainter extends CustomPainter {
         offset,
         Offset(offset.dx, rect.bottom),
         Paint()
-          ..color = QestoColors.secondaryText.withValues(alpha: 0.7)
+          ..color = c.secondaryText.withValues(alpha: 0.7)
           ..strokeWidth = 1.2,
       );
-      canvas.drawCircle(offset, 5.5, Paint()..color = QestoColors.surface);
+      canvas.drawCircle(offset, 5.5, Paint()..color = c.surface);
       canvas.drawCircle(
         offset,
         5.5,
         Paint()
-          ..color = QestoColors.primary
+          ..color = c.primary
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5,
       );
       final label = formatDate(crossing);
       textPainter.text = TextSpan(
         text: label,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 10.5,
           fontWeight: FontWeight.w700,
-          color: QestoColors.secondaryText,
+          color: c.secondaryText,
         ),
       );
       textPainter.layout();
@@ -357,7 +366,7 @@ class _BudgetDynamicsPainter extends CustomPainter {
         ),
         const Radius.circular(14),
       );
-      canvas.drawRRect(pill, Paint()..color = QestoColors.primarySoft);
+      canvas.drawRRect(pill, Paint()..color = c.primarySoft);
       textPainter.paint(
         canvas,
         Offset(
@@ -375,12 +384,12 @@ class _BudgetDynamicsPainter extends CustomPainter {
           amount: selectedValue.amount,
         ),
       );
-      canvas.drawCircle(offset, 5, Paint()..color = QestoColors.surface);
+      canvas.drawCircle(offset, 5, Paint()..color = c.surface);
       canvas.drawCircle(
         offset,
         5,
         Paint()
-          ..color = _seriesColor(selectedValue.kind)
+          ..color = _seriesColor(selectedValue.kind, c)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.5,
       );
@@ -412,7 +421,8 @@ class _BudgetDynamicsPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _BudgetDynamicsPainter oldDelegate) {
-    return oldDelegate.period.id != period.id ||
+    return oldDelegate.c != c ||
+        oldDelegate.period.id != period.id ||
         oldDelegate.forecast != forecast ||
         oldDelegate.selected != selected;
   }
