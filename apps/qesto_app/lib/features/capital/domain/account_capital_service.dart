@@ -133,6 +133,7 @@ class AccountCapitalSnapshot {
     required this.lowBalanceRisk,
     required this.accounts,
     required this.excludedNonLiquidAccounts,
+    required this.unlinkedTransactionCount,
     required this.hasUnconvertedCurrencies,
     required this.isHistoryReconstructed,
   });
@@ -160,6 +161,7 @@ class AccountCapitalSnapshot {
   final LowBalanceRisk lowBalanceRisk;
   final List<AccountCapitalAccountInsight> accounts;
   final int excludedNonLiquidAccounts;
+  final int unlinkedTransactionCount;
   final bool hasUnconvertedCurrencies;
   final bool isHistoryReconstructed;
 }
@@ -229,10 +231,22 @@ class AccountCapitalService {
         .toList(growable: false);
     final includedIds = included.map((item) => item.id).toSet();
     final liquidIds = liquid.map((item) => item.id).toSet();
-    final aggregateInternalTransferIds = _internalTransferIds(
-      transactions,
-      includedIds,
-    );
+    final accountsById = {for (final account in accounts) account.id: account};
+    // Import adapters keep unresolved observations on a real, virtual account
+    // record. That routing bucket is not evidence of a non-liquid asset.
+    final unresolvedAccountIds = {
+      for (final account in synoballState.accounts)
+        if (account.isVirtual && account.type == SynoballAccountType.other)
+          account.id,
+    };
+    final unlinkedTransactionCount = transactions
+        .where(
+          (item) =>
+              item.tags.contains('sber-account-unresolved') &&
+              !_day(item.date).isBefore(start) &&
+              !_day(item.date).isAfter(normalizedAsOf),
+        )
+        .length;
     final accountInternalTransferIds = _internalTransferIds(
       transactions,
       liquidIds,
@@ -241,25 +255,45 @@ class AccountCapitalService {
       0,
       (sum, item) => sum + (converted(item.balance, item.currency) ?? 0),
     );
-    final aggregateTransactions = transactions.where(
-      (item) =>
-          includedIds.contains(item.accountId) &&
-          settings(
-            accounts.firstWhere((a) => a.id == item.accountId),
-          ).includeTransactionsInAnalytics &&
-          _cashFlow.treatment(item) != CashFlowTreatment.ignored &&
-          !aggregateInternalTransferIds.contains(item.id),
-    );
+    // The aggregate balance is anchored to today's included liquid accounts.
+    // Unresolved routing accounts still contribute monetary observations.
+    // Use signed movements within the observed account perimeter: paired
+    // transfer legs cancel, but a lone debit to an unobserved account does not.
+    final aggregateTransactions = transactions
+        .where((item) {
+          if (included.isEmpty) return false;
+          final treatment = _cashFlow.treatment(item);
+          if (treatment == CashFlowTreatment.ignored ||
+              (item.type == TransactionType.transfer &&
+                  item.transferDirection == null)) {
+            return false;
+          }
+          final account = accountsById[item.accountId];
+          return account == null ||
+              unresolvedAccountIds.contains(item.accountId) ||
+              (includedIds.contains(account.id) &&
+                  settings(account).includeTransactionsInAnalytics);
+        })
+        .where(
+          (item) =>
+              !_day(item.date).isBefore(start) &&
+              !_day(item.date).isAfter(normalizedAsOf) &&
+              converted(
+                    _aggregateSignedAmount(item, includedIds),
+                    item.currency,
+                  ) !=
+                  null,
+        )
+        .toList(growable: false);
     final aggregateHistory = _history(
       currentBalance: total,
       transactions: aggregateTransactions,
       start: start,
       end: normalizedAsOf,
       convert: converted,
+      signedAmount: (item) => _aggregateSignedAmount(item, includedIds),
     );
-    final hasAggregateHistory = aggregateTransactions.any(
-      (item) => !_day(item.date).isBefore(start),
-    );
+    final hasAggregateHistory = aggregateTransactions.isNotEmpty;
     final displayedHistory = hasAggregateHistory
         ? aggregateHistory
         : <AccountBalancePoint>[
@@ -299,7 +333,11 @@ class AccountCapitalService {
             convert: converted,
           );
           final periodTransactions = accountTransactions
-              .where((item) => !_day(item.date).isBefore(start))
+              .where(
+                (item) =>
+                    !_day(item.date).isBefore(start) &&
+                    !_day(item.date).isAfter(normalizedAsOf),
+              )
               .toList(growable: false);
           final hasHistory = periodTransactions.isNotEmpty;
           final shownHistory = hasHistory
@@ -460,6 +498,7 @@ class AccountCapitalService {
       lowBalanceRisk: risk,
       accounts: accountInsights,
       excludedNonLiquidAccounts: accounts.length - liquid.length,
+      unlinkedTransactionCount: unlinkedTransactionCount,
       hasUnconvertedCurrencies: hasUnconvertedCurrencies,
       isHistoryReconstructed: hasAggregateHistory,
     );
@@ -478,7 +517,10 @@ class AccountCapitalService {
       (left, right) => left.isBefore(right) ? left : right,
     );
     final twoYearsAgo = asOf.subtract(const Duration(days: 730));
-    return earliest.isBefore(twoYearsAgo) ? twoYearsAgo : earliest;
+    final beforeFirstOperation = earliest.subtract(const Duration(days: 1));
+    return beforeFirstOperation.isBefore(twoYearsAgo)
+        ? twoYearsAgo
+        : beforeFirstOperation;
   }
 
   List<AccountBalancePoint> _history({
@@ -487,19 +529,33 @@ class AccountCapitalService {
     required DateTime start,
     required DateTime end,
     required int? Function(int amount, String currency) convert,
+    int Function(BudgetTransaction item)? signedAmount,
   }) {
     final deltaByDay = <DateTime, int>{};
     for (final item in transactions) {
       final day = _day(item.date);
       if (day.isBefore(start) || day.isAfter(end)) continue;
-      final amount = convert(_signedAmount(item), item.currency);
+      final amount = convert(
+        (signedAmount ?? _signedAmount)(item),
+        item.currency,
+      );
       if (amount == null) continue;
       deltaByDay.update(day, (value) => value + amount, ifAbsent: () => amount);
     }
+    // Earlier days are outside the observed transaction history. Keep one
+    // pre-operation anchor when it fits the selected period, then reconstruct
+    // end-of-day balances back from the current account balance.
+    final firstObservedDay = deltaByDay.keys.isEmpty
+        ? end
+        : deltaByDay.keys.reduce(
+            (left, right) => left.isBefore(right) ? left : right,
+          );
+    final previousDay = firstObservedDay.subtract(const Duration(days: 1));
+    final historyStart = previousDay.isAfter(start) ? previousDay : start;
     final descending = <AccountBalancePoint>[];
     var balance = currentBalance;
     var date = end;
-    while (!date.isBefore(start)) {
+    while (!date.isBefore(historyStart)) {
       descending.add(
         AccountBalancePoint(
           date: date,
@@ -707,6 +763,7 @@ class AccountCapitalService {
       signatures.add('${_key(item.title)}:${day.year}-${day.month}-${day.day}');
     }
     for (final item in recurring) {
+      if (item.isTentative) continue;
       final day = _day(item.nextExpectedAt);
       if (day.isBefore(asOf) || day.isAfter(horizon)) continue;
       final key = '${_key(item.title)}:${day.year}-${day.month}-${day.day}';
@@ -801,6 +858,34 @@ class AccountCapitalService {
           : -item.amount,
     _ => -item.amount,
   };
+
+  int _aggregateSignedAmount(
+    BudgetTransaction item,
+    Set<String> includedAccountIds,
+  ) {
+    if (_cashFlow.treatment(item) != CashFlowTreatment.internalTransfer) {
+      return _signedAmount(item);
+    }
+    String? accountTagged(String prefix) {
+      for (final tag in item.tags) {
+        if (tag.startsWith(prefix)) return tag.substring(prefix.length);
+      }
+      return null;
+    }
+
+    final source = accountTagged(qestoInternalTransferSourceAccountPrefix);
+    final destination = accountTagged(
+      qestoInternalTransferDestinationAccountPrefix,
+    );
+    // The Sber document can identify both owned products even when its global
+    // history exposes only the debit. Its two legs cancel in total liquidity;
+    // a transfer to an unobserved product retains the signed movement.
+    if (source == null || destination == null || source == destination) {
+      return _signedAmount(item);
+    }
+    return (includedAccountIds.contains(destination) ? item.amount : 0) -
+        (includedAccountIds.contains(source) ? item.amount : 0);
+  }
 
   Set<String> _internalTransferIds(
     List<BudgetTransaction> transactions,

@@ -16,8 +16,11 @@ class DesktopRecurringPage extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final streams = controller.synoballState.recurringStreams.toList()
-          ..sort((a, b) => a.nextExpectedAt.compareTo(b.nextExpectedAt));
+        final streams =
+            controller.synoballState.recurringStreams
+                .where((s) => s.entityId == 'ent-${controller.user.id}')
+                .toList()
+              ..sort((a, b) => a.nextExpectedAt.compareTo(b.nextExpectedAt));
         final upcoming =
             controller.upcomingExpenses
                 .where((item) => !item.isCancelled)
@@ -38,7 +41,7 @@ class DesktopRecurringPage extends StatelessWidget {
                       children:
                           [
                                 DesktopKpiCard(
-                                  label: 'Регулярные обязательства',
+                                  label: 'Регулярные расходы',
                                   value: formatMoney(
                                     controller
                                             .financialState
@@ -50,7 +53,7 @@ class DesktopRecurringPage extends StatelessWidget {
                                         .mandatoryExpenses
                                         .currency,
                                   ),
-                                  detail: 'Оценка Synoball',
+                                  detail: 'Оценка · без предварительных серий',
                                   icon: Icons.event_repeat_outlined,
                                   accent: context.qestoColors.purple,
                                 ),
@@ -100,7 +103,7 @@ class DesktopRecurringPage extends StatelessWidget {
                             ? const DesktopEmptyState(
                                 title: 'Регулярные платежи ещё не найдены',
                                 message:
-                                    'Synoball определит их по истории повторяющихся операций.',
+                                    'Для предварительного месячного прогноза нужны два списания у одного продавца, для устойчивой серии — три и больше.',
                                 icon: Icons.event_repeat_outlined,
                               )
                             : ListView(
@@ -165,7 +168,8 @@ class _StreamRow extends StatelessWidget {
     title: stream.title,
     amount: stream.typicalAmount.minorUnits ~/ 100,
     currency: stream.typicalAmount.currency,
-    status: '≈ прогноз · ${(stream.confidence * 100).round()}%',
+    status:
+        '${stream.isTentative ? 'Возможный повтор' : '≈ прогноз'} · ${(stream.confidence * 100).round()}%',
     icon: Icons.auto_awesome_outlined,
     color: context.qestoColors.warning,
   );

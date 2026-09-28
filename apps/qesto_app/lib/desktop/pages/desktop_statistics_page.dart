@@ -9,6 +9,7 @@ import '../../features/statistics/domain/models/statistics_models.dart';
 import '../../features/statistics/presentation/sections/overview_expenses_sections.dart';
 import '../../features/statistics/presentation/sections/secondary_statistics_sections.dart';
 import '../../features/statistics/presentation/state/statistics_controller.dart';
+import '../widgets/transaction_attention_panel.dart';
 import '../../features/statistics/presentation/widgets/statistics_components.dart';
 import '../widgets/desktop_components.dart';
 
@@ -16,11 +17,13 @@ class DesktopBudgetAnalysisPage extends StatefulWidget {
   const DesktopBudgetAnalysisPage({
     required this.controller,
     required this.section,
+    this.statisticsController,
     super.key,
   });
 
   final BudgetController controller;
   final StatisticsSection section;
+  final StatisticsController? statisticsController;
 
   @override
   State<DesktopBudgetAnalysisPage> createState() =>
@@ -34,8 +37,10 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
   @override
   void initState() {
     super.initState();
-    _statistics = StatisticsController(budgetController: widget.controller);
-    _statistics.selectSection(widget.section);
+    _statistics =
+        widget.statisticsController ??
+        StatisticsController(budgetController: widget.controller);
+    _statistics.selectSection(widget.section, notify: false);
     _scrollControllers = {
       for (final section in StatisticsSection.values)
         section: ScrollController(),
@@ -46,7 +51,7 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
   void didUpdateWidget(covariant DesktopBudgetAnalysisPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.section != widget.section) {
-      _statistics.selectSection(widget.section);
+      _statistics.selectSection(widget.section, notify: false);
     }
   }
 
@@ -55,7 +60,7 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
     for (final controller in _scrollControllers.values) {
       controller.dispose();
     }
-    _statistics.dispose();
+    if (widget.statisticsController == null) _statistics.dispose();
     super.dispose();
   }
 
@@ -72,10 +77,14 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
               controller: _statistics,
               onSelectPeriod: _selectPeriod,
               onOpenFilters: _openFilters,
+              onOpenAttention: _openAttention,
             ),
             if (hasTransactions) ...[
               if (_statistics.snapshot.dataQuality.issues.isNotEmpty)
-                _DataQualityNotice(snapshot: _statistics.snapshot),
+                _DataQualityNotice(
+                  statistics: _statistics,
+                  onTap: _openAttention,
+                ),
             ],
             Expanded(
               child: hasTransactions
@@ -183,6 +192,8 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
       onlyConfirmed: selection.onlyConfirmed,
     );
   }
+
+  void _openAttention() => showTransactionAttentionPanel(context, _statistics);
 }
 
 class _StatisticsToolbar extends StatelessWidget {
@@ -190,11 +201,13 @@ class _StatisticsToolbar extends StatelessWidget {
     required this.controller,
     required this.onSelectPeriod,
     required this.onOpenFilters,
+    required this.onOpenAttention,
   });
 
   final StatisticsController controller;
   final ValueChanged<StatisticsPeriodPreset> onSelectPeriod;
   final VoidCallback onOpenFilters;
+  final VoidCallback onOpenAttention;
 
   @override
   Widget build(BuildContext context) {
@@ -257,12 +270,17 @@ class _StatisticsToolbar extends StatelessWidget {
             onPressed: controller.resetFilters,
             child: const Text('Сбросить'),
           ),
-        DesktopPill(
-          label: 'Качество ${controller.snapshot.dataQuality.score}%',
-          icon: Icons.verified_user_outlined,
-          color: controller.snapshot.dataQuality.score >= 80
-              ? context.qestoColors.positive
-              : context.qestoColors.warning,
+        InkWell(
+          key: const Key('desktop-statistics-quality-button'),
+          onTap: onOpenAttention,
+          borderRadius: QestoGeometry.control,
+          child: DesktopPill(
+            label: 'Качество ${controller.snapshot.dataQuality.score}%',
+            icon: Icons.verified_user_outlined,
+            color: controller.snapshot.dataQuality.score >= 80
+                ? context.qestoColors.positive
+                : context.qestoColors.warning,
+          ),
         ),
       ],
     );
@@ -347,41 +365,46 @@ ButtonStyle _toolbarButtonStyle(BuildContext context) =>
     );
 
 class _DataQualityNotice extends StatelessWidget {
-  const _DataQualityNotice({required this.snapshot});
+  const _DataQualityNotice({required this.statistics, required this.onTap});
 
-  final StatisticsSnapshot snapshot;
+  final StatisticsController statistics;
+  final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => InkWell(
     key: const Key('desktop-statistics-quality-notice'),
-    margin: const EdgeInsets.fromLTRB(26, 3, 26, 0),
-    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-    decoration: BoxDecoration(
-      color: context.qestoColors.warning.withValues(alpha: .10),
-      borderRadius: QestoGeometry.control,
-      border: Border.all(
-        color: context.qestoColors.warning.withValues(alpha: .3),
-      ),
-    ),
-    child: Row(
-      children: [
-        Icon(
-          Icons.info_outline_rounded,
-          size: 17,
-          color: context.qestoColors.warning,
+    onTap: onTap,
+    borderRadius: QestoGeometry.control,
+    child: Container(
+      margin: const EdgeInsets.fromLTRB(26, 3, 26, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+      decoration: BoxDecoration(
+        color: context.qestoColors.warning.withValues(alpha: .10),
+        borderRadius: QestoGeometry.control,
+        border: Border.all(
+          color: context.qestoColors.warning.withValues(alpha: .3),
         ),
-        const SizedBox(width: 9),
-        Expanded(
-          child: Text(
-            'Качество данных ${snapshot.dataQuality.score}% · требуют внимания: ${snapshot.dataQuality.issues.length}',
-            style: TextStyle(
-              color: context.qestoColors.text,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.info_outline_rounded,
+            size: 17,
+            color: context.qestoColors.warning,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Text(
+              'Качество данных ${statistics.snapshot.dataQuality.score}% · требуют внимания: ${attentionTransactions(statistics).length}',
+              style: TextStyle(
+                color: context.qestoColors.text,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     ),
   );
 }

@@ -93,8 +93,13 @@ class QestoLegacyBridge {
   CanonicalTransaction canonicalFromQesto(
     BudgetTransaction value, {
     required CanonicalTransaction previous,
+    bool? categoryWasEdited,
   }) {
     final seed = _transaction(value, previous.entityId);
+    final categoryChanged =
+        categoryWasEdited ?? value.categoryId != previous.effectiveCategory;
+    final noteChanged =
+        value.comment != (previous.userNote ?? previous.rawDescription);
     final fieldLocks = <String>{
       ...previous.tags.where((tag) => tag.startsWith('user-field:')),
       if (seed.accountId != previous.accountId) 'user-field:account',
@@ -104,7 +109,8 @@ class QestoLegacyBridge {
       if (seed.occurredAt != previous.occurredAt) 'user-field:date',
       if (seed.merchant != previous.merchantName) 'user-field:merchant',
       if (seed.description != previous.rawDescription) 'user-field:description',
-      if (value.categoryId != previous.effectiveCategory) 'user-field:category',
+      if (noteChanged) 'user-field:note',
+      if (categoryChanged) 'user-field:category',
       if (seed.subcategoryId != previous.subcategoryId)
         'user-field:subcategory',
       if (seed.direction != previous.direction ||
@@ -113,6 +119,15 @@ class QestoLegacyBridge {
         'user-field:type',
     };
     return previous.copyWith(
+      // A user's explicit confirmation can finish a locally pending review.
+      // Bank-pending operations remain pending until the bank posts them.
+      status:
+          value.isConfirmed &&
+              previous.status == CanonicalTransactionStatus.pending &&
+              !previous.tags.contains('sber-status-pending') &&
+              !previous.tags.contains('status-pending')
+          ? CanonicalTransactionStatus.posted
+          : previous.status,
       accountId: seed.accountId,
       amount: seed.amount,
       direction: seed.direction,
@@ -120,12 +135,21 @@ class QestoLegacyBridge {
       rawDescription: seed.description,
       normalizedDescription: _normalize(seed.description),
       merchantName: seed.merchant,
+      userNote: noteChanged ? value.comment : previous.userNote,
       providerCategory: seed.providerCategory,
-      synoballCategory: seed.category,
-      userCategoryOverride: value.categoryId,
-      clearUserCategoryOverride: value.categoryId == null,
+      synoballCategory: categoryChanged
+          ? seed.category
+          : previous.synoballCategory,
+      userCategoryOverride: categoryChanged
+          ? value.categoryId
+          : previous.userCategoryOverride,
+      clearUserCategoryOverride: value.categoryId == null && categoryChanged,
       categoryConfidence: value.classificationConfidence,
       subcategoryId: seed.subcategoryId,
+      clearSubcategoryId:
+          categoryChanged &&
+          value.categoryId != previous.effectiveCategory &&
+          seed.subcategoryId == previous.subcategoryId,
       transferDirection: seed.transferDirection,
       receiptId: seed.receiptId,
       tags: {...seed.tags, ...fieldLocks}.toList(),

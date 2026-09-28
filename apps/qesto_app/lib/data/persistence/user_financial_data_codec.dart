@@ -6,10 +6,11 @@ import '../../synoball/core/models.dart';
 class UserFinancialDataCodec {
   const UserFinancialDataCodec();
 
-  static const schemaVersion = 6;
+  static const schemaVersion = 7;
 
   String encode(UserFinancialData data) => jsonEncode({
     'schemaVersion': schemaVersion,
+    'classification': data.classification.toJson(),
     'user': _userToJson(data.user),
     'referenceDate': data.referenceDate.toIso8601String(),
     'accounts': data.accounts.map(_accountToJson).toList(),
@@ -60,6 +61,9 @@ class UserFinancialDataCodec {
       throw const FormatException('Unsupported user data schema');
     }
     return UserFinancialData(
+      classification: ClassificationSettings.fromJson(
+        _map(root['classification'] ?? <String, dynamic>{}),
+      ),
       user: _userFromJson(_map(root['user'])),
       referenceDate: DateTime.parse(root['referenceDate'] as String),
       accounts: _list(

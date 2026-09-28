@@ -508,6 +508,7 @@ class DesktopTopBar extends StatelessWidget {
     required this.onSearch,
     required this.onAdd,
     required this.onNotifications,
+    this.notificationCount = 0,
     this.period,
     this.onPeriodPressed,
     this.compactSearch = false,
@@ -522,6 +523,7 @@ class DesktopTopBar extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onAdd;
   final VoidCallback onNotifications;
+  final int notificationCount;
   final List<Widget> contextualActions;
 
   @override
@@ -634,14 +636,23 @@ class DesktopTopBar extends StatelessWidget {
                 ),
               const SizedBox(width: 8),
               if (!compact) ...[
-                IconButton.outlined(
-                  key: const Key('desktop-notifications'),
-                  tooltip: 'Уведомления',
-                  onPressed: onNotifications,
-                  icon: const Icon(Icons.notifications_none_rounded, size: 20),
-                  style: IconButton.styleFrom(
-                    foregroundColor: context.qestoColors.secondaryText,
-                    side: BorderSide(color: context.qestoColors.border),
+                Badge(
+                  isLabelVisible: notificationCount > 0,
+                  label: Text(
+                    notificationCount > 99 ? '99+' : '$notificationCount',
+                  ),
+                  child: IconButton.outlined(
+                    key: const Key('desktop-notifications'),
+                    tooltip: 'Уведомления',
+                    onPressed: onNotifications,
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 20,
+                    ),
+                    style: IconButton.styleFrom(
+                      foregroundColor: context.qestoColors.secondaryText,
+                      side: BorderSide(color: context.qestoColors.border),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),

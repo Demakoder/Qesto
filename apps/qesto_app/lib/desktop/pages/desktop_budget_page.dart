@@ -6,6 +6,7 @@ import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/services/category_budget_calculation_service.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/classification/classification_actions.dart';
 import '../../features/budget/widgets/budget_category_icon.dart';
 import '../widgets/desktop_components.dart';
 
@@ -281,12 +282,16 @@ class _DesktopBudgetPageState extends State<DesktopBudgetPage> {
           _CategoryAppearanceDialog(categories: widget.controller.categories),
     );
     if (selection == null) return;
-    await widget.controller.updateCategoryAppearance(
-      categoryId: selection.categoryId,
-      name: selection.name,
-      iconKey: selection.iconKey,
-      colorValue: selection.colorValue,
-    );
+    try {
+      await widget.controller.updateCategoryAppearance(
+        categoryId: selection.categoryId,
+        name: selection.name,
+        iconKey: selection.iconKey,
+        colorValue: selection.colorValue,
+      );
+    } catch (error) {
+      if (mounted) classificationError(context, error);
+    }
   }
 
   Future<void> _editTotalBudget(BudgetPeriod period) async {

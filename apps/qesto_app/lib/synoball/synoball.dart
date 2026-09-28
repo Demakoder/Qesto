@@ -9,6 +9,7 @@ export 'analytics/read_models.dart';
 export 'core/models.dart';
 export 'core/synoball_core.dart';
 export 'enrichment/enrichment.dart';
+export 'enrichment/category_policy.dart';
 export 'ingestion/adapter.dart';
 export 'open_banking/open_banking.dart';
 export 'intelligence/financial_state.dart';

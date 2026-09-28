@@ -66,6 +66,10 @@ class SberNavigator {
     hrefHints: const ['/app/wallet', '/app/accounts'],
   );
 
+  /// The bank keeps savings and deposits outside the wallet route.
+  Future<bool> openSavings(BrowserController browser) =>
+      _open(browser, const ['накопления'], hrefHints: const ['/app/savings']);
+
   Future<bool> openTransactions(BrowserController browser) async {
     if (!await readiness.wait(browser)) return false;
     final opened = await browser.evaluateConnectorJavascript(

@@ -16,6 +16,7 @@ import '../features/receipt_import/presentation/receipt_import_screen.dart';
 import '../features/statement_import/data/bank_statement_file_models.dart';
 import '../features/statement_import/presentation/statement_import_screen.dart';
 import '../features/statistics/domain/models/statistics_models.dart';
+import '../features/statistics/presentation/state/statistics_controller.dart';
 import '../features/voice_input/data/voice_capture_service.dart';
 import '../features/voice_input/domain/voice_transaction_draft_parser.dart';
 import '../features/voice_transaction/data/voice_speech_recognizer.dart';
@@ -36,6 +37,7 @@ import 'pages/desktop_support_pages.dart';
 import 'pages/desktop_transactions_page.dart';
 import 'widgets/desktop_chrome.dart';
 import 'widgets/desktop_components.dart';
+import 'widgets/transaction_attention_panel.dart';
 
 class DesktopAppShell extends StatefulWidget {
   const DesktopAppShell({
@@ -62,6 +64,7 @@ class DesktopAppShell extends StatefulWidget {
 }
 
 class _DesktopAppShellState extends State<DesktopAppShell> {
+  late final StatisticsController _statistics;
   late var _destination =
       (hasQestoCommandLineArgument('--qesto-bank-browser-smoke') ||
           hasQestoCommandLineArgument('--qesto-bank-browser-dev'))
@@ -71,6 +74,18 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   String? _dashboardPeriodId;
   String? _requestedTransactionId;
   var _transactionRequestSerial = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _statistics = StatisticsController(budgetController: widget.controller);
+  }
+
+  @override
+  void dispose() {
+    _statistics.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -124,22 +139,28 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
                   Expanded(
                     child: Column(
                       children: [
-                        DesktopTopBar(
-                          title: _destination == DesktopDestination.dashboard
-                              ? _destination.label
-                              : _destination.section == null
-                              ? _destination.label
-                              : '${_destination.section!.label} · ${_destination.label}',
-                          period: _periodLabel,
-                          compactSearch:
-                              _destination == DesktopDestination.dashboard,
-                          onPeriodPressed:
-                              _destination == DesktopDestination.dashboard
-                              ? _chooseDashboardPeriod
-                              : null,
-                          onSearch: _openGlobalSearch,
-                          onAdd: _openAddData,
-                          onNotifications: _openNotifications,
+                        ListenableBuilder(
+                          listenable: _statistics,
+                          builder: (context, _) => DesktopTopBar(
+                            title: _destination == DesktopDestination.dashboard
+                                ? _destination.label
+                                : _destination.section == null
+                                ? _destination.label
+                                : '${_destination.section!.label} · ${_destination.label}',
+                            period: _periodLabel,
+                            compactSearch:
+                                _destination == DesktopDestination.dashboard,
+                            onPeriodPressed:
+                                _destination == DesktopDestination.dashboard
+                                ? _chooseDashboardPeriod
+                                : null,
+                            onSearch: _openGlobalSearch,
+                            onAdd: _openAddData,
+                            onNotifications: _openNotifications,
+                            notificationCount: attentionTransactions(
+                              _statistics,
+                            ).length,
+                          ),
                         ),
                         Expanded(
                           child: Theme(
@@ -178,10 +199,19 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
             onPressed: _openGlobalSearch,
             icon: const Icon(Icons.search_rounded),
           ),
-          IconButton(
-            tooltip: 'Уведомления и SMS',
-            onPressed: _openNotifications,
-            icon: const Icon(Icons.notifications_none_rounded),
+          ListenableBuilder(
+            listenable: _statistics,
+            builder: (context, _) => Badge(
+              isLabelVisible: attentionTransactions(_statistics).isNotEmpty,
+              label: Text(
+                _badgeLabel(attentionTransactions(_statistics).length),
+              ),
+              child: IconButton(
+                tooltip: 'Уведомления',
+                onPressed: _openNotifications,
+                icon: const Icon(Icons.notifications_none_rounded),
+              ),
+            ),
           ),
           IconButton(
             key: const Key('mobile-add-data'),
@@ -377,6 +407,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     DesktopDestination.expenses => DesktopBudgetAnalysisPage(
       controller: widget.controller,
       section: StatisticsSection.expenses,
+      statisticsController: _statistics,
     ),
     DesktopDestination.transactions => DesktopTransactionsPage(
       controller: widget.controller,
@@ -392,14 +423,17 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     DesktopDestination.rhythm => DesktopBudgetAnalysisPage(
       controller: widget.controller,
       section: StatisticsSection.rhythm,
+      statisticsController: _statistics,
     ),
     DesktopDestination.merchants => DesktopBudgetAnalysisPage(
       controller: widget.controller,
       section: StatisticsSection.merchants,
+      statisticsController: _statistics,
     ),
     DesktopDestination.categories => DesktopBudgetAnalysisPage(
       controller: widget.controller,
       section: StatisticsSection.categories,
+      statisticsController: _statistics,
     ),
     DesktopDestination.accounts => DesktopAccountsPage(
       controller: widget.controller,
@@ -668,6 +702,14 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   }
 
   Future<void> _openNotifications() async {
+    await showQestoNotificationCenter(
+      context,
+      _statistics,
+      onOpenInbox: _openNotificationInbox,
+    );
+  }
+
+  Future<void> _openNotificationInbox() async {
     if (MediaQuery.sizeOf(context).width < 900 &&
         widget.onOpenNotificationInbox != null) {
       await widget.onOpenNotificationInbox!();
@@ -685,6 +727,8 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     );
   }
 }
+
+String _badgeLabel(int count) => count > 99 ? '99+' : '$count';
 
 enum _AddDataAction {
   inbox,

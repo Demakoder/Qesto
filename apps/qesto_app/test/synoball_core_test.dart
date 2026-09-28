@@ -388,6 +388,8 @@ void main() {
 
     synoball.deleteTransaction(lastTransactionId, actorId: 'ivan');
 
+    expect(synoball.state.recurringStreams.single.isTentative, isTrue);
+    synoball.deleteTransaction(synoball.transactions.last.id, actorId: 'ivan');
     expect(synoball.state.recurringStreams, isEmpty);
     expect(synoball.transactions.every((item) => !item.isRecurring), isTrue);
     expect(

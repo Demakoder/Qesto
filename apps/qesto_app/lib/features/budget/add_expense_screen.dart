@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../classification/classification_actions.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
@@ -15,6 +16,7 @@ class AddExpenseScreen extends StatefulWidget {
     required this.controller,
     required this.period,
     this.initialTransaction,
+    this.attentionReasons = const [],
     this.addInitialAsNew = false,
     super.key,
   });
@@ -22,6 +24,7 @@ class AddExpenseScreen extends StatefulWidget {
   final BudgetController controller;
   final BudgetPeriod period;
   final BudgetTransaction? initialTransaction;
+  final List<String> attentionReasons;
   final bool addInitialAsNew;
 
   @override
@@ -34,29 +37,51 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   late final TextEditingController _titleController;
   late final TextEditingController _commentController;
   late DateTime _date;
-  late String _accountId;
+  String? _accountId;
   BudgetCategory? _category;
   String? _subcategory;
+  late bool _reviewed;
+  bool _confirmClassification = false;
+  bool _saving = false;
 
   bool get _editing =>
       widget.initialTransaction != null && !widget.addInitialAsNew;
+
+  bool get _bankPending =>
+      widget.initialTransaction?.tags.contains('sber-status-pending') == true ||
+      widget.initialTransaction?.tags.contains('status-pending') == true;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initialTransaction;
+    _reviewed = initial?.isConfirmed ?? true;
     _amountController = TextEditingController(
-      text: initial == null ? '' : initial.amount.toString(),
+      text: initial == null
+          ? ''
+          : initial.amountMinor % 100 == 0
+          ? (initial.amountMinor ~/ 100).toString()
+          : '${initial.amountMinor ~/ 100},${(initial.amountMinor % 100).toString().padLeft(2, '0')}',
     );
     _titleController = TextEditingController(
       text: initial?.merchant ?? initial?.title ?? '',
     );
     _commentController = TextEditingController(text: initial?.comment ?? '');
     _date = initial?.date ?? widget.controller.activeDateFor(widget.period);
-    _accountId = initial?.accountId ?? widget.controller.accounts.first.id;
+    final selectableAccounts = widget.controller.accounts
+        .where((account) => account.type != AccountType.liability)
+        .toList();
+    _accountId =
+        selectableAccounts.any((account) => account.id == initial?.accountId)
+        ? initial!.accountId
+        : initial == null
+        ? selectableAccounts.firstOrNull?.id
+        : null;
     if (initial?.categoryId != null) {
-      _category = widget.controller.categoryById(initial!.categoryId!);
-      _subcategory = initial.subcategoryId;
+      _category = widget.controller.categories
+          .where((category) => category.id == initial!.categoryId)
+          .firstOrNull;
+      _subcategory = initial?.subcategoryId;
     }
   }
 
@@ -82,6 +107,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       context: context,
       categories: widget.controller.categories,
       recentCategoryIds: _recentCategoryIds,
+      onCreate: () => editCategory(context, widget.controller),
     );
     if (selected == null || !mounted) return;
     setState(() {
@@ -91,54 +117,88 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _selectDate() async {
+    final firstDate = _date.isBefore(widget.period.startDate)
+        ? _date
+        : widget.period.startDate;
+    final lastDate = _date.isAfter(widget.period.endDate)
+        ? _date
+        : widget.period.endDate;
     final date = await showDatePicker(
       context: context,
       initialDate: _date,
-      firstDate: widget.period.startDate,
-      lastDate: widget.period.endDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
     );
     if (date != null && mounted) setState(() => _date = date);
   }
 
-  void _save() {
+  Future<void> _save() async {
+    if (_saving) return;
     if (!_formKey.currentState!.validate()) return;
-    if (_category == null) {
+    final initial = widget.initialTransaction;
+    if (_category == null &&
+        (initial == null || initial.type == TransactionType.expense)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Выберите категорию расхода')),
       );
       return;
     }
-    final amount = int.parse(_amountController.text.replaceAll(' ', ''));
+    if (_accountId == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Выберите счёт операции')));
+      return;
+    }
+    final amountMinor = _parseAmountMinor(_amountController.text)!;
+    final amount = (amountMinor + 50) ~/ 100;
     final title = _titleController.text.trim().isEmpty
-        ? _category!.name
+        ? _category?.name ?? initial?.title ?? 'Операция'
         : _titleController.text.trim();
-    final initial = widget.initialTransaction;
-    if (initial == null || widget.addInitialAsNew) {
-      widget.controller.addExpense(
-        period: widget.period,
-        amount: amount,
-        date: _date,
-        categoryId: _category!.id,
-        accountId: _accountId,
-        title: title,
-        subcategoryId: _subcategory,
-        comment: _commentController.text.trim(),
-      );
-    } else {
-      widget.controller.updateTransaction(
-        initial.copyWith(
+    setState(() => _saving = true);
+    try {
+      if (initial == null || widget.addInitialAsNew) {
+        await widget.controller.addExpense(
+          period: widget.period,
           amount: amount,
           date: _date,
           categoryId: _category!.id,
-          accountId: _accountId,
-          merchant: title,
+          accountId: _accountId!,
           title: title,
           subcategoryId: _subcategory,
           comment: _commentController.text.trim(),
-        ),
-      );
+        );
+      } else {
+        await widget.controller.updateTransaction(
+          initial.copyWith(
+            amount: amount,
+            exactAmountMinor: amountMinor,
+            date: _date,
+            categoryId: _category?.id,
+            accountId: _accountId!,
+            merchant: title,
+            title: title,
+            normalizedMerchant: title != (initial.merchant ?? initial.title)
+                ? title.toLowerCase()
+                : initial.normalizedMerchant,
+            classificationConfidence:
+                _confirmClassification || _category?.id != initial.categoryId
+                ? 1
+                : initial.classificationConfidence,
+            isConfirmed: _reviewed,
+            subcategoryId: _subcategory,
+            comment: _commentController.text.trim(),
+          ),
+        );
+      }
+      if (mounted) Navigator.of(context).pop(true);
+    } on Object {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось сохранить операцию')),
+        );
+      }
     }
-    Navigator.of(context).pop(true);
   }
 
   @override
@@ -147,7 +207,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     return Scaffold(
       appBar: NestedScreenHeader(
         title: Text(
-          _editing ? 'Редактировать расход' : 'Добавить расход',
+          _editing ? 'Редактировать операцию' : 'Добавить расход',
           style: Theme.of(context).textTheme.titleLarge,
         ),
       ),
@@ -156,28 +216,49 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(18, 12, 18, 30),
           children: [
+            if (widget.attentionReasons.isNotEmpty)
+              QestoCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Почему Qesto просит проверить операцию',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 6),
+                    for (final reason in widget.attentionReasons)
+                      Text('• $reason'),
+                  ],
+                ),
+              ),
+            if (widget.attentionReasons.isNotEmpty) const SizedBox(height: 12),
             QestoCard(
               child: Column(
                 children: [
                   TextFormField(
                     key: const Key('expense-amount-field'),
                     controller: _amountController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.w800,
                     ),
                     decoration: InputDecoration(
                       labelText: 'Сумма',
-                      suffixText: currencySymbol(widget.period.currency),
+                      suffixText: currencySymbol(
+                        widget.initialTransaction?.currency ??
+                            widget.period.currency,
+                      ),
                       border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
-                      final amount = int.tryParse(
-                        (value ?? '').replaceAll(' ', ''),
-                      );
+                      final amount = _parseAmountMinor(value ?? '');
                       return amount == null || amount <= 0
                           ? 'Введите сумму больше нуля'
+                          : !_editing && amount % 100 != 0
+                          ? 'Для нового расхода укажите целую сумму'
                           : null;
                     },
                   ),
@@ -203,6 +284,28 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           ),
                     onTap: _selectCategory,
                   ),
+                  if (_editing)
+                    SwitchListTile.adaptive(
+                      key: const Key('expense-review-switch'),
+                      title: const Text('Операция проверена'),
+                      subtitle: _bankPending
+                          ? const Text('Ожидает проведения банком')
+                          : null,
+                      value: _reviewed,
+                      onChanged: _bankPending
+                          ? null
+                          : (value) => setState(() => _reviewed = value),
+                    ),
+                  if (_editing &&
+                      widget.initialTransaction!.classificationConfidence < 0.6)
+                    SwitchListTile.adaptive(
+                      key: const Key('expense-classification-confirm-switch'),
+                      title: const Text('Категория проверена'),
+                      subtitle: const Text('Подтвердите её после проверки'),
+                      value: _confirmClassification,
+                      onChanged: (value) =>
+                          setState(() => _confirmClassification = value),
+                    ),
                   if (category != null &&
                       category.subcategories.isNotEmpty) ...[
                     const SizedBox(height: 10),
@@ -324,4 +427,16 @@ class _FormTile extends StatelessWidget {
       ),
     );
   }
+}
+
+int? _parseAmountMinor(String raw) {
+  final normalized = raw
+      .replaceAll(RegExp(r'[\s\u00a0\u202f]'), '')
+      .replaceAll(',', '.');
+  if (!RegExp(r'^\d+(?:\.\d{1,2})?$').hasMatch(normalized)) return null;
+  final parts = normalized.split('.');
+  final major = int.tryParse(parts[0]);
+  if (major == null) return null;
+  final cents = parts.length == 2 ? int.parse(parts[1].padRight(2, '0')) : 0;
+  return major * 100 + cents;
 }

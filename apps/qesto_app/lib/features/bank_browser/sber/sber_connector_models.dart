@@ -143,8 +143,11 @@ class SberTransactionFact {
     this.isTransfer = false,
     this.isIncome = false,
     this.isInternalTransfer = false,
+    this.ownTransferSourceLastFour,
+    this.ownTransferDestinationLastFour,
     this.operationType,
     this.loyaltyReward,
+    this.legacyTransactionIds = const [],
   });
 
   final String sourceId;
@@ -162,8 +165,15 @@ class SberTransactionFact {
   final bool isTransfer;
   final bool isIncome;
   final bool isInternalTransfer;
+
+  /// Bank observed product suffixes for a confirmed own-account transfer.
+  final String? ownTransferSourceLastFour;
+  final String? ownTransferDestinationLastFour;
   final String? operationType;
   final SberLoyaltyReward? loyaltyReward;
+
+  /// Reproduced from this exact row, not from equal amounts/merchant names.
+  final List<String> legacyTransactionIds;
 
   SberTransactionDirection get direction => isIncome
       ? SberTransactionDirection.inflow
@@ -184,8 +194,11 @@ class SberTransactionFact {
     isTransfer: isTransfer,
     isIncome: isIncome,
     isInternalTransfer: isInternalTransfer,
+    ownTransferSourceLastFour: ownTransferSourceLastFour,
+    ownTransferDestinationLastFour: ownTransferDestinationLastFour,
     operationType: operationType,
     loyaltyReward: loyaltyReward,
+    legacyTransactionIds: legacyTransactionIds,
   );
 }
 

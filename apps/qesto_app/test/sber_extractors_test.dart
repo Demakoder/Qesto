@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:qesto/data/models/qesto_models.dart';
 import 'package:qesto/features/bank_browser/config/bank_connector_registry.dart';
 import 'package:qesto/features/bank_browser/data/browser_profile_manager.dart';
 import 'package:qesto/features/bank_browser/domain/bank_browser_models.dart';
@@ -137,6 +138,107 @@ void main() {
     final refund = transactions.firstWhere((item) => item.sourceId == 'refund');
     expect(refund.status, 'REFUND');
     expect(refund.direction, SberTransactionDirection.inflow);
+  });
+
+  test('bank account-opening document proves a one-sided own transfer', () {
+    final september = SberSyncRange(
+      from: DateTime(2026, 9),
+      toExclusive: DateTime(2026, 10),
+      label: 'Сентябрь',
+    );
+    Map<String, dynamic> opening(String id, int amount) => {
+      ...row(
+        id: id,
+        date: '2026-09-26T00:00:00',
+        amount: amount,
+        amountText: '$amount ₽',
+        text:
+            'Платёжный счёт •• 5023 $amount ₽ Накопительный счёт •• 1410 Открытие вклада/счета',
+        merchant: 'Платёжный счёт',
+        operationType: '',
+      ),
+      'bankOperationCode': 'UfsDepositOpen',
+      'sourceProduct': 'Платёжный счёт •• 5023',
+      'destinationProduct': 'Накопительный счёт •• 1410',
+    };
+
+    final own = extractors.normalizeTransactionRows([
+      opening('opening-document', 15000),
+    ], range: september).single;
+    expect(own.isTransfer, isTrue);
+    expect(own.isInternalTransfer, isTrue);
+    expect(own.ownTransferSourceLastFour, '5023');
+    expect(own.ownTransferDestinationLastFour, '1410');
+    expect(own.isIncome, isFalse);
+
+    final sameTitleWithoutProof = opening('ordinary', 15000)
+      ..remove('bankOperationCode');
+    final ordinary = extractors.normalizeTransactionRows([
+      sameTitleWithoutProof,
+    ], range: september).single;
+    expect(ordinary.isInternalTransfer, isFalse);
+    expect(ordinary.isIncome, isFalse);
+
+    final outsideBank = opening('external', 15000)
+      ..['bankOperationCode'] = 'ExternalPayment';
+    expect(
+      extractors
+          .normalizeTransactionRows([outsideBank], range: september)
+          .single
+          .isInternalTransfer,
+      isFalse,
+    );
+
+    for (final amount in [300, 4861]) {
+      final ownBetweenAccounts = row(
+        id: 'own-$amount',
+        date: '2026-09-26T00:00:00',
+        amount: amount,
+        amountText: '$amount ₽',
+        text:
+            'Платёжный счёт •• 1794 $amount ₽ Платёжный счёт •• 5023 Между своими',
+        merchant: 'Платёжный счёт',
+        operationType: 'Между своими',
+      );
+      expect(
+        extractors
+            .normalizeTransactionRows([ownBetweenAccounts], range: september)
+            .single
+            .isInternalTransfer,
+        isTrue,
+      );
+    }
+  });
+
+  test('separate savings products normalize as liquid stable accounts', () {
+    final rows = [
+      {
+        'id': 'fixture-savings-rub-001',
+        'kind': 'savings',
+        'name': 'Накопительный счёт •• 1410',
+        'identityText': 'Накопительный счёт •• 1410',
+        'text': '15 000 ₽ Накопительный счёт •• 1410 12,5%',
+        'balance': '15 000 ₽',
+      },
+      {
+        'id': 'fixture-savings-eur-002',
+        'kind': 'savings',
+        'name': 'Сберегательный счет •• 3956',
+        'identityText': 'Сберегательный счет •• 3956',
+        'text': '0 € Сберегательный счет •• 3956 0,01%',
+        'balance': '0 €',
+      },
+    ];
+    final first = extractors.normalizeAccountRows(rows);
+    final second = extractors.normalizeAccountRows(rows);
+    expect(first, hasLength(2));
+    expect(first.map((value) => value.id), second.map((value) => value.id));
+    expect(first.first.type, AccountType.savings);
+    expect(first.first.balanceMinor, 1500000);
+    expect(first.first.lastFour, '1410');
+    expect(first.last.type, AccountType.savings);
+    expect(first.last.currency, 'EUR');
+    expect(first.last.balanceMinor, 0);
   });
 
   test('fractional web amounts retain minor units', () {

@@ -357,7 +357,7 @@ class SberExtractors {
         .toLowerCase();
     final type = lower.contains('вклад') || lower.contains('депозит')
         ? AccountType.deposit
-        : lower.contains('накоп')
+        : row['kind'] == 'savings' || lower.contains('накоп')
         ? AccountType.savings
         : lower.contains('кредит')
         ? AccountType.liability
@@ -497,6 +497,23 @@ class SberExtractors {
     }
     final amountText = row['amount'] as String? ?? '';
     final operationType = _clean(row['operationType'] as String?);
+    final bankOperationCode = _clean(row['bankOperationCode'] as String?);
+    final sourceProduct = _clean(row['sourceProduct'] as String?);
+    final destinationProduct = _clean(row['destinationProduct'] as String?);
+    final sourceSuffix = _productSuffix(sourceProduct);
+    final destinationSuffix = _productSuffix(destinationProduct);
+    // This bank document is the opening/funding of the user's own savings
+    // account. Its history row carries both products and their distinct masked
+    // identifiers. The text "Платёжный счёт" alone proves nothing.
+    final ownSavingsOpening =
+        bankOperationCode == 'UfsDepositOpen' &&
+        sourceSuffix != null &&
+        destinationSuffix != null &&
+        sourceSuffix != destinationSuffix &&
+        RegExp(
+          r'(?:накопительн|сберегательн).{0,30}сч[её]т|вклад|депозит',
+          caseSensitive: false,
+        ).hasMatch(destinationProduct);
     final classificationText = '$text $operationType'.toLowerCase();
     final signedText = amountText.trimLeft().replaceAll('\u2212', '-');
     final explicitDebit = signedText.startsWith('-');
@@ -527,6 +544,7 @@ class SberExtractors {
             classificationText.contains('входящ') ||
             classificationText.contains('получен'));
     final transfer =
+        ownSavingsOpening ||
         classificationText.contains('перевод') ||
         classificationText.contains('между своими') ||
         classificationText.contains('пополнение') ||
@@ -538,10 +556,11 @@ class SberExtractors {
     final internalTransfer =
         !fee &&
         transfer &&
-        RegExp(
-          r'между\s+(?:своими|собственными)|на\s+сво[юий]\s+(?:карт|сч[её]т)|со\s+своего\s+(?:сч[её]та|карт)',
-          caseSensitive: false,
-        ).hasMatch(classificationText);
+        (ownSavingsOpening ||
+            RegExp(
+              r'между\s+(?:своими|собственными)|на\s+сво[юий]\s+(?:карт|сч[её]т)|со\s+своего\s+(?:сч[её]та|карт)',
+              caseSensitive: false,
+            ).hasMatch(classificationText));
     final status = cancelled
         ? 'CANCELLED'
         : classificationText.contains('обработ') ||
@@ -587,9 +606,21 @@ class SberExtractors {
           : _clean(row['category'] as String?),
       status: status,
       fingerprint: fingerprint,
+      legacyTransactionIds: sourceId.isEmpty
+          ? const []
+          : [
+              'sber-$fingerprint',
+              // Prior connector versions hashed rounded rubles rather than kopecks.
+              // Preserve that identity bridge while the exact DOM row is available.
+              'sber-${_stableId('transaction', '$sourceId|$date|$amount|$text|')}',
+            ],
       isTransfer: transfer,
       isIncome: income,
       isInternalTransfer: internalTransfer,
+      ownTransferSourceLastFour: ownSavingsOpening ? sourceSuffix : null,
+      ownTransferDestinationLastFour: ownSavingsOpening
+          ? destinationSuffix
+          : null,
       operationType: operationType.isEmpty ? null : operationType,
       loyaltyReward: loyaltyAmount == null
           ? null
@@ -621,6 +652,11 @@ class SberExtractors {
 
   static String _clean(String? value) =>
       (value ?? '').replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  static String? _productSuffix(String value) => RegExp(
+    r'(?:\*{2,}|x{2,}|•{2,})\s*(\d{4})(?!\d)',
+    caseSensitive: false,
+  ).firstMatch(value)?.group(1);
 
   static String _accountIdentityName(String value) => _clean(
     value
@@ -845,6 +881,24 @@ const _accountsScript = r'''(() => {
     values.push({id, kind:'card', name:clean((node.innerText || '').split('\n')[0]),
       identityText:text, text, balance, available:balance, cards:[], historyResources:['card:' + id]});
   }
+  // Sber keeps savings products on a separate, observed /app/savings route.
+  // Only product-detail links from that route are account facts; the nearby
+  // portfolio total and "open new" link are not accounts.
+  if (location.pathname === '/app/savings') {
+    for (const node of Array.from(document.querySelectorAll('a[href*="/app/accounts/details/"]')).filter(visible)) {
+      const url = new URL(node.getAttribute('href'), location.href);
+      if (url.origin !== location.origin) continue;
+      const match = url.pathname.match(/^\/app\/accounts\/details\/([^/]+)$/);
+      if (!match) continue;
+      const lines = String(node.innerText || '').split(/[\r\n]+/).map(clean).filter(Boolean);
+      const balance = (lines[0] || '').match(money)?.[0] || '';
+      const name = lines.find((line, index) => index > 0 &&
+        /сч[её]т|вклад|депозит/i.test(line) && !money.test(line)) || '';
+      if (!balance || !name) continue;
+      values.push({id:match[1], kind:'savings', name, identityText:name,
+        text:clean(node.innerText).slice(0, 700), balance, available:'', cards:[], historyResources:[]});
+    }
+  }
   return JSON.stringify(values.filter((row, i, all) => all.findIndex((item) => item.id === row.id && item.kind === row.kind) === i).slice(0, 200));
 })()''';
 
@@ -1049,6 +1103,12 @@ const _transactionsScript = r'''(() => {
       detailUrl?.searchParams.get('documentId') ||
       detailUrl?.searchParams.get('operationId') ||
       detailUrl?.searchParams.get('transactionId') || detailPathId;
+    const bankOperationCode = detailUrl?.pathname === '/app/accounts/open'
+      ? detailUrl.searchParams.get('productCode') || '' : '';
+    const productTitles = bankOperationCode
+      ? Array.from(node.querySelectorAll('[title]')).map(n => clean(n.getAttribute('title')))
+          .filter(value => /сч[её]т|вклад|депозит/i.test(value))
+      : [];
     let account = attrs('data-account-id') || attrs('data-account') || '';
     const accountLink = node.querySelector('a[href*="/app/cta/details/"]');
     if (!account && accountLink) account = (accountLink.getAttribute('href') || '').split('/').pop() || '';
@@ -1060,6 +1120,9 @@ const _transactionsScript = r'''(() => {
       category: attrs('data-category') || attrs('data-category-name') || '',
       description,
       operationType,
+      bankOperationCode,
+      sourceProduct: productTitles[0] || '',
+      destinationProduct: productTitles[1] || '',
       text: text.slice(0, 900),
       amount,
       date,

@@ -1,4 +1,5 @@
 import '../enrichment/enrichment.dart';
+import '../enrichment/category_policy.dart';
 import '../ingestion/adapter.dart';
 import '../reconciliation/deduplication.dart';
 import '../reconciliation/source_trust_policy.dart';
@@ -39,9 +40,10 @@ class SynoballCore {
     SynoballState initialState = const SynoballState(),
     this._deduplicator = const TransactionDeduplicator(),
     this._trustPolicy = const SourceTrustPolicy(),
-    this._enrichment = const EnrichmentEngine(),
+    CategoryPolicy categoryPolicy = const CategoryPolicy(),
     SynoballIdFactory? ids,
-  }) : _ids = ids ?? SynoballIdFactory(),
+  }) : _enrichment = EnrichmentEngine(categoryPolicy: categoryPolicy),
+       _ids = ids ?? SynoballIdFactory(),
        _entities = List.of(initialState.entities),
        _institutions = List.of(initialState.institutions),
        _connections = List.of(initialState.connections),
@@ -76,11 +78,45 @@ class SynoballCore {
     for (final item in _evidence) {
       _indexEvidence(item);
     }
+    // Recurring streams are derived data. Rebuild on restore as well as import
+    // so an algorithm upgrade does not leave an old empty/stale UI indefinitely.
+    setCategoryPolicy(categoryPolicy);
   }
 
   final TransactionDeduplicator _deduplicator;
   final SourceTrustPolicy _trustPolicy;
-  final EnrichmentEngine _enrichment;
+  EnrichmentEngine _enrichment;
+
+  /// Reapply user policy to existing canonical facts without changing financial
+  /// values/status or update timestamps. Includes trash for safe later restore.
+  void setCategoryPolicy(CategoryPolicy policy) {
+    _enrichment = EnrichmentEngine(categoryPolicy: policy);
+    for (var i = 0; i < _transactions.length; i++) {
+      _transactions[i] = policy.apply(
+        _transactions[i],
+        identity: _enrichment.merchantIdentity(_transactions[i]),
+      );
+    }
+    _refreshDerivedData();
+  }
+
+  void removeUserTag(String id, {required String actorId}) {
+    for (var i = 0; i < _transactions.length; i++) {
+      final t = _transactions[i];
+      if (!t.tags.contains('$userLabelPrefix$id')) continue;
+      _transactions[i] = t.copyWith(
+        tags: t.tags.where((s) => s != '$userLabelPrefix$id').toList(),
+      );
+    }
+    _audit(
+      actorId: actorId,
+      action: 'user-tag.deleted',
+      entityId: 'ent-$actorId',
+      purpose: 'Remove user tag without deleting transactions',
+      subjectId: id,
+    );
+  }
+
   final SynoballIdFactory _ids;
 
   final List<SynoballEntity> _entities;
@@ -521,6 +557,7 @@ class SynoballCore {
     if (_transactions[index].status == CanonicalTransactionStatus.deleted) {
       throw StateError('Restore the transaction from trash before editing');
     }
+    final previous = _transactions[index];
     _transactions[index] = _enrichment.enrich(
       transaction.copyWith(
         updatedAt: DateTime.now(),
@@ -538,6 +575,15 @@ class SynoballCore {
       type: 'transaction.updated',
       entityId: transaction.entityId,
       subjectId: transaction.id,
+      payload: {
+        'actorId': actorId,
+        'previousCategory': previous.effectiveCategory,
+        'newCategory': _transactions[index].effectiveCategory,
+        'previousMerchant': previous.merchantName,
+        'newMerchant': _transactions[index].merchantName,
+        'previousStatus': previous.status.name,
+        'newStatus': _transactions[index].status.name,
+      },
     );
     _refreshDerivedData();
   }
@@ -587,7 +633,9 @@ class SynoballCore {
         _transactions[index].status == CanonicalTransactionStatus.deleted) {
       throw StateError('Use the explicit restore-from-trash command');
     }
-    final restored = transaction.copyWith(updatedAt: DateTime.now());
+    final restored = _enrichment.enrich(
+      transaction.copyWith(updatedAt: DateTime.now()),
+    );
     if (index == null) {
       _transactionIndexById[restored.id] = _transactions.length;
       _transactions.add(restored);
@@ -827,12 +875,19 @@ class SynoballCore {
         ),
         ...candidate.tags.where(
           (tag) =>
+              !tag.startsWith(userLabelPrefix) &&
               (replaceType || !tag.startsWith('legacy-type-')) &&
               !tag.startsWith('sber-status-') &&
               !tag.startsWith('status-'),
         ),
         'status-${status == CanonicalTransactionStatus.reversed ? 'cancelled' : status.name}',
       }.toList();
+      if ((replaceAccount
+              ? incomingAccountIsVirtual
+              : currentAccountIsVirtual) ==
+          false) {
+        tags.remove('sber-account-unresolved');
+      }
       final replaceTime =
           !stale &&
           !locked('date') &&

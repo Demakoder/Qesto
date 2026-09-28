@@ -6,6 +6,8 @@ import '../../core/theme/qesto_theme.dart';
 import '../../design_system/qesto_window.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/classification/category_manager_screen.dart';
+import '../../features/classification/classification_actions.dart';
 import '../../features/trash/transaction_trash_screen.dart';
 import '../../synoball/core/models.dart';
 import '../desktop_financial_helpers.dart';
@@ -16,12 +18,16 @@ class DesktopTransactionsPage extends StatefulWidget {
     required this.controller,
     this.requestedTransactionId,
     this.requestSerial = 0,
+    this.initialCategoryId,
+    this.initialTagId,
     super.key,
   });
 
   final BudgetController controller;
   final String? requestedTransactionId;
   final int requestSerial;
+  final String? initialCategoryId;
+  final String? initialTagId;
 
   @override
   State<DesktopTransactionsPage> createState() =>
@@ -33,6 +39,7 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
   final _searchFocus = FocusNode();
   final _selectedIds = <String>{};
   String? _categoryId;
+  String? _tagId;
   String? _accountId;
   SynoballSourceType? _source;
   bool _reviewOnly = false;
@@ -42,6 +49,8 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
   void initState() {
     super.initState();
     _openedId = widget.requestedTransactionId;
+    _categoryId = widget.initialCategoryId;
+    _tagId = widget.initialTagId;
   }
 
   @override
@@ -74,6 +83,16 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
         child: ListenableBuilder(
           listenable: widget.controller,
           builder: (context, _) {
+            if (_categoryId != null &&
+                !widget.controller.categories.any((c) => c.id == _categoryId)) {
+              _categoryId = null;
+            }
+            if (_tagId != null &&
+                !widget.controller.classification.tags.any(
+                  (t) => t.id == _tagId,
+                )) {
+              _tagId = null;
+            }
             final transactions = _filteredTransactions();
             final opened = _openedId == null
                 ? null
@@ -87,6 +106,60 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
               padding: QestoSpacing.workspace(context),
               child: Column(
                 children: [
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Wrap(
+                      spacing: 10,
+                      runSpacing: 8,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () =>
+                              openCategoryManager(context, widget.controller),
+                          icon: const Icon(Icons.category_outlined),
+                          label: const Text('Категории'),
+                        ),
+                        PopupMenuButton<String>(
+                          tooltip: 'Фильтр по тегу',
+                          onSelected: (id) =>
+                              setState(() => _tagId = id.isEmpty ? null : id),
+                          itemBuilder: (_) => [
+                            const PopupMenuItem(
+                              value: '',
+                              child: Text('Все теги'),
+                            ),
+                            for (final tag
+                                in widget.controller.classification.tags)
+                              PopupMenuItem(
+                                value: tag.id,
+                                child: Text('#${tag.name}'),
+                              ),
+                          ],
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 220),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      _tagId == null
+                                          ? 'Теги'
+                                          : '#${widget.controller.classification.tags.firstWhere((t) => t.id == _tagId).name}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const Icon(Icons.arrow_drop_down, size: 20),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   DesktopCollapsibleFilters(
                     child: _FilterBar(
                       controller: widget.controller,
@@ -268,6 +341,12 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
   List<BudgetTransaction> _filteredTransactions() {
     final query = _searchController.text.trim().toLowerCase();
     final values = widget.controller.transactions.where((transaction) {
+      if (_tagId != null &&
+          !widget.controller
+              .tagsForTransaction(transaction)
+              .any((t) => t.id == _tagId)) {
+        return false;
+      }
       if (_categoryId != null && transaction.categoryId != _categoryId) {
         return false;
       }
@@ -286,6 +365,7 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
       final haystack = [
         desktopTransactionTitle(transaction),
         transaction.description ?? '',
+        ...widget.controller.tagsForTransaction(transaction).map((t) => t.name),
         desktopCategoryName(widget.controller, transaction),
         desktopAccountName(widget.controller, transaction),
       ].join(' ').toLowerCase();
@@ -298,6 +378,7 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
   void _clearFilters() => setState(() {
     _searchController.clear();
     _categoryId = null;
+    _tagId = null;
     _accountId = null;
     _source = null;
     _reviewOnly = false;
@@ -576,6 +657,7 @@ class _BulkBar extends StatelessWidget {
             onSelected: (categoryId) async {
               await controller.updateTransactions(
                 selected.map((item) => item.copyWith(categoryId: categoryId)),
+                explicitCategorySelection: true,
               );
               onChanged();
             },
@@ -714,7 +796,7 @@ class _TransactionTableHeader extends StatelessWidget {
                 width: 116,
                 child: _HeaderLabel('Сумма', alignRight: true),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 48),
             ],
           ),
         );
@@ -811,6 +893,11 @@ class _TransactionTableRow extends StatelessWidget {
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
+                  ),
+                  TransactionQuickActions(
+                    controller: controller,
+                    id: transaction.id,
+                    onEdit: onTap,
                   ),
                 ],
               ),
@@ -967,7 +1054,11 @@ class _TransactionTableRow extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  TransactionQuickActions(
+                    controller: controller,
+                    id: transaction.id,
+                    onEdit: onTap,
+                  ),
                 ],
               ),
             ),
@@ -996,7 +1087,6 @@ class _TransactionDrawer extends StatefulWidget {
 }
 
 class _TransactionDrawerState extends State<_TransactionDrawer> {
-  late String? _categoryId = widget.transaction.categoryId;
   late String _accountId = widget.transaction.accountId;
   late bool _reviewed = widget.transaction.isConfirmed;
   late final TextEditingController _merchantController = TextEditingController(
@@ -1085,19 +1175,9 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                   ),
                 ),
                 const SizedBox(height: 20),
-                _DrawerLabel('Категория'),
-                DropdownButtonFormField<String>(
-                  initialValue: _categoryId,
-                  isExpanded: true,
-                  items: widget.controller.categories
-                      .map(
-                        (item) => DropdownMenuItem(
-                          value: item.id,
-                          child: Text(item.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) => setState(() => _categoryId = value),
+                TransactionClassificationFields(
+                  controller: widget.controller,
+                  id: transaction.id,
                 ),
                 const SizedBox(height: 14),
                 _DrawerLabel('Счёт'),
@@ -1270,7 +1350,6 @@ class _TransactionDrawerState extends State<_TransactionDrawer> {
                   onPressed: () async {
                     await widget.controller.updateTransaction(
                       transaction.copyWith(
-                        categoryId: _categoryId,
                         accountId: _accountId,
                         merchant: _merchantController.text.trim(),
                         comment: _noteController.text.trim(),

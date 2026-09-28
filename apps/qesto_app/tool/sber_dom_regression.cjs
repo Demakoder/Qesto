@@ -70,6 +70,29 @@ const cases = [
     assert.equal(scoped[0].account, '12345678');
     await page.goto('https://qesto.invalid/app/operations');
     assert.equal(JSON.parse(await page.evaluate(script))[0].account, '');
+    await page.setContent('<section><ul aria-label="Операции 26 сентября 2026"><li>' +
+      '<a href="/app/accounts/open?productCode=UfsDepositOpen&documentId=bank-document-1">' +
+      '<p title="Платёжный счёт •• 5023">Платёжный счёт</p><p>•• 5023</p><span>15 000 ₽</span>' +
+      '<div title="Накопительный счёт •• 1410"><p>Накопительный счёт</p><p>•• 1410</p></div>' +
+      '<p>Открытие вклада/счета</p></a></li></ul></section>');
+    const opening = JSON.parse(await page.evaluate(script));
+    assert.equal(opening.length, 1);
+    assert.equal(opening[0].id, 'bank-document-1');
+    assert.equal(opening[0].bankOperationCode, 'UfsDepositOpen');
+    assert.equal(opening[0].sourceProduct, 'Платёжный счёт •• 5023');
+    assert.equal(opening[0].destinationProduct, 'Накопительный счёт •• 1410');
+    await context.route('https://qesto.invalid/app/savings', route => route.fulfill({
+      contentType:'text/html; charset=utf-8', body:'<h1>Накопления</h1><h2>Вклады и счета</h2>' +
+        '<a href="/app/pfm/finances">Всего средств 17 400 ₽</a>' +
+        '<a href="/app/accounts/details/provider-savings-1410">15 000 ₽<br>Накопительный счёт •• 1410<br>12,5%</a>' +
+        '<a href="/app/accounts/details/provider-savings-eur">0 €<br>Сберегательный счет •• 3956<br>0,01%</a>' +
+        '<a href="/app/accounts/open">Открыть новый счёт</a>'
+    }));
+    await page.goto('https://qesto.invalid/app/savings');
+    const savings = JSON.parse(await page.evaluate(accountScript));
+    assert.deepEqual(savings.map(a => a.id), ['provider-savings-1410', 'provider-savings-eur'],
+      JSON.stringify(await page.evaluate(() => ({path:location.pathname, text:document.body.innerText}))));
+    assert.deepEqual(savings.map(a => a.balance), ['15 000 ₽', '0 €']);
     await page.setContent('<a href="https://online.sberbank.ru/app/cards/details/12345678">МИР Сберкарта<br>•• 1234<br>Доступно 5 000,25 ₽</a>');
     const cards = JSON.parse(await page.evaluate(accountScript));
     assert.equal(cards.length, 1);
@@ -80,6 +103,7 @@ const cases = [
     await page.evaluate(() => { window.clicked = []; document.querySelectorAll('a').forEach(n => {n.click = () => window.clicked.push(n.id);}); });
     assert.equal(await page.evaluate(historyLinkScript), '1');
     assert.deepEqual(await page.evaluate(() => window.clicked), ['history']);
+    await page.goto('https://qesto.invalid/app/operations');
     await page.setContent('<button data-filter="product">Карта или счёт</button>');
     assert.equal(await page.evaluate(readinessScript), 'loading', 'History shell is not empty history');
     await page.setContent('<p>Нет операций</p>');

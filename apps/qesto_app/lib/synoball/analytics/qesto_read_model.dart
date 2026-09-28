@@ -82,7 +82,7 @@ class QestoReadModelService {
     merchant: value.merchantName,
     title: value.merchantName ?? value.normalizedDescription,
     description: value.rawDescription,
-    comment: value.rawDescription,
+    comment: value.userNote ?? value.rawDescription,
     isLargePurchase: value.tags.contains('qesto-large-purchase'),
     normalizedMerchant: value.merchantName?.toLowerCase(),
     isRecurring: value.isRecurring || value.tags.contains('qesto-recurring'),

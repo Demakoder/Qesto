@@ -38,6 +38,7 @@ import java.io.OutputStream
 import java.security.MessageDigest
 
 class MainActivity : FlutterActivity() {
+    private var aiExportFileBridge: AiExportFileBridge? = null
     private val notificationChannelName = "ru.qesto.qesto/notifications"
     private val notificationEventsChannelName =
         "ru.qesto.qesto/notification_events"
@@ -66,6 +67,7 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        aiExportFileBridge = AiExportFileBridge(this, flutterEngine.dartExecutor.binaryMessenger)
 
         MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -398,6 +400,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        aiExportFileBridge?.dispose()
+        aiExportFileBridge = null
         notificationEventSink = null
         unregisterNotificationEventReceiver()
         super.cleanUpFlutterEngine(flutterEngine)
@@ -541,6 +545,7 @@ class MainActivity : FlutterActivity() {
         data: Intent?,
     ) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (aiExportFileBridge?.onActivityResult(requestCode, resultCode, data) == true) return
         when (requestCode) {
             REQUEST_STATEMENT_PDF -> {
                 val result = pendingStatementResult ?: return

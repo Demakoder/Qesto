@@ -545,6 +545,9 @@ void main() {
 
     await tester.tap(find.byKey(const Key('desktop-notifications')));
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('qesto-notification-center')), findsOneWidget);
+    await tester.tap(find.text('Уведомления и SMS'));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('delete-all-data')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('delete-all-data')));

@@ -7,6 +7,7 @@ import '../../../../core/theme/qesto_theme.dart';
 import '../../../../core/widgets/qesto_card.dart';
 import '../../../../core/widgets/states.dart';
 import '../../../../data/models/qesto_models.dart';
+import '../../../../synoball/core/models.dart' show RecurringStream;
 import '../../../budget/services/category_budget_calculation_service.dart';
 import '../../domain/models/statistics_models.dart';
 import '../screens/statistics_drilldown_screens.dart';
@@ -506,6 +507,13 @@ class RecurringStatisticsSection extends StatelessWidget {
     final upcoming = controller.budgetController.upcomingExpenses
         .where((item) => item.isRecurring && !item.isCancelled)
         .toList();
+    final streams =
+        controller.budgetController.synoballState.recurringStreams
+            .where(
+              (s) => s.entityId == 'ent-${controller.budgetController.user.id}',
+            )
+            .toList()
+          ..sort((a, b) => a.nextExpectedAt.compareTo(b.nextExpectedAt));
     final currentAmount = recurring
         .where((item) => item.type == TransactionType.expense)
         .fold<int>(0, (sum, item) => sum + item.amount);
@@ -513,7 +521,6 @@ class RecurringStatisticsSection extends StatelessWidget {
       0,
       (sum, item) => sum + item.amount,
     );
-    final base = currentAmount > 0 ? currentAmount : expectedMonthly;
     return ListView(
       controller: scrollController,
       key: const PageStorageKey('statistics-recurring'),
@@ -522,21 +529,21 @@ class RecurringStatisticsSection extends StatelessWidget {
         StatisticsMetricStrip(
           items: [
             StatisticsMetricItem(
-              label: 'В месяц',
-              value: formatMoney(base, 'RUB'),
-              caption: 'подтверждённые и ожидаемые',
+              label: 'За период',
+              value: formatMoney(currentAmount, 'RUB'),
+              caption: 'фактические регулярные списания',
               icon: Icons.autorenew_rounded,
             ),
             StatisticsMetricItem(
-              label: 'В год',
-              value: formatMoney(base * 12, 'RUB'),
-              caption: 'при текущей стоимости',
+              label: 'Запланировано',
+              value: formatMoney(expectedMonthly, 'RUB'),
+              caption: 'из списка предстоящих',
               icon: Icons.calendar_month_outlined,
             ),
             StatisticsMetricItem(
-              label: 'Платежи',
-              value: '${math.max(recurring.length, upcoming.length)}',
-              caption: 'регулярных списаний',
+              label: 'Серии',
+              value: '${streams.length}',
+              caption: 'включая предварительные',
               icon: Icons.receipt_long_outlined,
             ),
           ],
@@ -549,44 +556,61 @@ class RecurringStatisticsSection extends StatelessWidget {
             children: [
               const StatisticsSectionHeader(title: 'Ближайшие списания'),
               const SizedBox(height: 8),
-              if (upcoming.isEmpty)
+              if (upcoming.isEmpty && streams.isEmpty)
                 const StatisticsInfoBanner(
                   message: 'Регулярные платежи пока не найдены',
-                )
-              else
-                for (final item in upcoming)
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Container(
-                      width: 42,
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: context.qestoColors.primarySoft,
-                        borderRadius: QestoGeometry.control,
-                      ),
-                      child: Icon(
-                        Icons.autorenew_rounded,
-                        color: context.qestoColors.primary,
-                      ),
+                ),
+              for (final item in upcoming)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: context.qestoColors.primarySoft,
+                      borderRadius: QestoGeometry.control,
                     ),
-                    title: Text(
-                      item.title,
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      '${formatDate(item.plannedDate)} · ${_status(item.source)}',
-                    ),
-                    trailing: Text(
-                      formatMoney(item.amount, item.currency),
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    child: Icon(
+                      Icons.autorenew_rounded,
+                      color: context.qestoColors.primary,
                     ),
                   ),
+                  title: Text(
+                    item.title,
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  subtitle: Text(
+                    '${formatDate(item.plannedDate)} · ${_status(item.source)}',
+                  ),
+                  trailing: Text(
+                    formatMoney(item.amount, item.currency),
+                    style: const TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              for (final stream in streams) _streamTile(stream),
             ],
           ),
         ),
       ],
     );
   }
+
+  Widget _streamTile(RecurringStream stream) => ListTile(
+    contentPadding: EdgeInsets.zero,
+    leading: const Icon(Icons.auto_awesome_outlined),
+    title: Text(stream.title),
+    subtitle: Text(
+      '${formatDate(stream.nextExpectedAt)} · '
+      '${stream.isTentative ? 'Возможный повтор' : 'Прогноз по истории'} · '
+      '${(stream.confidence * 100).round()}%',
+    ),
+    trailing: Text(
+      formatMoney(
+        (stream.typicalAmount.minorUnits / 100).round(),
+        stream.typicalAmount.currency,
+      ),
+    ),
+  );
 
   String _status(UpcomingExpenseSource source) => switch (source) {
     UpcomingExpenseSource.manual => 'подтверждено',

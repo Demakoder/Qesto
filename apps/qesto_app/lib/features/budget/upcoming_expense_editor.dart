@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../classification/classification_actions.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
@@ -65,6 +66,7 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
       context: context,
       categories: widget.controller.categories,
       recentCategoryIds: const [],
+      onCreate: () => editCategory(context, widget.controller),
     );
     if (selected != null && mounted) setState(() => _categoryId = selected.id);
   }

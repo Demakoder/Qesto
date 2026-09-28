@@ -83,6 +83,8 @@ class AiContextService {
             )
             .toList();
       case AiContextPurpose.subscriptionAnalysis:
+        // Recurrence alone does not prove a subscription/contract.
+        base['subscriptionStatus'] = 'unverified_recurring_patterns';
         base['subscriptions'] = state.recurringObligations
             .map(
               (item) => {

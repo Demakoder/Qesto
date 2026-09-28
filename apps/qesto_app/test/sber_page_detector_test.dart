@@ -55,6 +55,12 @@ void main() {
       ),
       SberPageType.transactions,
     );
+    expect(
+      detector.detect(
+        page('Накопления Вклады и счета Инвестиции', path: '/app/savings'),
+      ),
+      SberPageType.savings,
+    );
   });
 
   test('requires multiple PIN markers before selecting PIN page', () {

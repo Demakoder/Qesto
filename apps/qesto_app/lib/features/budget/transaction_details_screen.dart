@@ -8,6 +8,7 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../data/models/qesto_models.dart';
 import 'add_expense_screen.dart';
 import 'state/budget_controller.dart';
+import '../classification/classification_actions.dart';
 
 class TransactionDetailsScreen extends StatefulWidget {
   const TransactionDetailsScreen({
@@ -27,6 +28,22 @@ class TransactionDetailsScreen extends StatefulWidget {
 }
 
 class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_refresh);
+    super.dispose();
+  }
+
   BudgetTransaction? get _transaction => widget.controller.transactions
       .where((transaction) => transaction.id == widget.transactionId)
       .firstOrNull;
@@ -92,9 +109,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         body: const Center(child: Text('Операция была удалена')),
       );
     }
-    final category = transaction.categoryId == null
-        ? null
-        : widget.controller.categoryById(transaction.categoryId!);
     final account = widget.controller.accountById(transaction.accountId);
     return Scaffold(
       appBar: NestedScreenHeader(
@@ -126,9 +140,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                   label: 'Дата',
                   value: formatDate(transaction.date, includeYear: true),
                 ),
-                _DetailRow(
-                  label: 'Категория',
-                  value: category?.name ?? 'Без категории',
+                TransactionClassificationFields(
+                  controller: widget.controller,
+                  id: transaction.id,
                 ),
                 _DetailRow(
                   label: 'Подкатегория',

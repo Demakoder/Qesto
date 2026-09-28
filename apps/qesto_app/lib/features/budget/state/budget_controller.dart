@@ -12,10 +12,13 @@ import '../services/category_budget_calculation_service.dart';
 import '../../../synoball/synoball.dart';
 import '../../../synoball/adapters/notification_identity.dart';
 import '../../../synoball/adapters/source_identity.dart';
+import '../../../synoball/reconciliation/bank_web_identity_upgrade.dart';
 import '../../bank_screenshot_import/domain/bank_screenshot_models.dart';
 import '../../bank_screenshot_import/services/bank_screenshot_identity.dart';
 import '../../bank_browser/sber/sber_connector_models.dart';
 import '../../transaction_import/services/transaction_category_resolver.dart';
+
+part 'budget_classification.dart';
 
 const _transactionCategoryResolver = TransactionCategoryResolver();
 
@@ -74,6 +77,8 @@ String _candidateSberIdentity(TransactionCandidate value) => [
 bool _sameStringSet(List<String> left, List<String> right) =>
     left.length == right.length && left.toSet().containsAll(right);
 
+enum CategoryChangeScope { transaction, history, always }
+
 class BudgetController extends ChangeNotifier {
   int _dataGeneration = 0;
   bool _disposed = false;
@@ -110,10 +115,18 @@ class BudgetController extends ChangeNotifier {
        periods = _resolvedPeriods(financialData),
        _baseCategories = List.of(configuration.categories),
        categories = _resolvedCategories(
-         configuration.categories,
+         [
+               ...configuration.categories,
+               ...financialData.classification.customCategories,
+             ]
+             .where(
+               (c) => !financialData.classification.redirects.containsKey(c.id),
+             )
+             .toList(),
          financialData.categoryCustomizations,
        ),
        _categoryCustomizations = List.of(financialData.categoryCustomizations),
+       _classification = financialData.classification,
        categoryBudgets = List.of(financialData.categoryBudgets),
        accountPreferences = List.of(financialData.accountPreferences),
        plannedCumulativePoints = List.of(financialData.plannedCumulativePoints),
@@ -134,6 +147,7 @@ class BudgetController extends ChangeNotifier {
     final storedState = financialData.synoballState;
     _synoball = SynoballCore(
       initialState: storedState ?? const SynoballState(),
+      categoryPolicy: _classification.policy,
     );
     if (storedState == null) {
       final input = _legacyBridge.buildInput(financialData);
@@ -261,6 +275,7 @@ class BudgetController extends ChangeNotifier {
         if (byId[category.id] case final customization?)
           category.copyWith(
             name: customization.name,
+            shortName: customization.name,
             iconKey: customization.iconKey,
             colorValue: customization.colorValue,
           )
@@ -269,7 +284,7 @@ class BudgetController extends ChangeNotifier {
     ];
   }
 
-  static Iterable<BudgetTransaction> _applySberAdapterCompatibility(
+  Iterable<BudgetTransaction> _applySberAdapterCompatibility(
     Iterable<BudgetTransaction> transactions,
   ) sync* {
     for (final transaction in transactions) {
@@ -324,7 +339,8 @@ class BudgetController extends ChangeNotifier {
           );
         }
       }
-      if (!transaction.tags.contains(qestoManualCategoryTag)) {
+      if (!transaction.tags.contains(qestoManualCategoryTag) &&
+          !transaction.tags.any((t) => t.startsWith(userCategoryRulePrefix))) {
         final resolved = compatible.type == TransactionType.income
             ? const ResolvedTransactionCategory(
                 categoryId: 'business',
@@ -336,7 +352,7 @@ class BudgetController extends ChangeNotifier {
                 '${transaction.originalCategoryId ?? ''}',
               );
         compatible = compatible.copyWith(
-          categoryId: resolved.categoryId,
+          categoryId: _classification.policy.resolve(resolved.categoryId),
           subcategoryId: resolved.subcategoryId,
           classificationConfidence: resolved.confidence,
         );
@@ -359,6 +375,9 @@ class BudgetController extends ChangeNotifier {
   final List<BudgetCategory> categories;
   final List<BudgetCategory> _baseCategories;
   final List<BudgetCategoryCustomization> _categoryCustomizations;
+  ClassificationSettings _classification;
+  final SynoballIdFactory _classificationIds = SynoballIdFactory();
+  ClassificationSettings get classification => _classification;
   final List<CategoryBudget> categoryBudgets;
   final List<QestoAccountPreferences> accountPreferences;
   final List<BudgetPlanPoint> plannedCumulativePoints;
@@ -455,6 +474,7 @@ class BudgetController extends ChangeNotifier {
     budgetPeriods: List.of(periods),
     categoryBudgets: List.of(categoryBudgets),
     categoryCustomizations: List.of(_categoryCustomizations),
+    classification: _classification,
     transactions: List.of(_transactions),
     upcomingExpenses: List.of(_upcomingExpenses),
     plannedCumulativePoints: List.of(plannedCumulativePoints),
@@ -572,8 +592,9 @@ class BudgetController extends ChangeNotifier {
     );
   }
 
-  BudgetCategory categoryById(String id) =>
-      categories.firstWhere((category) => category.id == id);
+  BudgetCategory categoryById(String id) => categories.firstWhere(
+    (category) => category.id == _classification.policy.resolve(id),
+  );
 
   QestoAccount accountById(String id) => accounts.firstWhere(
     (account) => account.id == id,
@@ -728,6 +749,7 @@ class BudgetController extends ChangeNotifier {
     Map<String, int> exactMinorById = const {},
     Map<String, String> providerTransactionIdsByTransactionId = const {},
     Map<String, String> externalAccountIdsById = const {},
+    List<BankWebIdentityUpgrade> identityUpgrades = const [],
     List<QestoAccount> additionalAccounts = const [],
     bool bankWebSource = false,
     String? connectionId,
@@ -779,7 +801,29 @@ class BudgetController extends ChangeNotifier {
     final entityId = _legacyBridge.entityIdFor(_userId);
     // Stage the entire source replay in isolation: account updates and identity
     // commands must not partially mutate the live ledger if validation throws.
-    final stagedCore = SynoballCore(initialState: _synoball.state);
+    final upgrade =
+        bankWebSource && connectionId != null && institutionId != null
+        ? const BankWebIdentityReconciler().apply(
+            _synoball.state,
+            entityId: entityId,
+            connectionId: connectionId,
+            institutionId: institutionId,
+            upgrades: identityUpgrades,
+            protectedTransactionIds: {
+              ...goalContributions
+                  .map((c) => c.transactionId)
+                  .whereType<String>(),
+              ...investmentContributions
+                  .map((c) => c.transactionId)
+                  .whereType<String>(),
+              ...debtPayments.map((p) => p.transactionId).whereType<String>(),
+            },
+          )
+        : BankWebIdentityUpgradeResult(_synoball.state, const {});
+    final stagedCore = SynoballCore(
+      initialState: upgrade.state,
+      categoryPolicy: _classification.policy,
+    );
     SynoballAccount sourceAccount(QestoAccount value) {
       final fresh = _legacyBridge.accountFromQesto(value);
       final previous = stagedCore.state.accounts
@@ -828,6 +872,7 @@ class BudgetController extends ChangeNotifier {
             .map(
               (item) => _seedFromQesto(
                 item,
+                canonicalId: upgrade.targets[item.id],
                 exactMinor: exactMinorById[item.id],
                 providerTransactionId:
                     providerTransactionIdsByTransactionId[item.id] ?? item.id,
@@ -1088,6 +1133,19 @@ class BudgetController extends ChangeNotifier {
           oldMatches.single.id;
     }
     final providerTransactionIdsByTransactionId = <String, String>{};
+    String? accountForObservedSuffix(String? suffix, Set<AccountType> types) {
+      if (suffix == null) return null;
+      final matched = snapshot.accounts
+          .where(
+            (account) =>
+                account.lastFour == suffix && types.contains(account.type),
+          )
+          .map((account) => accountReconciliation.sourceToCanonical[account.id])
+          .whereType<String>()
+          .toSet();
+      return matched.length == 1 ? matched.single : null;
+    }
+
     final importedTransactions = snapshot.transactions
         .map((value) {
           final providerId = proposedIds[value.fingerprint]!;
@@ -1105,7 +1163,12 @@ class BudgetController extends ChangeNotifier {
           final resolvedAccountId = resolveAccount(value, existing);
           final manualCategory =
               existing?.tags.contains(qestoManualCategoryTag) == true;
-          final automaticCategory = value.isIncome
+          final automaticCategory = value.isInternalTransfer
+              ? const ResolvedTransactionCategory(
+                  categoryId: 'other',
+                  confidence: 0.95,
+                )
+              : value.isIncome
               ? const ResolvedTransactionCategory(
                   categoryId: 'business',
                   confidence: 0.95,
@@ -1113,11 +1176,19 @@ class BudgetController extends ChangeNotifier {
               : _sberCategory(value);
           final type = value.status == 'REFUND'
               ? TransactionType.refund
-              : value.isIncome
-              ? TransactionType.income
               : value.isInternalTransfer
               ? TransactionType.transfer
+              : value.isIncome
+              ? TransactionType.income
               : TransactionType.expense;
+          final ownSourceAccount = accountForObservedSuffix(
+            value.ownTransferSourceLastFour,
+            const {AccountType.cash, AccountType.bankCard},
+          );
+          final ownDestinationAccount = accountForObservedSuffix(
+            value.ownTransferDestinationLastFour,
+            const {AccountType.savings, AccountType.deposit},
+          );
           final tags = <String>{
             'sberbank',
             'sber-live',
@@ -1131,6 +1202,12 @@ class BudgetController extends ChangeNotifier {
             'sber-status-${value.status.toLowerCase()}',
             if (value.isTransfer && value.isInternalTransfer)
               qestoInternalTransferTag,
+            if (value.isInternalTransfer &&
+                ownSourceAccount != null &&
+                ownDestinationAccount != null) ...{
+              '$qestoInternalTransferSourceAccountPrefix$ownSourceAccount',
+              '$qestoInternalTransferDestinationAccountPrefix$ownDestinationAccount',
+            },
             if (value.isTransfer && !value.isInternalTransfer)
               qestoExternalTransferTag,
             if (value.loyaltyReward != null) qestoLoyaltyMetadataTag,
@@ -1257,6 +1334,27 @@ class BudgetController extends ChangeNotifier {
       bankWebSource: true,
       connectionId: snapshot.connectionId,
       institutionId: 'sberbank',
+      identityUpgrades: [
+        for (final value in snapshot.transactions)
+          if (value.legacyTransactionIds.isNotEmpty)
+            BankWebIdentityUpgrade(
+              canonicalId: proposedIds[value.fingerprint]!,
+              providerId: sourceIdentity('sber-provider-v1', [
+                snapshot.connectionId,
+                value.sourceId,
+              ]),
+              legacyIds: value.legacyTransactionIds,
+              amount: Money(
+                minorUnits: value.amountMinor,
+                currency: value.currency,
+              ),
+              direction: value.isIncome
+                  ? FinancialDirection.inflow
+                  : FinancialDirection.outflow,
+              occurredAt: value.date,
+              description: value.description,
+            ),
+      ],
       externalAccountIdsById: {
         for (final value in snapshot.accounts)
           accountReconciliation.sourceToCanonical[value.id]!: value.id,
@@ -1503,6 +1601,7 @@ class BudgetController extends ChangeNotifier {
     String? subcategoryId,
     String? comment,
   }) async {
+    _checkWrite();
     final transaction = BudgetTransaction(
       id: 'manual-${DateTime.now().microsecondsSinceEpoch}',
       userId: period.userId,
@@ -1516,7 +1615,11 @@ class BudgetController extends ChangeNotifier {
       merchant: title,
       title: title,
       comment: comment,
-      tags: const ['legacy-type-expense'],
+      tags: const [
+        'legacy-type-expense',
+        qestoManualCategoryTag,
+        'user-field:category',
+      ],
     );
     final outcome = _synoball.ingest(
       ManualInputAdapter(),
@@ -1917,10 +2020,15 @@ class BudgetController extends ChangeNotifier {
       left.type == right.type;
 
   Future<void> updateTransaction(BudgetTransaction transaction) async {
+    _checkWrite();
     final canonical = _synoball.transactionById(transaction.id);
     if (canonical == null) return;
+    final displayed = _transactions
+        .where((t) => t.id == transaction.id)
+        .firstOrNull;
     final categoryChanged =
-        transaction.categoryId != canonical.effectiveCategory;
+        transaction.categoryId !=
+        (displayed?.categoryId ?? canonical.effectiveCategory);
     final updated = categoryChanged
         ? transaction.copyWith(
             tags: {
@@ -1930,7 +2038,11 @@ class BudgetController extends ChangeNotifier {
           )
         : transaction;
     _synoball.updateTransaction(
-      _legacyBridge.canonicalFromQesto(updated, previous: canonical),
+      _legacyBridge.canonicalFromQesto(
+        updated,
+        previous: canonical,
+        categoryWasEdited: categoryChanged,
+      ),
       actorId: _userId,
     );
     _syncFromSynoball();
@@ -1938,14 +2050,21 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> updateTransactions(
-    Iterable<BudgetTransaction> transactions,
-  ) async {
+    Iterable<BudgetTransaction> transactions, {
+    bool explicitCategorySelection = false,
+  }) async {
+    _checkWrite();
     var changed = false;
     for (final transaction in transactions) {
       final canonical = _synoball.transactionById(transaction.id);
       if (canonical == null) continue;
+      final displayed = _transactions
+          .where((t) => t.id == transaction.id)
+          .firstOrNull;
       final categoryChanged =
-          transaction.categoryId != canonical.effectiveCategory;
+          explicitCategorySelection ||
+          transaction.categoryId !=
+              (displayed?.categoryId ?? canonical.effectiveCategory);
       final updated = categoryChanged
           ? transaction.copyWith(
               tags: {
@@ -1955,7 +2074,11 @@ class BudgetController extends ChangeNotifier {
             )
           : transaction;
       _synoball.updateTransaction(
-        _legacyBridge.canonicalFromQesto(updated, previous: canonical),
+        _legacyBridge.canonicalFromQesto(
+          updated,
+          previous: canonical,
+          categoryWasEdited: categoryChanged,
+        ),
         actorId: _userId,
       );
       changed = true;
@@ -2011,12 +2134,18 @@ class BudgetController extends ChangeNotifier {
     required String iconKey,
     required int colorValue,
   }) async {
+    _checkWrite();
+    _validateClassificationName(
+      name,
+      categories.where((c) => c.id != categoryId).map((c) => c.name),
+    );
     final index = categories.indexWhere((item) => item.id == categoryId);
     if (index < 0) return;
     final cleanedName = name.trim();
     final current = categories[index];
     final updated = current.copyWith(
       name: cleanedName.isEmpty ? current.name : cleanedName,
+      shortName: cleanedName.isEmpty ? current.name : cleanedName,
       iconKey: iconKey,
       colorValue: colorValue,
     );
@@ -2079,7 +2208,14 @@ class BudgetController extends ChangeNotifier {
 
   Future<void> deleteTransaction(String id) async {
     _checkWrite();
-    if (!hasTransaction(id)) return;
+    // Pending bank observations are visible in the review queue, but
+    // hasTransaction only considers posted/provider IDs. They must be
+    // removable to the same recoverable trash as posted operations.
+    final existing = _synoball.transactionById(id);
+    if (existing == null ||
+        existing.status == CanonicalTransactionStatus.deleted) {
+      return;
+    }
     _synoball.deleteTransaction(id, actorId: _userId);
     _syncFromSynoball();
     await _changed();
@@ -2100,7 +2236,9 @@ class BudgetController extends ChangeNotifier {
   /// Clears user financial content while retaining only the minimum local
   /// profile/account scaffold required for the UI to remain operational.
   Future<void> clearAllFinancialData() async {
+    _checkWrite();
     _dataGeneration++;
+    _classification = const ClassificationSettings();
     _synoball = SynoballCore();
     final entityId = _legacyBridge.entityIdFor(_userId);
     _synoball.upsertEntity(
@@ -2896,6 +3034,7 @@ class BudgetController extends ChangeNotifier {
   TransactionSeed _seedFromQesto(
     BudgetTransaction transaction, {
     int? exactMinor,
+    String? canonicalId,
     String? providerTransactionId,
   }) {
     final direction = switch (transaction.type) {
@@ -2910,7 +3049,7 @@ class BudgetController extends ChangeNotifier {
       _ => FinancialDirection.outflow,
     };
     return TransactionSeed(
-      canonicalId: transaction.id,
+      canonicalId: canonicalId ?? transaction.id,
       accountId: transaction.accountId,
       amount: Money(
         minorUnits: exactMinor?.abs() ?? transaction.amountMinor.abs(),
@@ -2930,6 +3069,11 @@ class BudgetController extends ChangeNotifier {
           transaction.title,
       providerCategory: transaction.originalCategoryId,
       category: transaction.categoryId,
+      userCategoryOverride:
+          transaction.tags.contains(qestoManualCategoryTag) ||
+              transaction.tags.contains('user-field:category')
+          ? transaction.categoryId
+          : null,
       subcategoryId: transaction.subcategoryId,
       providerTransactionId: providerTransactionId ?? transaction.id,
       receiptId: transaction.receipt?.id,

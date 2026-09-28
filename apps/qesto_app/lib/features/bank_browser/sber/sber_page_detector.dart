@@ -91,6 +91,9 @@ class SberPageDetector {
     if (path == '/app/wallet' || path == '/app/accounts') {
       return SberPageType.accounts;
     }
+    if (path == '/app/savings') {
+      return SberPageType.savings;
+    }
     // Route identity must win over transaction descriptions. An operations
     // list can contain words such as "Накопления" or "Инвестиции" and must
     // never be mistaken for those product sections.

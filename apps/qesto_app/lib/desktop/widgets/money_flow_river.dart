@@ -79,7 +79,10 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 850;
-          final height = compact ? 410.0 : 470.0;
+          final height = moneyFlowRiverHeight(
+            widget.categories,
+            compact: compact,
+          );
           final layout = _MoneyFlowLayout.compute(
             Size(constraints.maxWidth, height),
             widget.categories,
@@ -189,6 +192,35 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
   }
 }
 
+/// Gives every branch the same pixels-per-unit scale. The extra height keeps
+/// ordinary small categories readable without giving them an inflated flow.
+@visibleForTesting
+double moneyFlowRiverHeight(
+  List<MoneyFlowCategory> categories, {
+  required bool compact,
+}) {
+  final base = compact ? 410.0 : 470.0;
+  final total = categories.fold<int>(0, (sum, item) => sum + item.amount);
+  final smallest = categories
+      .where((item) => item.amount > 0)
+      .map((item) => item.amount)
+      .fold<int>(0, (min, amount) => min == 0 ? amount : math.min(min, amount));
+  if (smallest == 0 || total <= 0) return base;
+  const chartPadding = 62.0;
+  const categoryGap = 10.0;
+  const readableBranch = 26.0;
+  final requested =
+      chartPadding +
+      categoryGap * math.max(0, categories.length - 1) +
+      readableBranch * total / smallest;
+  return math.max(base, requested).clamp(base, 800.0);
+}
+
+/// The same financial scale is used for categories and their purchases.
+@visibleForTesting
+double moneyFlowThickness(int amount, int total, double flowHeight) =>
+    total <= 0 || amount <= 0 ? 0 : flowHeight * amount / total;
+
 class _MoneyFlowLayout {
   const _MoneyFlowLayout({
     required this.root,
@@ -211,23 +243,11 @@ class _MoneyFlowLayout {
       1.0,
       size.height - top - bottom - categoryGap * (data.length - 1),
     );
-    const minimum = 34.0;
-    final natural = [
-      for (final item in data)
-        total <= 0 ? available / data.length : available * item.amount / total,
-    ];
-    final fixedMinimum = natural.where((value) => value < minimum).length;
-    final flexibleTotal = natural
-        .where((value) => value >= minimum)
-        .fold<double>(0, (sum, value) => sum + value);
-    final flexibleSpace = math.max(0.0, available - minimum * fixedMinimum);
     final heights = [
-      for (final value in natural)
-        value < minimum
-            ? minimum
-            : flexibleTotal <= 0
-            ? flexibleSpace / math.max(1, data.length - fixedMinimum)
-            : flexibleSpace * value / flexibleTotal,
+      for (final item in data)
+        total <= 0
+            ? available / data.length
+            : moneyFlowThickness(item.amount, total, available),
     ];
 
     final rootX = size.width < 850 ? 105.0 : 135.0;
@@ -257,15 +277,6 @@ class _MoneyFlowLayout {
       );
 
       final purchases = item.purchases;
-      const purchaseGap = 3.0;
-      final purchaseSpace = math.max(
-        1.0,
-        height - purchaseGap * math.max(0, purchases.length - 1),
-      );
-      final purchaseTotal = purchases.fold<int>(
-        0,
-        (sum, value) => sum + value.amount,
-      );
       var purchaseY = y;
       final rects = <Rect>[];
       for (
@@ -276,14 +287,14 @@ class _MoneyFlowLayout {
         final purchase = purchases[purchaseIndex];
         final purchaseHeight = purchaseIndex == purchases.length - 1
             ? y + height - purchaseY
-            : purchaseTotal <= 0
-            ? purchaseSpace / purchases.length
-            : purchaseSpace * purchase.amount / purchaseTotal;
+            : total <= 0
+            ? 0.0
+            : moneyFlowThickness(purchase.amount, total, available);
         final purchaseRect = Rect.fromLTWH(
           purchaseX,
           purchaseY,
           7,
-          math.max(2, purchaseHeight),
+          purchaseHeight,
         );
         rects.add(purchaseRect);
         hits.add(
@@ -299,12 +310,18 @@ class _MoneyFlowLayout {
             ),
           ),
         );
-        purchaseY += purchaseHeight + purchaseGap;
+        purchaseY += purchaseHeight;
       }
       purchaseRects.add(rects);
       y += height + categoryGap;
     }
-    final root = Rect.fromLTWH(rootX, top, 11, y - categoryGap - top);
+    final rootHeight = heights.fold<double>(0, (sum, value) => sum + value);
+    final root = Rect.fromLTWH(
+      rootX,
+      top + (available - rootHeight) / 2,
+      11,
+      rootHeight,
+    );
     hits.insert(
       0,
       _FlowHit(
@@ -375,16 +392,10 @@ class _MoneyFlowPainter extends CustomPainter {
     );
 
     var rootY = layout.root.top;
-    final totalHeight = layout.categories.fold<double>(
-      0,
-      (sum, rect) => sum + rect.height,
-    );
     for (var index = 0; index < categories.length; index++) {
       final category = categories[index];
       final target = layout.categories[index];
-      final sourceHeight = totalHeight <= 0
-          ? 0.0
-          : layout.root.height * target.height / totalHeight;
+      final sourceHeight = target.height;
       final source = Rect.fromLTWH(
         layout.root.left,
         rootY,
@@ -497,40 +508,42 @@ class _MoneyFlowPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       icon.paint(canvas, Offset(rect.left + 15, rect.center.dy - 16));
-      _text(
-        canvas,
-        category.label,
-        Offset(rect.left + 35, rect.center.dy - 18),
-        width: math.max(
-          70,
-          (layout.purchases[index].firstOrNull?.left ?? size.width) -
-              rect.left -
-              52,
-        ),
-        style: TextStyle(
-          fontFamily: QestoTypography.uiFamily,
-          color: c.text,
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-        ),
-      );
-      _text(
-        canvas,
-        hideAmounts ? '••••' : formatMoney(category.amount, currency),
-        Offset(rect.left + 35, rect.center.dy - 2),
-        width: math.max(
-          70,
-          (layout.purchases[index].firstOrNull?.left ?? size.width) -
-              rect.left -
-              52,
-        ),
-        style: TextStyle(
-          fontFamily: QestoTypography.uiFamily,
-          color: c.secondaryText,
-          fontSize: 9,
-          fontWeight: FontWeight.w700,
-        ),
-      );
+      if (rect.height >= 20) {
+        _text(
+          canvas,
+          category.label,
+          Offset(rect.left + 35, rect.center.dy - 18),
+          width: math.max(
+            70,
+            (layout.purchases[index].firstOrNull?.left ?? size.width) -
+                rect.left -
+                52,
+          ),
+          style: TextStyle(
+            fontFamily: QestoTypography.uiFamily,
+            color: c.text,
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        );
+        _text(
+          canvas,
+          hideAmounts ? '••••' : formatMoney(category.amount, currency),
+          Offset(rect.left + 35, rect.center.dy - 2),
+          width: math.max(
+            70,
+            (layout.purchases[index].firstOrNull?.left ?? size.width) -
+                rect.left -
+                52,
+          ),
+          style: TextStyle(
+            fontFamily: QestoTypography.uiFamily,
+            color: c.secondaryText,
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+          ),
+        );
+      }
 
       for (
         var purchaseIndex = 0;

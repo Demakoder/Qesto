@@ -168,7 +168,9 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Уведомления и SMS'));
+    await tester.tap(find.byTooltip('Уведомления'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Уведомления и SMS'));
     await tester.pumpAndSettle();
     expect(find.text('Найденные операции'), findsOneWidget);
     expect(find.text('Новых операций нет'), findsOneWidget);
@@ -202,7 +204,9 @@ void main() {
       isTrue,
     );
 
-    await tester.tap(find.byTooltip('Уведомления и SMS'));
+    await tester.tap(find.byTooltip('Уведомления'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Уведомления и SMS'));
     await tester.pumpAndSettle();
 
     expect(find.text('Новых операций нет'), findsOneWidget);
@@ -225,7 +229,9 @@ void main() {
     );
     await tester.tap(find.text('Выбрать'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Продукты').first);
+    await tester.enterText(find.byType(TextField).last, 'Продукты');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Продукты').last);
     await tester.pumpAndSettle();
     await tester.fling(find.byType(ListView), const Offset(0, -900), 1500);
     await tester.pumpAndSettle();

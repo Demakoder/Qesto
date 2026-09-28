@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../classification/classification_actions.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/formatters/qesto_formatters.dart';
@@ -222,6 +223,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
     final category = await showBudgetCategoryPicker(
       context: context,
       categories: widget.controller.categories,
+      onCreate: () => editCategory(context, widget.controller),
       recentCategoryIds: widget.controller.transactions.reversed
           .map((item) => item.categoryId)
           .whereType<String>()
@@ -318,7 +320,14 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         description: 'Импортировано по QR-коду кассового чека',
         comment: _receiptComment(receipt),
         normalizedMerchant: _normalizeMerchant(title),
-        tags: ['receipt-import', receipt.transactionTag],
+        tags: [
+          'receipt-import',
+          receipt.transactionTag,
+          if (_categoryManuallySelected) ...[
+            'qesto-manual-category',
+            'user-field:category',
+          ],
+        ],
         receipt: receiptDetails,
       ),
       rawPayload: receipt.rawQr,

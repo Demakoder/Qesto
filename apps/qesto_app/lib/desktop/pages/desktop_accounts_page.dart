@@ -511,7 +511,7 @@ class _LiquidityCard extends StatelessWidget {
           children: [
             DesktopPill(
               label: data.isHistoryReconstructed
-                  ? 'История рассчитана по операциям'
+                  ? 'История по денежным операциям'
                   : 'Недостаточно истории',
               icon: data.isHistoryReconstructed
                   ? Icons.calculate_outlined
@@ -520,6 +520,15 @@ class _LiquidityCard extends StatelessWidget {
                   ? context.qestoColors.info
                   : context.qestoColors.secondaryText,
             ),
+            if (data.unlinkedTransactionCount > 0) ...[
+              const SizedBox(width: 8),
+              DesktopPill(
+                label:
+                    '${data.unlinkedTransactionCount} операций без привязки к счёту',
+                icon: Icons.link_off_rounded,
+                color: context.qestoColors.info,
+              ),
+            ],
             if (data.hasUnconvertedCurrencies) ...[
               const SizedBox(width: 8),
               DesktopPill(

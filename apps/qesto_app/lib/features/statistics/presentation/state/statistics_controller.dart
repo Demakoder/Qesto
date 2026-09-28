@@ -4,6 +4,7 @@ import '../../../../data/models/qesto_models.dart';
 import '../../../budget/state/budget_controller.dart';
 import '../../domain/models/statistics_models.dart';
 import '../../domain/services/statistics_calculation_service.dart';
+import '../../domain/services/statistics_period_range.dart';
 
 class StatisticsController extends ChangeNotifier {
   StatisticsController({
@@ -99,57 +100,20 @@ class StatisticsController extends ChangeNotifier {
     );
   }
 
-  void selectSection(StatisticsSection value) {
+  void selectSection(StatisticsSection value, {bool notify = true}) {
     if (_section == value) return;
     _section = value;
-    notifyListeners();
+    if (notify) notifyListeners();
   }
 
   void setPeriodPreset(StatisticsPeriodPreset preset) {
-    final reference = budgetController.referenceDate;
-    late final StatisticsDateRange range;
-    switch (preset) {
-      case StatisticsPeriodPreset.currentWeek:
-        final start = reference.subtract(Duration(days: reference.weekday - 1));
-        range = StatisticsDateRange(start, reference);
-      case StatisticsPeriodPreset.currentBudget:
-        final period = budgetController.periods.firstWhere(
-          (item) => item.contains(reference),
-          orElse: () => budgetController.periods.last,
-        );
-        range = StatisticsDateRange(period.startDate, reference);
-      case StatisticsPeriodPreset.last30Days:
-        range = StatisticsDateRange(
-          reference.subtract(const Duration(days: 29)),
-          reference,
-        );
-      case StatisticsPeriodPreset.threeMonths:
-        range = StatisticsDateRange(
-          DateTime(reference.year, reference.month - 2),
-          reference,
-        );
-      case StatisticsPeriodPreset.sixMonths:
-        range = StatisticsDateRange(
-          DateTime(reference.year, reference.month - 5),
-          reference,
-        );
-      case StatisticsPeriodPreset.currentYear:
-        range = StatisticsDateRange(DateTime(reference.year), reference);
-      case StatisticsPeriodPreset.last12Months:
-        range = StatisticsDateRange(
-          DateTime(reference.year, reference.month - 11),
-          reference,
-        );
-      case StatisticsPeriodPreset.allTime:
-        final earliest = budgetController.transactions.isEmpty
-            ? reference
-            : budgetController.transactions
-                  .map((item) => item.date)
-                  .reduce((a, b) => a.isBefore(b) ? a : b);
-        range = StatisticsDateRange(earliest, reference);
-      case StatisticsPeriodPreset.custom:
-        return;
-    }
+    final range = statisticsPeriodRange(
+      preset: preset,
+      reference: budgetController.referenceDate,
+      transactionDates: budgetController.transactions.map((t) => t.date),
+      budgetPeriods: budgetController.periods,
+    );
+    if (range == null) return;
     _query = _query.copyWith(period: range, preset: preset);
     _recalculate();
     notifyListeners();

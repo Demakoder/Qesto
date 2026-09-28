@@ -111,6 +111,30 @@ class SberConnector extends Stream<SberSyncReport> {
       }
       accounts = extractors.mergeAccounts([...dashboardAccounts, ...accounts]);
 
+      // Sber lists savings products on /app/savings, separately from the
+      // wallet. Read that bank section before returning to full history.
+      final savingsOpened = await navigator.openSavings(browser);
+      if (savingsOpened) {
+        await _waitForPage(browser);
+        pageType = await _currentPageType();
+        if (pageType == SberPageType.savings) {
+          await extractors.hydratePage(browser);
+          final savingsAccounts = await extractors.accounts(browser);
+          accounts = extractors.mergeAccounts([
+            ...accounts,
+            ...savingsAccounts,
+          ]);
+        } else {
+          warnings.add(
+            'SAVINGS_NAVIGATION_FAILED: раздел накоплений не загрузился.',
+          );
+        }
+      } else {
+        warnings.add(
+          'SAVINGS_NAVIGATION_FAILED: ссылка на накопления не найдена.',
+        );
+      }
+
       _emit(
         const SberSyncReport(state: SberConnectorState.syncingTransactions),
       );

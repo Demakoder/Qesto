@@ -1,8 +1,10 @@
 export 'budget_models.dart';
+export 'classification_settings.dart';
 export 'debt_models.dart';
 export 'investment_models.dart';
 
 import 'budget_models.dart';
+import 'classification_settings.dart';
 import 'debt_models.dart';
 import 'investment_models.dart';
 import '../../synoball/core/models.dart';
@@ -491,6 +493,7 @@ class UserFinancialData {
     this.budgetPeriods = const [],
     this.categoryBudgets = const [],
     this.categoryCustomizations = const [],
+    this.classification = const ClassificationSettings(),
     this.transactions = const [],
     this.upcomingExpenses = const [],
     this.plannedCumulativePoints = const [],
@@ -516,6 +519,7 @@ class UserFinancialData {
   final List<BudgetPeriod> budgetPeriods;
   final List<CategoryBudget> categoryBudgets;
   final List<BudgetCategoryCustomization> categoryCustomizations;
+  final ClassificationSettings classification;
   final List<BudgetTransaction> transactions;
   final List<UpcomingExpense> upcomingExpenses;
   final List<BudgetPlanPoint> plannedCumulativePoints;
@@ -541,6 +545,7 @@ class UserFinancialData {
     List<BudgetPeriod>? budgetPeriods,
     List<CategoryBudget>? categoryBudgets,
     List<BudgetCategoryCustomization>? categoryCustomizations,
+    ClassificationSettings? classification,
     List<BudgetTransaction>? transactions,
     List<UpcomingExpense>? upcomingExpenses,
     List<BudgetPlanPoint>? plannedCumulativePoints,
@@ -567,6 +572,7 @@ class UserFinancialData {
       categoryBudgets: categoryBudgets ?? this.categoryBudgets,
       categoryCustomizations:
           categoryCustomizations ?? this.categoryCustomizations,
+      classification: classification ?? this.classification,
       transactions: transactions ?? this.transactions,
       upcomingExpenses: upcomingExpenses ?? this.upcomingExpenses,
       plannedCumulativePoints:

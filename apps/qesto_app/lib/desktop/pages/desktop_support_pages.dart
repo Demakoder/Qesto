@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../features/classification/category_manager_screen.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/app_appearance_controller.dart';
@@ -8,6 +9,7 @@ import '../../core/theme/qesto_theme.dart';
 import '../../design_system/qesto_window.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/ai_export/presentation/ai_export_page.dart';
 import '../../features/capital/domain/goal_planning_service.dart';
 import '../../features/profile/services/cbr_currency_service.dart';
 import '../../features/trash/transaction_trash_screen.dart';
@@ -1990,144 +1992,7 @@ class DesktopInsightsPage extends StatelessWidget {
   const DesktopInsightsPage({required this.controller, super.key});
   final BudgetController controller;
   @override
-  Widget build(BuildContext context) {
-    final quality = controller.financialState.dataQuality;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(26, 20, 26, 30),
-      children: [
-        DesktopCard(
-          color: context.qestoColors.surfaceSecondary,
-          borderColor: const Color(0xFFD9DDE0),
-          child: Row(
-            children: [
-              Icon(
-                Icons.auto_awesome_rounded,
-                color: context.qestoColors.primary,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Финансовая картина',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      quality.overall >= 0.75
-                          ? 'Хорошая'
-                          : quality.overall >= 0.5
-                          ? 'Частичная'
-                          : 'Ограниченная',
-                      style: TextStyle(
-                        color: context.qestoColors.primary,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 5),
-                    Text(
-                      '${(quality.overall * 100).round()}% · ${quality.warnings.isEmpty ? 'критичных предупреждений нет' : quality.warnings.join(' · ')}',
-                      style: TextStyle(
-                        color: context.qestoColors.secondaryText,
-                        fontSize: 10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 14),
-        _InsightFeedCard(
-          icon: Icons.trending_up_rounded,
-          color: context.qestoColors.warning,
-          title: 'Изменение расходов',
-          message:
-              'Qesto сравнивает категории и магазины только по каноническим операциям, исключая неподтверждённые дубли.',
-        ),
-        const SizedBox(height: 12),
-        _InsightFeedCard(
-          icon: Icons.event_repeat_outlined,
-          color: context.qestoColors.purple,
-          title: 'Новые регулярные операции',
-          message:
-              'Найдено ${controller.synoballState.recurringStreams.length} повторяющихся потоков. Прогнозы помечены как expected/inferred.',
-        ),
-        const SizedBox(height: 12),
-        _InsightFeedCard(
-          icon: Icons.shield_outlined,
-          color: context.qestoColors.positive,
-          title: 'Источники и provenance',
-          message:
-              '${controller.synoballState.evidence.length} evidence-записей поддерживают ${controller.synoballState.transactions.length} канонических транзакций.',
-        ),
-      ],
-    );
-  }
-}
-
-class _InsightFeedCard extends StatelessWidget {
-  const _InsightFeedCard({
-    required this.icon,
-    required this.color,
-    required this.title,
-    required this.message,
-  });
-  final IconData icon;
-  final Color color;
-  final String title;
-  final String message;
-  @override
-  Widget build(BuildContext context) => DesktopCard(
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            borderRadius: QestoGeometry.control,
-          ),
-          child: Icon(icon, color: color, size: 21),
-        ),
-        const SizedBox(width: 13),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                message,
-                style: TextStyle(
-                  color: context.qestoColors.secondaryText,
-                  fontSize: 12,
-                  height: 1.45,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Icon(
-          Icons.chevron_right_rounded,
-          color: context.qestoColors.secondaryText,
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) => AiExportPage(controller: controller);
 }
 
 class DesktopAssistantPage extends StatefulWidget {
@@ -2621,10 +2486,16 @@ class _DesktopSettingsPageState extends State<DesktopSettingsPage> {
         description:
             '${widget.controller.accounts.length} счетов · ${widget.controller.synoballState.connections.length} подключений',
       ),
-      _SettingsSection(
-        title: 'Категории',
-        icon: Icons.category_outlined,
-        description: '${widget.controller.categories.length} категорий Qesto',
+      Card(
+        child: ListTile(
+          title: const Text('Категории и теги'),
+          leading: const Icon(Icons.category_outlined),
+          trailing: const Icon(Icons.chevron_right),
+          subtitle: Text(
+            '${widget.controller.categories.length} категорий · ${widget.controller.classification.tags.length} тегов',
+          ),
+          onTap: () => openCategoryManager(context, widget.controller),
+        ),
       ),
       _SettingsSection(
         title: 'Данные',

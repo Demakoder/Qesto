@@ -1,6 +1,10 @@
 import '../../../data/models/qesto_models.dart';
 
 const qestoInternalTransferTag = 'qesto-internal-transfer';
+const qestoInternalTransferSourceAccountPrefix =
+    'qesto-internal-transfer-source-account:';
+const qestoInternalTransferDestinationAccountPrefix =
+    'qesto-internal-transfer-destination-account:';
 const qestoExternalTransferTag = 'qesto-external-transfer';
 const qestoLoyaltyMetadataTag = 'qesto-loyalty-metadata';
 const qestoManualCategoryTag = 'qesto-manual-category';

@@ -74,6 +74,7 @@ if (Get-Process -Name qesto -ErrorAction SilentlyContinue) {
 }
 $newExe = Get-Item -LiteralPath (Join-Path $source 'qesto.exe')
 $oldExe = Get-Item -LiteralPath (Join-Path $installation 'qesto.exe')
+$previousVersion = $oldExe.VersionInfo.FileVersion
 $version = $newExe.VersionInfo.FileVersion
 if ($version -notmatch '^\d+\.\d+\.\d+\+\d+$' -or
     $newExe.VersionInfo.ProductName -ne 'Qesto' -or
@@ -155,7 +156,7 @@ try {
         }
     }
     $manifest = @{
-        Version = $version; PreviousVersion = $oldExe.VersionInfo.FileVersion
+        Version = $version; PreviousVersion = $previousVersion
         CreatedAt = (Get-Date).ToString('o'); Installation = $installation
         PreviousBuild = $oldBuild; Shortcuts = $shortcuts
         ExeSha256 = (Get-FileHash -LiteralPath (Join-Path $installation 'qesto.exe') -Algorithm SHA256).Hash
