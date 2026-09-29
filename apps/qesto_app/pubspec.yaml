@@ -36,7 +36,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   archive: ^4.0.9
   cryptography: ^2.9.0
-  excel_community: ^2.2.1
+  excel_community: ^2.3.0
   flutter_secure_storage: ^10.3.1
   # Qesto-maintained CEF fork. The upstream wrapper is intentionally vendored:
   # bank profiles, navigation policy and production hardening live below the
