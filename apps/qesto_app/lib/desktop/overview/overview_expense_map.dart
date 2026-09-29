@@ -7,9 +7,10 @@ import '../../core/theme/qesto_theme.dart';
 import 'desktop_overview_data.dart';
 
 class OverviewExpenseMap extends StatefulWidget {
-  const OverviewExpenseMap({required this.data, super.key});
+  const OverviewExpenseMap({required this.data, this.onSelection, super.key});
 
   final OverviewFlowData data;
+  final ValueChanged<OverviewFlowSelection>? onSelection;
 
   @override
   State<OverviewExpenseMap> createState() => _OverviewExpenseMapState();
@@ -17,6 +18,16 @@ class OverviewExpenseMap extends StatefulWidget {
 
 class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
   String? _hoveredId;
+  String? _selectedId;
+
+  @override
+  void didUpdateWidget(covariant OverviewExpenseMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _hoveredId = null;
+      _selectedId = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -39,43 +50,55 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
           final hovered = geometry.hits
               .where((item) => item.id == _hoveredId)
               .firstOrNull;
-          return MouseRegion(
-            onExit: (_) => setState(() => _hoveredId = null),
-            onHover: (event) {
-              final hit = geometry.hits
-                  .where((item) => item.contains(event.localPosition))
-                  .lastOrNull;
-              if (hit?.id != _hoveredId) {
-                setState(() => _hoveredId = hit?.id);
-              }
+          return GestureDetector(
+            key: const Key('overview-flow-hit-area'),
+            behavior: HitTestBehavior.opaque,
+            onTapUp: (event) {
+              final hit = geometry.hitAt(event.localPosition);
+              if (hit == null) return;
+              setState(() => _selectedId = hit.id);
+              widget.onSelection?.call(hit.selection);
             },
-            child: SizedBox(
-              height: height,
-              child: Stack(
-                children: [
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _ExpenseMapPainter(
-                        data: widget.data,
-                        geometry: geometry,
-                        hoveredId: _hoveredId,
-                        compact: compact,
-                      ),
-                    ),
-                  ),
-                  if (hovered != null)
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: IgnorePointer(
-                        child: _FlowTooltip(
-                          hit: hovered,
-                          total: widget.data.total,
-                          currency: widget.data.currency,
+            child: MouseRegion(
+              cursor: _hoveredId == null
+                  ? MouseCursor.defer
+                  : SystemMouseCursors.click,
+              onExit: (_) => setState(() => _hoveredId = null),
+              onHover: (event) {
+                final hit = geometry.hitAt(event.localPosition);
+                if (hit?.id != _hoveredId) {
+                  setState(() => _hoveredId = hit?.id);
+                }
+              },
+              child: SizedBox(
+                height: height,
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _ExpenseMapPainter(
+                          c: context.qestoColors,
+                          data: widget.data,
+                          geometry: geometry,
+                          hoveredId: _hoveredId ?? _selectedId,
+                          compact: compact,
                         ),
                       ),
                     ),
-                ],
+                    if (hovered != null)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: IgnorePointer(
+                          child: _FlowTooltip(
+                            hit: hovered,
+                            total: widget.data.total,
+                            currency: widget.data.currency,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           );
@@ -83,6 +106,24 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
       ),
     );
   }
+}
+
+enum OverviewFlowSelectionKind { source, total, category, destination }
+
+class OverviewFlowSelection {
+  const OverviewFlowSelection({
+    required this.kind,
+    required this.id,
+    required this.label,
+    required this.amount,
+    required this.transactionIds,
+  });
+
+  final OverviewFlowSelectionKind kind;
+  final String id;
+  final String label;
+  final int amount;
+  final List<String> transactionIds;
 }
 
 class _FlowTooltip extends StatelessWidget {
@@ -103,12 +144,16 @@ class _FlowTooltip extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 250),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF172033),
-        borderRadius: BorderRadius.circular(11),
+        color: const Color(0xFF171B1E),
+        borderRadius: QestoGeometry.control,
         boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 16)],
       ),
       child: DefaultTextStyle(
-        style: const TextStyle(color: Colors.white, fontSize: 11),
+        style: const TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          color: Colors.white,
+          fontSize: 11,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -116,17 +161,26 @@ class _FlowTooltip extends StatelessWidget {
               hit.label,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800),
+              style: const TextStyle(
+                fontFamily: QestoTypography.uiFamily,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               '${formatMoney(hit.amount, currency)} · ${formatPercent(percent, decimals: 1)}',
-              style: const TextStyle(color: Color(0xFFD3DBEA)),
+              style: const TextStyle(
+                fontFamily: QestoTypography.uiFamily,
+                color: Color(0xFFD3DBEA),
+              ),
             ),
             if (hit.transactionCount > 0)
               Text(
                 _operationCount(hit.transactionCount),
-                style: const TextStyle(color: Color(0xFF9FAAC0)),
+                style: const TextStyle(
+                  fontFamily: QestoTypography.uiFamily,
+                  color: Color(0xFF9FAAC0),
+                ),
               ),
           ],
         ),
@@ -148,6 +202,7 @@ class _FlowTooltip extends StatelessWidget {
 
 class _FlowGeometry {
   const _FlowGeometry({
+    required this.size,
     required this.sourceRects,
     required this.rootRect,
     required this.branchRects,
@@ -158,6 +213,7 @@ class _FlowGeometry {
     required this.hits,
   });
 
+  final Size size;
   final List<Rect> sourceRects;
   final Rect rootRect;
   final List<Rect> branchRects;
@@ -166,6 +222,22 @@ class _FlowGeometry {
   final List<Path> branchPaths;
   final List<List<Path>> destinationPaths;
   final List<_FlowHit> hits;
+
+  _FlowHit? hitAt(Offset point) {
+    // The destination ribbons overlap category labels geometrically. Give
+    // the visible category-label column precedence, so its text is clickable.
+    if (point.dx >= size.width * .61 && point.dx < size.width * .825) {
+      final category = hits
+          .where(
+            (hit) =>
+                hit.selection.kind == OverviewFlowSelectionKind.category &&
+                hit.rect.contains(point),
+          )
+          .lastOrNull;
+      if (category != null) return category;
+    }
+    return hits.where((hit) => hit.contains(point)).lastOrNull;
+  }
 
   static _FlowGeometry compute(Size size, OverviewFlowData data) {
     const top = 40.0;
@@ -213,6 +285,13 @@ class _FlowGeometry {
           label: source.label,
           amount: source.amount,
           transactionCount: source.transactionCount,
+          selection: OverviewFlowSelection(
+            kind: OverviewFlowSelectionKind.source,
+            id: source.id,
+            label: source.label,
+            amount: source.amount,
+            transactionIds: source.transactionIds,
+          ),
           rect: Rect.fromLTRB(
             0,
             sourceRect.top - 2,
@@ -249,6 +328,13 @@ class _FlowGeometry {
           transactionCount: branch.destinations.fold<int>(
             0,
             (sum, item) => sum + item.transactionCount,
+          ),
+          selection: OverviewFlowSelection(
+            kind: OverviewFlowSelectionKind.category,
+            id: branch.id,
+            label: branch.label,
+            amount: branch.amount,
+            transactionIds: branch.transactionIds,
           ),
           rect: Rect.fromLTRB(
             root.right,
@@ -289,6 +375,13 @@ class _FlowGeometry {
             label: destination.label,
             amount: destination.amount,
             transactionCount: destination.transactionCount,
+            selection: OverviewFlowSelection(
+              kind: OverviewFlowSelectionKind.destination,
+              id: destination.id,
+              label: destination.label,
+              amount: destination.amount,
+              transactionIds: destination.transactionIds,
+            ),
             rect: Rect.fromLTRB(
               branchRect.right,
               destinationRect.top - 2,
@@ -316,10 +409,21 @@ class _FlowGeometry {
           0,
           (sum, item) => sum + item.transactionCount,
         ),
+        selection: OverviewFlowSelection(
+          kind: OverviewFlowSelectionKind.total,
+          id: 'root',
+          label: data.total == data.income ? 'Доходы' : 'Деньги периода',
+          amount: data.total,
+          transactionIds: {
+            for (final source in data.sources) ...source.transactionIds,
+            for (final branch in data.branches) ...branch.transactionIds,
+          }.toList(growable: false),
+        ),
         rect: root.inflate(12),
       ),
     );
     return _FlowGeometry(
+      size: size,
       sourceRects: sourceRects,
       rootRect: root,
       branchRects: branchRects,
@@ -363,6 +467,7 @@ class _FlowHit {
     required this.amount,
     required this.transactionCount,
     required this.rect,
+    required this.selection,
     this.path,
   });
 
@@ -371,6 +476,7 @@ class _FlowHit {
   final int amount;
   final int transactionCount;
   final Rect rect;
+  final OverviewFlowSelection selection;
   final Path? path;
 
   bool contains(Offset point) =>
@@ -378,7 +484,9 @@ class _FlowHit {
 }
 
 class _ExpenseMapPainter extends CustomPainter {
+  final QestoSemanticColors c;
   const _ExpenseMapPainter({
+    required this.c,
     required this.data,
     required this.geometry,
     required this.hoveredId,
@@ -430,7 +538,9 @@ class _ExpenseMapPainter extends CustomPainter {
       canvas.drawPath(
         geometry.branchPaths[index],
         Paint()
-          ..color = branch.color.withValues(alpha: highlighted ? 0.30 : 0.09),
+          ..color = _branchColor(
+            branch,
+          ).withValues(alpha: highlighted ? 0.30 : 0.09),
       );
       for (
         var destinationIndex = 0;
@@ -443,9 +553,9 @@ class _ExpenseMapPainter extends CustomPainter {
         canvas.drawPath(
           geometry.destinationPaths[index][destinationIndex],
           Paint()
-            ..color = branch.color.withValues(
-              alpha: destinationHighlighted ? 0.25 : 0.07,
-            ),
+            ..color = _branchColor(
+              branch,
+            ).withValues(alpha: destinationHighlighted ? 0.25 : 0.07),
         );
       }
     }
@@ -475,7 +585,7 @@ class _ExpenseMapPainter extends CustomPainter {
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(geometry.rootRect, const Radius.circular(5)),
-      Paint()..color = const Color(0xFF2A92C8),
+      Paint()..color = c.primary,
     );
     final rootLabel = data.total == data.income ? 'Доходы' : 'Деньги периода';
     _nodeText(
@@ -496,7 +606,7 @@ class _ExpenseMapPainter extends CustomPainter {
       final rect = geometry.branchRects[index];
       canvas.drawRRect(
         RRect.fromRectAndRadius(rect, const Radius.circular(5)),
-        Paint()..color = branch.color,
+        Paint()..color = _branchColor(branch),
       );
       if (rect.height >= 11) {
         _nodeText(
@@ -524,7 +634,7 @@ class _ExpenseMapPainter extends CustomPainter {
             geometry.destinationRects[index][destinationIndex];
         canvas.drawRRect(
           RRect.fromRectAndRadius(destinationRect, const Radius.circular(4)),
-          Paint()..color = branch.color.withValues(alpha: 0.92),
+          Paint()..color = _branchColor(branch).withValues(alpha: 0.92),
         );
         if (!compact && destinationRect.height >= 12) {
           _nodeText(
@@ -545,14 +655,20 @@ class _ExpenseMapPainter extends CustomPainter {
     }
   }
 
+  Color _branchColor(OverviewFlowBranch branch) => switch (branch.id) {
+    'remaining-income' => c.positive,
+    'savings' => c.primary,
+    _ => branch.color, // Preserve the user's category appearance.
+  };
+
   void _columnLabel(Canvas canvas, String text, Offset offset, double width) {
     _paintText(
       canvas,
       text,
       offset,
       width,
-      const TextStyle(
-        color: QestoColors.secondaryText,
+      TextStyle(
+        color: c.secondaryText,
         fontSize: 8,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.55,
@@ -574,7 +690,7 @@ class _ExpenseMapPainter extends CustomPainter {
       rect.topLeft,
       rect.width,
       TextStyle(
-        color: QestoColors.text,
+        color: c.text,
         fontSize: compact ? 8.5 : 9.5,
         fontWeight: FontWeight.w800,
       ),
@@ -586,7 +702,7 @@ class _ExpenseMapPainter extends CustomPainter {
       Offset(rect.left, rect.top + (compact ? 13 : 15)),
       rect.width,
       TextStyle(
-        color: QestoColors.secondaryText,
+        color: c.secondaryText,
         fontSize: compact ? 7.5 : 8.5,
         fontWeight: FontWeight.w600,
       ),
@@ -603,7 +719,10 @@ class _ExpenseMapPainter extends CustomPainter {
     TextAlign align = TextAlign.left,
   }) {
     final painter = TextPainter(
-      text: TextSpan(text: value, style: style),
+      text: TextSpan(
+        text: value,
+        style: style.copyWith(fontFamily: QestoTypography.uiFamily),
+      ),
       textDirection: TextDirection.ltr,
       textAlign: align,
       maxLines: 1,
@@ -614,6 +733,7 @@ class _ExpenseMapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ExpenseMapPainter oldDelegate) =>
+      oldDelegate.c != c ||
       oldDelegate.data != data ||
       oldDelegate.geometry != geometry ||
       oldDelegate.hoveredId != hoveredId ||

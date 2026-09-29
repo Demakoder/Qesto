@@ -57,6 +57,14 @@ add_subdirectory("runner")
 # them to the application.
 include(flutter/generated_plugins.cmake)
 
+# CEF's sandbox object must be created by (and statically linked into) the
+# executable before Flutter/plugins start. The local webview_cef plugin exports
+# the early process bootstrap entry point used by runner/main.cpp.
+set(QESTO_CEF_ROOT
+  "${CMAKE_CURRENT_SOURCE_DIR}/flutter/ephemeral/.plugin_symlinks/webview_cef/third/cef")
+target_include_directories(${BINARY_NAME} PRIVATE "${QESTO_CEF_ROOT}")
+target_compile_features(${BINARY_NAME} PRIVATE cxx_std_20)
+
 
 # === Installation ===
 # Support files are copied into place next to the executable, so that it can
@@ -74,6 +82,38 @@ set(INSTALL_BUNDLE_LIB_DIR "${CMAKE_INSTALL_PREFIX}")
 
 install(TARGETS ${BINARY_NAME} RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}"
   COMPONENT Runtime)
+
+# The user still launches qesto.exe. It is the official CEF bootstrap that
+# creates the sandbox and then loads qesto.dll (the Flutter client above).
+install(FILES "${QESTO_CEF_ROOT}/Release/bootstrap.exe"
+  DESTINATION "${CMAKE_INSTALL_PREFIX}"
+  RENAME "qesto.exe"
+  COMPONENT Runtime)
+
+# flutter_secure_storage derives its Windows support directory from the main
+# executable's CompanyName/ProductName. The stock CEF bootstrap identifies as
+# "CEF Bootstrap Application", which would strand Qesto's existing encryption
+# key. Copy Qesto's VERSIONINFO resource so upgrades retain that support path.
+# Merge the runner's DPI declarations into the EXE manifest as well: the
+# manifest in qesto.dll cannot configure process DPI awareness at cold start.
+# The bootstrap's original trust/sandbox/Common Controls entries are retained.
+set(QESTO_BOOTSTRAP_PATCH_SCRIPT
+  "${CMAKE_CURRENT_SOURCE_DIR}/patch_cef_bootstrap_resources.ps1")
+install(CODE "
+  execute_process(
+    COMMAND powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass
+      -File \"${QESTO_BOOTSTRAP_PATCH_SCRIPT}\"
+      -BootstrapPath \"$<TARGET_FILE_DIR:${BINARY_NAME}>/qesto.exe\"
+      -ResourceSourcePath \"$<TARGET_FILE_DIR:${BINARY_NAME}>/qesto.dll\"
+    RESULT_VARIABLE qesto_patch_result
+    OUTPUT_VARIABLE qesto_patch_output
+    ERROR_VARIABLE qesto_patch_error)
+  if(NOT qesto_patch_result EQUAL 0)
+    message(FATAL_ERROR
+      \"Failed to patch CEF bootstrap identity: \${qesto_patch_error}\")
+  endif()
+  message(STATUS \"\${qesto_patch_output}\")
+" COMPONENT Runtime)
 
 install(FILES "${FLUTTER_ICU_DATA_FILE}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   COMPONENT Runtime)

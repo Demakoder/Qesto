@@ -21,13 +21,13 @@ class CategoryPlanRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = status.isExceeded
-        ? QestoColors.orange
+        ? context.qestoColors.orange
         : Color(status.category.colorValue);
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: QestoGeometry.control,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
           child: Row(
@@ -54,9 +54,9 @@ class CategoryPlanRow extends StatelessWidget {
                         children: [
                           TextSpan(
                             text: formatMoney(status.spentAmount, currency),
-                            style: const TextStyle(
+                            style: TextStyle(
                               fontWeight: FontWeight.w700,
-                              color: QestoColors.text,
+                              color: context.qestoColors.text,
                             ),
                           ),
                           TextSpan(
@@ -102,26 +102,26 @@ class CategoryPlanRow extends StatelessWidget {
                             : formatPercent(status.progress),
                         style: TextStyle(
                           color: status.isExceeded
-                              ? QestoColors.danger
-                              : QestoColors.primary,
+                              ? context.qestoColors.danger
+                              : context.qestoColors.primary,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
                     if (status.isExceeded)
-                      const Text(
+                      Text(
                         'Превышение',
                         style: TextStyle(
                           fontSize: 9.5,
-                          color: QestoColors.danger,
+                          color: context.qestoColors.danger,
                         ),
                       ),
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: QestoColors.secondaryText,
+                color: context.qestoColors.secondaryText,
               ),
             ],
           ),

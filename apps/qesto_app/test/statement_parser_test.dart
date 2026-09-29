@@ -60,6 +60,26 @@ const redactedColumnarSberStatementText = '''
 6 247,60
 ''';
 
+const redactedTransferClassificationStatementText = '''
+СБЕР 900 www.sberbank.ru
+Выписка по платёжному счёту
+За период 01.08.2026 — 31.08.2026
+Номер счёта 40817 810 0 0000 005023
+Расшифровка операций
+06.08.2026 12:00 Перевод СБП 305,00 9 000,00
+06.08.2026 100001 Перевод в Yandex. Операция по счету ****5023
+05.08.2026 12:00 Перевод с карты 1 200,00 9 305,00
+05.08.2026 100002 Перевод для И. Имя. Операция по счету ****5023
+04.08.2026 12:00 Перевод СБП 13 749,09 10 505,00
+04.08.2026 100003 Перевод в другой банк. Операция по счету ****5023
+03.08.2026 12:00 Перевод между своими счетами 2 000,00 24 254,09
+03.08.2026 100004 Перевод между своими счетами. Операция по счету ****5023
+02.08.2026 12:00 Выдача наличных 500,00 26 254,09
+02.08.2026 100005 ATM TEST. Операция по карте ****8505
+01.08.2026 12:00 Внесение наличных +1 000,00 26 754,09
+01.08.2026 100006 ATM TEST. Операция по карте ****8505
+''';
+
 void main() {
   const parser = SberbankStatementParser();
 
@@ -82,12 +102,12 @@ void main() {
     expect(purchase.kind, StatementTransactionKind.expense);
   });
 
-  test('отделяет доходы, переводы и возвраты от расходов', () {
+  test('отделяет доходы, внешние переводы и возвраты от расходов', () {
     final transactions = parser.parse(redactedSberStatementText).transactions;
 
-    expect(transactions[1].kind, StatementTransactionKind.transfer);
+    expect(transactions[1].kind, StatementTransactionKind.income);
     expect(transactions[1].isIncoming, isTrue);
-    expect(transactions[2].kind, StatementTransactionKind.transfer);
+    expect(transactions[2].kind, StatementTransactionKind.expense);
     expect(transactions[2].isIncoming, isFalse);
     expect(transactions[3].kind, StatementTransactionKind.refund);
     expect(transactions[3].isIncoming, isTrue);
@@ -111,12 +131,32 @@ void main() {
       54000,
     ]);
     expect(statement.transactions[0].kind, StatementTransactionKind.expense);
-    expect(statement.transactions[1].kind, StatementTransactionKind.transfer);
+    expect(statement.transactions[1].kind, StatementTransactionKind.income);
     expect(statement.transactions[1].isIncoming, isTrue);
+    expect(statement.transactions[2].kind, StatementTransactionKind.expense);
     expect(statement.transactions[3].kind, StatementTransactionKind.refund);
     expect(statement.transactions[3].isIncoming, isTrue);
     expect(statement.transactions[1].cardLastFour, '2345');
   });
+
+  test(
+    'считает внешние исходящие переводы расходом, а свои и наличные — переводом',
+    () {
+      final transactions = parser
+          .parse(redactedTransferClassificationStatementText)
+          .transactions;
+
+      expect(transactions, hasLength(6));
+      expect(
+        transactions.take(3).map((item) => item.kind),
+        everyElement(StatementTransactionKind.expense),
+      );
+      expect(transactions[3].kind, StatementTransactionKind.transfer);
+      expect(transactions[4].kind, StatementTransactionKind.transfer);
+      expect(transactions[5].kind, StatementTransactionKind.transfer);
+      expect(transactions[5].isIncoming, isTrue);
+    },
+  );
 
   test('двухколоночная выписка входит в Synoball через StatementAdapter', () {
     final statement = parser.parse(redactedColumnarSberStatementText);
@@ -230,4 +270,85 @@ void main() {
     expect(controller.periods, hasLength(2));
     expect(controller.transactions, hasLength(1));
   });
+
+  test(
+    'старый внешний перевод Сбербанка становится расходом без миграции Synoball',
+    () {
+      final controller = _controllerWithStoredTransaction(
+        _storedTransfer(
+          description: 'Перевод в Yandex. Операция по счету ****5023',
+          tags: const [
+            'statement-import',
+            'sberbank',
+            'transfer-outgoing',
+            'legacy-type-transfer',
+          ],
+        ),
+      );
+
+      expect(controller.transactions.single.type, TransactionType.expense);
+    },
+  );
+
+  test('старые свои и ручные переводы остаются нейтральными', () {
+    final ownAccount = _controllerWithStoredTransaction(
+      _storedTransfer(
+        description: 'Перевод между своими счетами',
+        tags: const [
+          'statement-import',
+          'sberbank',
+          'transfer-outgoing',
+          'legacy-type-transfer',
+        ],
+      ),
+    );
+    final manual = _controllerWithStoredTransaction(
+      _storedTransfer(
+        description: 'Перевод другу',
+        tags: const ['legacy-type-transfer'],
+      ),
+    );
+
+    expect(ownAccount.transactions.single.type, TransactionType.transfer);
+    expect(manual.transactions.single.type, TransactionType.transfer);
+  });
+}
+
+BudgetController _controllerWithStoredTransaction(
+  CanonicalTransaction transaction,
+) => BudgetController(
+  configuration: budgetConfiguration,
+  financialData: UserFinancialData(
+    user: const QestoUser(
+      id: 'test-user',
+      name: 'Тест',
+      defaultCurrency: 'RUB',
+    ),
+    referenceDate: DateTime(2026, 8, 23),
+    synoballState: SynoballState(transactions: [transaction]),
+  ),
+);
+
+CanonicalTransaction _storedTransfer({
+  required String description,
+  required List<String> tags,
+}) {
+  final now = DateTime(2026, 8, 23);
+  return CanonicalTransaction(
+    id: 'transaction-${description.hashCode}',
+    entityId: 'ent-test-user',
+    accountId: 'sber-account',
+    status: CanonicalTransactionStatus.posted,
+    amount: const Money(minorUnits: 10000, currency: 'RUB'),
+    direction: FinancialDirection.outflow,
+    occurredAt: now,
+    rawDescription: description,
+    normalizedDescription: description.toLowerCase(),
+    transferDirection: TransferDirection.outgoing.name,
+    eventType: FinancialEventType.observed,
+    tags: tags,
+    createdAt: now,
+    updatedAt: now,
+    fieldTrust: SourceTrustLevel.bankStatement,
+  );
 }

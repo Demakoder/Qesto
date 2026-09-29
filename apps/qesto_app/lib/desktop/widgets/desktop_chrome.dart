@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_silver.dart';
 import '../../data/models/qesto_models.dart';
 import '../desktop_destination.dart';
 import 'desktop_components.dart';
@@ -12,6 +13,7 @@ class DesktopSidebar extends StatefulWidget {
     required this.user,
     required this.onSelected,
     required this.onToggle,
+    this.bankConnectionsAvailable = true,
     super.key,
   });
 
@@ -20,6 +22,7 @@ class DesktopSidebar extends StatefulWidget {
   final QestoUser user;
   final ValueChanged<DesktopDestination> onSelected;
   final VoidCallback onToggle;
+  final bool bankConnectionsAvailable;
   @override
   State<DesktopSidebar> createState() => _DesktopSidebarState();
 }
@@ -44,10 +47,10 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: widget.collapsed ? 76 : 244,
-      decoration: const BoxDecoration(
-        color: QestoColors.surface,
-        border: Border(right: BorderSide(color: QestoColors.border)),
+      width: widget.collapsed ? 76 : 216,
+      decoration: BoxDecoration(
+        color: context.qestoColors.surface,
+        border: Border(right: BorderSide(color: context.qestoColors.border)),
       ),
       child: SafeArea(
         child: Column(
@@ -69,18 +72,21 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        gradient: const LinearGradient(
+                        gradient: LinearGradient(
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
-                          colors: [Color(0xFF4D89F8), Color(0xFF2969E7)],
+                          colors: [
+                            context.qestoColors.controlHighlight,
+                            context.qestoColors.controlMid,
+                          ],
                         ),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: QestoGeometry.control,
                       ),
                       alignment: Alignment.center,
-                      child: const Text(
+                      child: Text(
                         'Q',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: context.qestoColors.text,
                           fontSize: 21,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -1,
@@ -88,11 +94,11 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                       ),
                     ),
                     const SizedBox(width: 11),
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Qesto',
                         style: TextStyle(
-                          color: QestoColors.text,
+                          color: context.qestoColors.text,
                           fontSize: 20,
                           fontWeight: FontWeight.w900,
                           letterSpacing: -0.6,
@@ -104,16 +110,16 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: QestoColors.primarySoft,
-                        borderRadius: BorderRadius.circular(12),
+                        color: context.qestoColors.primarySoft,
+                        borderRadius: QestoGeometry.control,
                       ),
                       child: IconButton(
                         tooltip: 'Развернуть меню',
                         onPressed: widget.onToggle,
                         padding: EdgeInsets.zero,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.keyboard_double_arrow_right_rounded,
-                          color: QestoColors.primary,
+                          color: context.qestoColors.primary,
                           size: 19,
                         ),
                       ),
@@ -142,14 +148,29 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                     onTap: () =>
                         widget.onSelected(DesktopDestination.dashboard),
                   ),
+                  _SidebarItem(
+                    destination: DesktopDestination.insights,
+                    selected: widget.selected == DesktopDestination.insights,
+                    collapsed: widget.collapsed,
+                    onTap: () => widget.onSelected(DesktopDestination.insights),
+                  ),
+                  if (widget.bankConnectionsAvailable)
+                    _SidebarItem(
+                      destination: DesktopDestination.connections,
+                      selected:
+                          widget.selected == DesktopDestination.connections,
+                      collapsed: widget.collapsed,
+                      onTap: () =>
+                          widget.onSelected(DesktopDestination.connections),
+                    ),
                   const SizedBox(height: 5),
                   if (!widget.collapsed)
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.fromLTRB(10, 7, 10, 7),
                       child: Text(
                         'РАЗДЕЛЫ',
                         style: TextStyle(
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                           fontWeight: FontWeight.w800,
                           letterSpacing: 0.7,
@@ -165,7 +186,10 @@ class _DesktopSidebarState extends State<DesktopSidebar> {
                       onTap: () => _openSection(section),
                     ),
                     AnimatedSize(
-                      duration: const Duration(milliseconds: 220),
+                      duration: QestoMotion.effective(
+                        context,
+                        QestoMotion.normal,
+                      ),
                       curve: Curves.easeOutCubic,
                       alignment: Alignment.topCenter,
                       child: section == _expandedSection
@@ -231,14 +255,11 @@ class _ProductSectionItem extends StatelessWidget {
     message: collapsed ? section.label : '',
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Material(
-        color: selected
-            ? section.color.withValues(alpha: 0.11)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(13),
+      child: QestoNavigationSurface(
+        selected: selected,
         child: InkWell(
           key: Key('desktop-section-${section.name}'),
-          borderRadius: BorderRadius.circular(13),
+          borderRadius: QestoGeometry.control,
           onTap: onTap,
           child: SizedBox(
             height: 46,
@@ -252,12 +273,16 @@ class _ProductSectionItem extends StatelessWidget {
                   width: 30,
                   height: 30,
                   decoration: BoxDecoration(
-                    color: section.color.withValues(
+                    color: context.qestoColors.primary.withValues(
                       alpha: selected ? 0.17 : 0.09,
                     ),
-                    borderRadius: BorderRadius.circular(9),
+                    borderRadius: QestoGeometry.control,
                   ),
-                  child: Icon(section.icon, color: section.color, size: 18),
+                  child: Icon(
+                    section.icon,
+                    color: context.qestoColors.primary,
+                    size: 18,
+                  ),
                 ),
                 if (!collapsed) ...[
                   const SizedBox(width: 10),
@@ -265,7 +290,9 @@ class _ProductSectionItem extends StatelessWidget {
                     child: Text(
                       section.label,
                       style: TextStyle(
-                        color: selected ? section.color : QestoColors.text,
+                        color: selected
+                            ? context.qestoColors.primary
+                            : context.qestoColors.text,
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
                       ),
@@ -276,7 +303,9 @@ class _ProductSectionItem extends StatelessWidget {
                         ? Icons.keyboard_arrow_down_rounded
                         : Icons.chevron_right_rounded,
                     size: 17,
-                    color: selected ? section.color : QestoColors.secondaryText,
+                    color: selected
+                        ? context.qestoColors.primary
+                        : context.qestoColors.secondaryText,
                   ),
                   const SizedBox(width: 8),
                 ],
@@ -310,12 +339,11 @@ class _SidebarItem extends StatelessWidget {
       message: collapsed ? destination.label : '',
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
-        child: Material(
-          color: selected ? QestoColors.primarySoft : Colors.transparent,
-          borderRadius: BorderRadius.circular(11),
+        child: QestoNavigationSurface(
+          selected: selected,
           child: InkWell(
             key: Key('desktop-destination-${destination.name}'),
-            borderRadius: BorderRadius.circular(11),
+            borderRadius: QestoGeometry.control,
             onTap: onTap,
             child: SizedBox(
               height: nested ? 36 : 40,
@@ -326,11 +354,14 @@ class _SidebarItem extends StatelessWidget {
                 children: [
                   if (!collapsed)
                     AnimatedContainer(
-                      duration: const Duration(milliseconds: 160),
+                      duration: QestoMotion.effective(
+                        context,
+                        QestoMotion.normal,
+                      ),
                       width: 3,
                       height: selected ? 20 : 0,
                       decoration: BoxDecoration(
-                        color: QestoColors.primary,
+                        color: context.qestoColors.primary,
                         borderRadius: BorderRadius.circular(99),
                       ),
                     ),
@@ -339,8 +370,8 @@ class _SidebarItem extends StatelessWidget {
                     destination.icon,
                     size: nested ? 18 : 20,
                     color: selected
-                        ? QestoColors.primary
-                        : QestoColors.secondaryText,
+                        ? context.qestoColors.primary
+                        : context.qestoColors.secondaryText,
                   ),
                   if (!collapsed) ...[
                     const SizedBox(width: 11),
@@ -351,8 +382,8 @@ class _SidebarItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: selected
-                              ? QestoColors.primary
-                              : QestoColors.text,
+                              ? context.qestoColors.primary
+                              : context.qestoColors.text,
                           fontSize: nested ? 12 : 13,
                           fontWeight: selected
                               ? FontWeight.w800
@@ -384,11 +415,11 @@ class DesktopUserAvatar extends StatelessWidget {
         : null;
     return CircleAvatar(
       radius: radius,
-      backgroundColor: QestoColors.primarySoft,
+      backgroundColor: context.qestoColors.primarySoft,
       child: Text(
         emoji ?? (user.name.trim().isEmpty ? 'Q' : user.name.trim()[0]),
         style: TextStyle(
-          color: QestoColors.primary,
+          color: context.qestoColors.primary,
           fontSize: emoji == null ? radius * 0.85 : radius,
           fontWeight: FontWeight.w800,
         ),
@@ -414,12 +445,14 @@ class _ProfileSettingsCard extends StatelessWidget {
   Widget build(BuildContext context) => Tooltip(
     message: collapsed ? 'Профиль и настройки' : '',
     child: Material(
-      color: selected ? QestoColors.primarySoft : QestoColors.surfaceSecondary,
-      borderRadius: BorderRadius.circular(13),
+      color: selected
+          ? context.qestoColors.primarySoft
+          : context.qestoColors.surfaceSecondary,
+      borderRadius: QestoGeometry.control,
       child: InkWell(
         key: const Key('desktop-profile-settings'),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: QestoGeometry.control,
         child: Padding(
           padding: EdgeInsets.all(collapsed ? 8 : 10),
           child: Row(
@@ -445,8 +478,8 @@ class _ProfileSettingsCard extends StatelessWidget {
                       ),
                       Text(
                         user.defaultCurrency,
-                        style: const TextStyle(
-                          color: QestoColors.secondaryText,
+                        style: TextStyle(
+                          color: context.qestoColors.secondaryText,
                           fontSize: 10,
                         ),
                       ),
@@ -457,8 +490,8 @@ class _ProfileSettingsCard extends StatelessWidget {
                   Icons.settings_outlined,
                   size: 17,
                   color: selected
-                      ? QestoColors.primary
-                      : QestoColors.secondaryText,
+                      ? context.qestoColors.primary
+                      : context.qestoColors.secondaryText,
                 ),
               ],
             ],
@@ -475,6 +508,7 @@ class DesktopTopBar extends StatelessWidget {
     required this.onSearch,
     required this.onAdd,
     required this.onNotifications,
+    this.notificationCount = 0,
     this.period,
     this.onPeriodPressed,
     this.compactSearch = false,
@@ -489,16 +523,19 @@ class DesktopTopBar extends StatelessWidget {
   final VoidCallback onSearch;
   final VoidCallback onAdd;
   final VoidCallback onNotifications;
+  final int notificationCount;
   final List<Widget> contextualActions;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 72,
+      height: 78,
       padding: const EdgeInsets.symmetric(horizontal: 26),
-      decoration: const BoxDecoration(
-        color: QestoColors.background,
-        border: Border(bottom: BorderSide(color: QestoColors.border)),
+      decoration: BoxDecoration(
+        color: context.qestoVisual.chrome,
+        border: Border(
+          bottom: BorderSide(color: context.qestoVisual.chromeBorder),
+        ),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -513,13 +550,9 @@ class DesktopTopBar extends StatelessWidget {
                         title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: context.qestoTypography.display(
-                          const TextStyle(
-                            color: QestoColors.text,
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.55,
-                          ),
+                        style: QestoTypography.uiStrong.copyWith(
+                          fontSize: 22,
+                          color: context.qestoVisual.chromeText,
                         ),
                       ),
                     ),
@@ -529,8 +562,8 @@ class DesktopTopBar extends StatelessWidget {
                         DesktopPill(
                           label: period!,
                           icon: Icons.calendar_month_outlined,
-                          color: QestoColors.secondaryText,
-                          background: QestoColors.surfaceSecondary,
+                          color: context.qestoColors.secondaryText,
+                          background: context.qestoColors.surfaceSecondary,
                         )
                       else
                         OutlinedButton.icon(
@@ -542,16 +575,17 @@ class DesktopTopBar extends StatelessWidget {
                           ),
                           label: Text(period!),
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: QestoColors.text,
-                            side: const BorderSide(color: QestoColors.border),
+                            foregroundColor: context.qestoColors.text,
+                            side: BorderSide(color: context.qestoColors.border),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                               vertical: 9,
                             ),
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(11),
+                              borderRadius: QestoGeometry.control,
                             ),
                             textStyle: const TextStyle(
+                              fontFamily: QestoTypography.uiFamily,
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
@@ -569,47 +603,56 @@ class DesktopTopBar extends StatelessWidget {
                   onPressed: onSearch,
                   icon: const Icon(Icons.search_rounded, size: 20),
                   style: IconButton.styleFrom(
-                    foregroundColor: QestoColors.secondaryText,
-                    side: const BorderSide(color: QestoColors.border),
+                    foregroundColor: context.qestoColors.secondaryText,
+                    side: BorderSide(color: context.qestoColors.border),
                   ),
                 )
               else
                 OutlinedButton.icon(
                   onPressed: onSearch,
                   icon: const Icon(Icons.search_rounded, size: 18),
-                  label: const Row(
+                  label: Row(
                     children: [
                       Text('Поиск'),
                       SizedBox(width: 12),
                       DesktopPill(
                         label: 'Ctrl K',
-                        color: QestoColors.secondaryText,
-                        background: QestoColors.surfaceSecondary,
+                        color: context.qestoColors.secondaryText,
+                        background: context.qestoColors.surfaceSecondary,
                       ),
                     ],
                   ),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: QestoColors.secondaryText,
-                    side: const BorderSide(color: QestoColors.border),
+                    foregroundColor: context.qestoColors.secondaryText,
+                    side: BorderSide(color: context.qestoColors.border),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
                       vertical: 11,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius: QestoGeometry.control,
                     ),
                   ),
                 ),
               const SizedBox(width: 8),
               if (!compact) ...[
-                IconButton.outlined(
-                  key: const Key('desktop-notifications'),
-                  tooltip: 'Уведомления',
-                  onPressed: onNotifications,
-                  icon: const Icon(Icons.notifications_none_rounded, size: 20),
-                  style: IconButton.styleFrom(
-                    foregroundColor: QestoColors.secondaryText,
-                    side: const BorderSide(color: QestoColors.border),
+                Badge(
+                  isLabelVisible: notificationCount > 0,
+                  label: Text(
+                    notificationCount > 99 ? '99+' : '$notificationCount',
+                  ),
+                  child: IconButton.outlined(
+                    key: const Key('desktop-notifications'),
+                    tooltip: 'Уведомления',
+                    onPressed: onNotifications,
+                    icon: const Icon(
+                      Icons.notifications_none_rounded,
+                      size: 20,
+                    ),
+                    style: IconButton.styleFrom(
+                      foregroundColor: context.qestoColors.secondaryText,
+                      side: BorderSide(color: context.qestoColors.border),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -621,8 +664,8 @@ class DesktopTopBar extends StatelessWidget {
                   onPressed: onAdd,
                   icon: const Icon(Icons.add_rounded, size: 20),
                   style: IconButton.styleFrom(
-                    backgroundColor: QestoColors.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.qestoColors.controlHighlight,
+                    foregroundColor: context.qestoColors.text,
                   ),
                 )
               else
@@ -632,16 +675,19 @@ class DesktopTopBar extends StatelessWidget {
                   icon: const Icon(Icons.add_rounded, size: 19),
                   label: const Text('Добавить'),
                   style: FilledButton.styleFrom(
-                    backgroundColor: QestoColors.primary,
-                    foregroundColor: Colors.white,
+                    backgroundColor: context.qestoColors.controlHighlight,
+                    foregroundColor: context.qestoColors.text,
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 12,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius: QestoGeometry.control,
                     ),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w800),
+                    textStyle: const TextStyle(
+                      fontFamily: QestoTypography.uiFamily,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
             ],

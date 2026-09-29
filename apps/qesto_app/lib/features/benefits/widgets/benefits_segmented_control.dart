@@ -25,9 +25,9 @@ class BenefitsSegmentedControl extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: QestoColors.surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: QestoColors.border),
+        color: context.qestoColors.surface,
+        borderRadius: QestoGeometry.control,
+        border: Border.all(color: context.qestoColors.border),
         boxShadow: const [
           BoxShadow(
             color: Color(0x0A26324A),
@@ -45,7 +45,7 @@ class BenefitsSegmentedControl extends StatelessWidget {
                 button: true,
                 child: InkWell(
                   onTap: () => onChanged(item.value),
-                  borderRadius: BorderRadius.circular(11),
+                  borderRadius: QestoGeometry.control,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 180),
                     padding: const EdgeInsets.symmetric(
@@ -54,9 +54,9 @@ class BenefitsSegmentedControl extends StatelessWidget {
                     ),
                     decoration: BoxDecoration(
                       color: value == item.value
-                          ? QestoColors.primarySoft
+                          ? context.qestoColors.primarySoft
                           : Colors.transparent,
-                      borderRadius: BorderRadius.circular(11),
+                      borderRadius: QestoGeometry.control,
                       border: value == item.value
                           ? Border.all(color: const Color(0xFFD7E5FF))
                           : null,
@@ -68,8 +68,8 @@ class BenefitsSegmentedControl extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: value == item.value
-                            ? QestoColors.primary
-                            : QestoColors.secondaryText,
+                            ? context.qestoColors.primary
+                            : context.qestoColors.secondaryText,
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                       ),

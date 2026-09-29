@@ -8,11 +8,13 @@ import '../../../core/theme/qesto_theme.dart';
 import '../../../core/widgets/nested_screen_header.dart';
 import '../../../core/widgets/qesto_card.dart';
 import '../../../data/models/qesto_models.dart';
+import '../../../synoball/core/synoball_core.dart';
 import '../../budget/state/budget_controller.dart';
 import '../data/bank_statement_file_service.dart';
 import '../domain/bank_statement_models.dart';
 import '../services/sberbank_statement_parser.dart';
 import '../services/universal_excel_statement_adapter.dart';
+import '../services/excel_source_identity.dart';
 
 class StatementImportScreen extends StatefulWidget {
   const StatementImportScreen({
@@ -42,6 +44,92 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   ParsedBankStatement? _statement;
   Set<String> _selectedIds = <String>{};
   int? _yearOverride;
+  String? _excelAccountId;
+  String _statementAccountId = '__new__';
+  String? _newExcelAccountId;
+  Map<String, ExcelRowIdentity> _excelIdentities = {};
+
+  bool get _isExcel => _statement?.bankName == 'Excel';
+  List<QestoAccount> get _excelSources {
+    final sourceIds = widget.controller.synoballState.candidates
+        .where((c) => c.tags.contains('excel-import'))
+        .map((c) => c.accountId)
+        .toSet();
+    return widget.controller.accounts
+        .where(
+          (a) =>
+              sourceIds.contains(a.id) ||
+              (a.id.startsWith('excel-') && a.id.endsWith('-account')),
+        )
+        .toList();
+  }
+
+  QestoAccount get _excelAccount => widget.controller.accounts.firstWhere(
+    (a) => a.id == _excelAccountId,
+    orElse: () => QestoAccount(
+      id: _excelAccountId!,
+      userId: widget.controller.accounts.first.userId,
+      title: 'Excel · ${_fileName ?? 'Таблица'}',
+      balance: 0,
+      currency: _statementTransactions.first.currency,
+      type: AccountType.other,
+    ),
+  );
+
+  String? _suggestExcelSource(String fileName) {
+    final sources = _excelSources.map((a) => a.id).toSet();
+    final matches = <String>{};
+    final legacy = 'excel-${_stableFileId(fileName)}-account';
+    if (sources.contains(legacy)) matches.add(legacy);
+    final state = widget.controller.synoballState;
+    final rawIds = <String>{};
+    for (final raw in state.rawPayloads) {
+      try {
+        final value = jsonDecode(raw.body);
+        if (value is Map && value['fileName'] == fileName) rawIds.add(raw.id);
+      } on FormatException {
+        /* Not an Excel payload. */
+      }
+    }
+    final records = state.ingestionRecords
+        .where((r) => rawIds.contains(r.rawPayloadId))
+        .map((r) => r.id)
+        .toSet();
+    matches.addAll(
+      state.candidates
+          .where(
+            (c) =>
+                records.contains(c.ingestionRecordId) &&
+                sources.contains(c.accountId),
+          )
+          .map((c) => c.accountId),
+    );
+    if (matches.length == 1) return matches.single;
+    return sources.isEmpty ? _newExcelAccountId : null;
+  }
+
+  void _resolveExcelIdentities() {
+    _excelIdentities = !_isExcel || _excelAccountId == null
+        ? {}
+        : resolveExcelRows(
+            rows: _statementTransactions,
+            accountId: _excelAccountId!,
+            currency: _excelAccount.currency,
+            history: widget.controller.synoballState,
+          );
+  }
+
+  bool _blocked(ParsedStatementTransaction row) =>
+      _isExcel &&
+      (_excelAccountId == null ||
+          _excelIdentities[row.id]?.reviewReason != null);
+  bool _alreadyImported(ParsedStatementTransaction row) =>
+      !_blocked(row) &&
+      (_isExcel
+          ? _excelIdentities[row.id]?.existing == true
+          : widget.controller.hasTransaction(row.id));
+  String _canonicalId(ParsedStatementTransaction row) =>
+      _isExcel ? _excelIdentities[row.id]!.canonicalId : row.id;
 
   List<ParsedStatementTransaction> get _statementTransactions =>
       _statement?.transactions ?? const [];
@@ -49,7 +137,8 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   List<ParsedStatementTransaction> get _eligibleTransactions =>
       _statementTransactions
           .where(
-            (transaction) => !widget.controller.hasTransaction(transaction.id),
+            (transaction) =>
+                !_alreadyImported(transaction) && !_blocked(transaction),
           )
           .toList(growable: false);
 
@@ -62,9 +151,8 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           .where((transaction) => _selectedIds.contains(transaction.id))
           .toList(growable: false);
 
-  bool get _hasExistingStatementTransactions => _statementTransactions.any(
-    (transaction) => widget.controller.hasTransaction(transaction.id),
-  );
+  bool get _hasExistingStatementTransactions =>
+      _statementTransactions.any(_alreadyImported);
 
   Future<void> _pickStatement() async {
     if (_loading) return;
@@ -98,23 +186,29 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
         ),
         _ => widget.parser.parse(file.text),
       };
-      final selected = statement.transactions
-          .where((item) => !widget.controller.hasTransaction(item.id))
-          .map((item) => item.id)
-          .toSet();
       setState(() {
         _loading = false;
         _fileName = file.fileName;
         _rawStatementText = file.text.isNotEmpty
             ? file.text
             : jsonEncode({
-                'source': 'qesto-excel-adapter-v1',
+                'source': 'qesto-excel-adapter-v2',
                 'fileName': file.fileName,
                 'byteLength': file.bytes?.length ?? 0,
                 'transactions': statement.transactions.length,
               });
         _statement = statement;
-        _selectedIds = selected;
+        _statementAccountId = statement.sourceAccountKey == null
+            ? '__new__'
+            : widget.controller.rememberedStatementAccount(
+                    statement.sourceAccountKey!,
+                  ) ??
+                  '__new__';
+        _newExcelAccountId =
+            'excel-source-${DateTime.now().microsecondsSinceEpoch}-account';
+        _excelAccountId = _isExcel ? _suggestExcelSource(file.fileName) : null;
+        _resolveExcelIdentities();
+        _selectedIds = _eligibleTransactions.map((r) => r.id).toSet();
       });
     } on UnsupportedBankStatementException catch (error) {
       _showError(error.message);
@@ -129,6 +223,11 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
 
   void _showError(String message) {
     if (!mounted) return;
+    if (_statement != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    }
     setState(() {
       _loading = false;
       _error = message;
@@ -146,7 +245,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   }
 
   void _toggleTransaction(ParsedStatementTransaction transaction) {
-    if (widget.controller.hasTransaction(transaction.id)) return;
+    if (_alreadyImported(transaction) || _blocked(transaction)) return;
     setState(() {
       if (!_selectedIds.add(transaction.id)) {
         _selectedIds.remove(transaction.id);
@@ -155,13 +254,28 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
   }
 
   Future<void> _importSelected() async {
+    if (_loading) return;
+    setState(() => _loading = true);
+    try {
+      await _importSelectedChecked();
+    } on Object {
+      _showError(
+        'Не удалось сохранить импорт. Данные не очищены; можно повторить.',
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _importSelectedChecked() async {
+    _resolveExcelIdentities();
     final selected = _selectedTransactions;
     final selectedIds = selected.map((item) => item.id).toSet();
     final transactionsToApply = _statementTransactions
         .where(
           (item) =>
-              selectedIds.contains(item.id) ||
-              widget.controller.hasTransaction(item.id),
+              !_blocked(item) &&
+              (selectedIds.contains(item.id) || _alreadyImported(item)),
         )
         .toList();
     if (transactionsToApply.isEmpty) return;
@@ -171,21 +285,30 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
         ? ''
         : ' • ${statement.accountLastFour}';
     final sourceId = statement.bankName == 'Excel'
-        ? 'excel-${_stableFileId(_fileName ?? 'excel')}'
+        ? _excelAccountId!.replaceFirst(RegExp(r'-account$'), '')
         : 'sber-${statement.accountLastFour ?? 'statement'}';
     final sourceTitle = statement.bankName == 'Excel'
         ? 'Импорт из Excel'
         : 'Счёт Сбербанка$accountSuffix';
-    final account = QestoAccount(
-      id: '$sourceId-account',
-      userId: currentAccount.userId,
-      title: sourceTitle,
-      balance: statement.closingBalanceRubles,
-      currency: statement.transactions.first.currency,
-      type: statement.bankName == 'Excel'
-          ? AccountType.other
-          : AccountType.bankCard,
-    );
+    final account = _isExcel
+        ? _excelAccount
+        : _statementAccountId != '__new__'
+        ? widget.controller.accounts.firstWhere(
+            (a) => a.id == _statementAccountId,
+          )
+        : QestoAccount(
+            id: statement.sourceAccountKey == null
+                ? '$sourceId-account'
+                : '${statement.sourceAccountKey}-account',
+            userId: currentAccount.userId,
+            title: sourceTitle,
+            balance: statement.closingBalanceRubles,
+            exactBalanceMinor: statement.closingBalanceMinor,
+            currency: statement.transactions.first.currency,
+            type: statement.bankName == 'Excel'
+                ? AccountType.other
+                : AccountType.bankCard,
+          );
     final capitalTotals = <String, _CapitalAccountDraft>{};
     for (final item in transactionsToApply) {
       final kind = item.capitalKind;
@@ -226,7 +349,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
       final exactAmount = _formatMinorMoney(item.amountMinor);
       transactions.add(
         BudgetTransaction(
-          id: item.id,
+          id: _canonicalId(item),
           userId: period.userId,
           accountId: account.id,
           date: item.operationDate,
@@ -251,6 +374,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
           tags: [
             'statement-import',
             if (statement.bankName == 'Excel') 'excel-import' else 'sberbank',
+            if (item.excelLegacyId != null) 'excel-cell:${item.excelLegacyId}',
             if (item.description.contains('агрегировано за период'))
               'excel-period-aggregate',
             if (item.capitalKind != null) 'excel-capital-allocation',
@@ -265,6 +389,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
         .map((period) => period.id)
         .where((id) => !knownPeriodIds.contains(id))
         .toSet();
+    IngestionOutcome? outcome;
     final importedCount = await widget.controller.importStatement(
       account: account,
       transactions: transactions,
@@ -272,11 +397,28 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
       actionTitle: 'Импорт ${_fileName ?? statement.bankName}',
       rawPayload: _rawStatementText,
       exactMinorById: {
-        for (final item in transactionsToApply) item.id: item.amountMinor.abs(),
+        for (final item in transactionsToApply)
+          _canonicalId(item): item.amountMinor.abs(),
+      },
+      providerTransactionIdsByTransactionId: {
+        for (final item in transactionsToApply) _canonicalId(item): item.id,
       },
       additionalAccounts: capitalAccounts,
+      institutionId: _isExcel ? null : 'sberbank',
+      confirmedSourceAccountKey: _isExcel ? null : statement.sourceAccountKey,
+      onIngestion: (value) => outcome = value,
     );
     if (!mounted) return;
+    final unresolved =
+        (outcome?.pendingCandidateIds.length ?? 0) +
+        (outcome?.failedCandidateIds.length ?? 0);
+    if (unresolved > 0) {
+      _showError(
+        'Добавлено: $importedCount. Требуют проверки или не приняты: '
+        '$unresolved. Импорт завершён не полностью.',
+      );
+      return;
+    }
     Navigator.of(context).pop(importedCount);
   }
 
@@ -307,14 +449,16 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 child: FilledButton.icon(
                   key: const Key('import-statement-transactions'),
                   onPressed:
-                      _selectedIds.isEmpty && !_hasExistingStatementTransactions
+                      _loading ||
+                          (_selectedTransactions.isEmpty &&
+                              !_hasExistingStatementTransactions)
                       ? null
                       : _importSelected,
                   icon: const Icon(Icons.download_done_rounded),
                   label: Text(
-                    _selectedIds.isEmpty
+                    _selectedTransactions.isEmpty
                         ? 'Обновить данные счёта'
-                        : 'Добавить выбранные (${_selectedIds.length})',
+                        : 'Добавить выбранные (${_selectedTransactions.length})',
                   ),
                 ),
               ),
@@ -336,7 +480,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                     ? Icons.table_view_rounded
                     : Icons.account_balance_rounded,
                 size: 58,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(height: 14),
               Text(
@@ -366,9 +510,9 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 const SizedBox(height: 14),
                 Text(
                   _error!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: QestoColors.orange),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.qestoColors.orange,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -376,6 +520,7 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
               if (excelOnly) ...[
                 DropdownButtonFormField<int?>(
                   key: const Key('excel-year-override'),
+                  isExpanded: true,
                   initialValue: _yearOverride,
                   decoration: const InputDecoration(
                     labelText: 'Год данных',
@@ -440,8 +585,8 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
         .length;
     final outgoingTransfers =
         (counts[StatementTransactionKind.transfer] ?? 0) - incomingTransfers;
-    final duplicates =
-        statement.transactions.length - _eligibleTransactions.length;
+    final duplicates = statement.transactions.where(_alreadyImported).length;
+    final blockedCount = statement.transactions.where(_blocked).length;
     final allSelected = _selectedIds.length == _eligibleTransactions.length;
 
     return ListView.builder(
@@ -461,6 +606,56 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                         _fileName ?? 'Финансовые данные',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
+                      if (_isExcel) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey(
+                            'excel-source-${_excelAccountId ?? 'choose'}',
+                          ),
+                          initialValue: _excelAccountId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Источник Excel',
+                          ),
+                          hint: const Text('Выберите источник таблицы'),
+                          items: [
+                            if (!_excelSources.any(
+                              (a) => a.id == _newExcelAccountId,
+                            ))
+                              DropdownMenuItem(
+                                value: _newExcelAccountId,
+                                child: const Text('Новый источник'),
+                              ),
+                            for (final account in _excelSources)
+                              DropdownMenuItem(
+                                value: account.id,
+                                child: Text(
+                                  account.title,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged: _loading
+                              ? null
+                              : (value) => setState(() {
+                                  _excelAccountId = value;
+                                  _resolveExcelIdentities();
+                                  _selectedIds = _eligibleTransactions
+                                      .map((r) => r.id)
+                                      .toSet();
+                                }),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Если вы переименовали или обновили книгу, выберите её '
+                          'прежний источник. Для независимой книги создайте новый.',
+                        ),
+                        if (blockedCount > 0 && _excelAccountId != null)
+                          Text(
+                            'Требуют проверки: $blockedCount. Эти строки не будут импортированы '
+                            'или автоматически заменены.',
+                          ),
+                      ],
                       const SizedBox(height: 6),
                       Text(
                         '${formatDate(statement.periodStart, includeYear: true)} — '
@@ -476,6 +671,68 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                       Text(
                         'Найдено операций: ${statement.transactions.length}',
                       ),
+                      if (!_isExcel) ...[
+                        const SizedBox(height: 12),
+                        DropdownButtonFormField<String>(
+                          key: ValueKey(
+                            'statement-account-$_statementAccountId',
+                          ),
+                          initialValue: _statementAccountId,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Счёт для операций выписки',
+                          ),
+                          items: [
+                            const DropdownMenuItem(
+                              value: '__new__',
+                              child: Text('Создать отдельный счёт'),
+                            ),
+                            for (final a in widget.controller.accounts.where(
+                              (a) =>
+                                  statement.transactions.isNotEmpty &&
+                                  a.currency ==
+                                      statement.transactions.first.currency,
+                            ))
+                              DropdownMenuItem(
+                                value: a.id,
+                                child: Text(
+                                  a.title,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                          ],
+                          onChanged:
+                              statement.sourceAccountKey != null &&
+                                  widget.controller.rememberedStatementAccount(
+                                        statement.sourceAccountKey!,
+                                      ) !=
+                                      null
+                              ? null
+                              : (value) => setState(
+                                  () =>
+                                      _statementAccountId = value ?? '__new__',
+                                ),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Если этот счёт уже подключён через банк, выберите его. '
+                          'Связь запомнится при наличии полного номера в выписке. '
+                          'Текущий баланс существующего счёта не изменится.',
+                        ),
+                      ],
+                      if (!_isExcel)
+                        Text(
+                          statement.hasReconciliationMismatch
+                              ? 'Внимание: распознанные строки или суммы не сходятся с выпиской. Импорт будет частичным; проверьте исходный документ.'
+                              : statement.controlTotalsVerified
+                              ? 'Итоги исходной выписки и остатки сошлись до копейки. При выборе части строк импортируется только выбранное.'
+                              : 'Сверка остатков недоступна: в документе не распознаны все контрольные итоги.',
+                          style: TextStyle(
+                            color: statement.hasReconciliationMismatch
+                                ? context.qestoColors.warning
+                                : context.qestoColors.secondaryText,
+                          ),
+                        ),
                       Text(
                         'Расходов: ${counts[StatementTransactionKind.expense]} · '
                         'возвратов: ${counts[StatementTransactionKind.refund]}',
@@ -499,10 +756,9 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                       if (_roundingCount > 0) ...[
                         const SizedBox(height: 8),
                         Text(
-                          'Суммы с копейками будут округлены до ближайшего рубля. '
-                          'Точная сумма сохранится в комментарии.',
+                          'Суммы сохраняются точно, включая копейки.',
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: QestoColors.orange),
+                              ?.copyWith(color: context.qestoColors.orange),
                         ),
                       ],
                     ],
@@ -531,15 +787,19 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
         }
 
         final transaction = _statementTransactions[index - 1];
-        final duplicate = widget.controller.hasTransaction(transaction.id);
+        final duplicate = _alreadyImported(transaction);
+        final blocked = _blocked(transaction);
         return Padding(
           padding: const EdgeInsets.only(bottom: 10),
           child: QestoCard(
             padding: EdgeInsets.zero,
             child: CheckboxListTile(
               key: Key('statement-transaction-${transaction.id}'),
-              value: !duplicate && _selectedIds.contains(transaction.id),
-              onChanged: duplicate
+              value:
+                  !duplicate &&
+                  !blocked &&
+                  _selectedIds.contains(transaction.id),
+              onChanged: duplicate || blocked || _loading
                   ? null
                   : (_) => _toggleTransaction(transaction),
               controlAffinity: ListTileControlAffinity.leading,
@@ -554,14 +814,17 @@ class _StatementImportScreenState extends State<StatementImportScreen> {
                 '${formatDate(transaction.operationDate, includeYear: true)} · '
                 '${_kindLabel(transaction.kind)} · '
                 '${_categoryName(transaction.category.categoryId)}'
-                '${duplicate ? ' · уже добавлено' : ''}',
+                '${duplicate ? ' · уже учтено (включая корзину)' : ''}'
+                '${blocked ? ' · ${_excelIdentities[transaction.id]?.reviewReason ?? 'выберите источник'}' : ''}',
               ),
               secondary: Text(
                 '${_amountSign(transaction)}'
                 '${_formatMinorMoney(transaction.amountMinor)} ₽',
                 style: TextStyle(
                   fontWeight: FontWeight.w800,
-                  color: _isCredit(transaction) ? QestoColors.primary : null,
+                  color: _isCredit(transaction)
+                      ? context.qestoColors.primary
+                      : null,
                 ),
               ),
             ),

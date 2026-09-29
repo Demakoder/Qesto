@@ -35,13 +35,13 @@ class StickyAppHeader extends StatelessWidget implements PreferredSizeWidget {
           onPressed: onHistoryPressed,
           tooltip: 'История действий',
           icon: const Icon(Icons.history_rounded, size: 27),
-          color: QestoColors.secondaryText,
+          color: context.qestoColors.secondaryText,
         ),
         IconButton(
           onPressed: onNotificationsPressed,
           tooltip: 'Уведомления',
           icon: const Icon(Icons.notifications_none_rounded, size: 27),
-          color: QestoColors.secondaryText,
+          color: context.qestoColors.secondaryText,
         ),
         const SizedBox(width: 2),
         Semantics(
@@ -53,17 +53,20 @@ class StickyAppHeader extends StatelessWidget implements PreferredSizeWidget {
             child: Container(
               width: 44,
               height: 44,
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Color(0xFFDDEAFF), Color(0xFFF4E4D2)],
+                  colors: [
+                    context.qestoColors.controlHighlight,
+                    context.qestoColors.controlMid,
+                  ],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.person_rounded,
-                color: Color(0xFF4B5874),
+                color: context.qestoColors.primary,
                 size: 27,
               ),
             ),

@@ -51,7 +51,7 @@ class UpcomingExpensesPreviewCard extends StatelessWidget {
                 onTap: () => onExpenseTap(preview[index]),
               ),
               if (index < preview.length - 1)
-                const Divider(height: 1, color: QestoColors.border),
+                Divider(height: 1, color: context.qestoColors.border),
             ],
           const SizedBox(height: 4),
           SizedBox(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../classification/classification_actions.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/formatters/qesto_formatters.dart';
@@ -8,6 +9,7 @@ import '../../../core/widgets/qesto_card.dart';
 import '../../../data/models/qesto_models.dart';
 import '../../budget/category_picker.dart';
 import '../../budget/state/budget_controller.dart';
+import '../../transaction_import/services/transaction_category_resolver.dart';
 import '../data/receipt_scanner_service.dart';
 import '../domain/receipt_models.dart';
 import '../services/receipt_ocr_parser.dart';
@@ -43,7 +45,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
   var _updatingExistingReceipt = false;
   String? _error;
   String? _selectedTransactionId;
+  String? _selectedAccountId;
   BudgetCategory? _selectedCategory;
+  var _categoryManuallySelected = false;
   ParsedFiscalReceipt? _receipt;
   ParsedReceiptDocument? _document;
   List<BudgetTransaction> _matches = const [];
@@ -98,6 +102,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         _createNew = matches.isEmpty;
         _updatingExistingReceipt = importedTransaction != null;
         _selectedCategory = category;
+        _categoryManuallySelected = false;
         _document = null;
       });
     } on PlatformException catch (error) {
@@ -149,6 +154,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
       _selectedTransactionId = matches.firstOrNull?.id;
       _createNew = matches.isEmpty;
       _selectedCategory = category;
+      _categoryManuallySelected = false;
       _document = null;
     });
   }
@@ -176,9 +182,15 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           merchant.isNotEmpty) {
         _merchantController.text = merchant;
       }
+      final resolvedCategory = merchant == null
+          ? null
+          : _categoryForMerchant(merchant);
       setState(() {
         _documentLoading = false;
         _document = document;
+        if (!_categoryManuallySelected && resolvedCategory != null) {
+          _selectedCategory = resolvedCategory;
+        }
       });
     } on PlatformException catch (error) {
       _showDocumentError(error.message ?? 'Не удалось распознать бумажный чек');
@@ -211,6 +223,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
     final category = await showBudgetCategoryPicker(
       context: context,
       categories: widget.controller.categories,
+      onCreate: () => editCategory(context, widget.controller),
       recentCategoryIds: widget.controller.transactions.reversed
           .map((item) => item.categoryId)
           .whereType<String>()
@@ -218,7 +231,10 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           .toList(),
     );
     if (category != null && mounted) {
-      setState(() => _selectedCategory = category);
+      setState(() {
+        _selectedCategory = category;
+        _categoryManuallySelected = true;
+      });
     }
   }
 
@@ -269,15 +285,21 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
       return;
     }
 
-    final category = _selectedCategory;
+    final enteredMerchant = _merchantController.text.trim();
+    final category = _categoryManuallySelected
+        ? _selectedCategory
+        : _categoryForMerchant(enteredMerchant) ?? _selectedCategory;
     if (category == null) {
       _showError('Выберите категорию операции');
       return;
     }
     final period = widget.controller.periodForOrCreate(receipt.purchasedAt);
     final account = widget.controller.accounts.firstWhere(
-      (item) => item.type != AccountType.liability,
-      orElse: () => widget.controller.accounts.first,
+      (item) => item.id == _selectedAccountId,
+      orElse: () => widget.controller.accounts.firstWhere(
+        (item) => item.type != AccountType.liability,
+        orElse: () => widget.controller.accounts.first,
+      ),
     );
     final merchant = _merchantController.text.trim();
     final title = merchant.isEmpty ? 'Кассовый чек' : merchant;
@@ -298,7 +320,14 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         description: 'Импортировано по QR-коду кассового чека',
         comment: _receiptComment(receipt),
         normalizedMerchant: _normalizeMerchant(title),
-        tags: ['receipt-import', receipt.transactionTag],
+        tags: [
+          'receipt-import',
+          receipt.transactionTag,
+          if (_categoryManuallySelected) ...[
+            'qesto-manual-category',
+            'user-field:category',
+          ],
+        ],
         receipt: receiptDetails,
       ),
       rawPayload: receipt.rawQr,
@@ -310,6 +339,14 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           ? 'Возврат из чека добавлен'
           : 'Расход из чека добавлен',
     );
+  }
+
+  BudgetCategory? _categoryForMerchant(String merchant) {
+    if (merchant.trim().isEmpty) return null;
+    final resolved = const TransactionCategoryResolver().resolve(merchant);
+    return widget.controller.categories
+        .where((category) => category.id == resolved.categoryId)
+        .firstOrNull;
   }
 
   TransactionReceiptDetails _buildReceiptDetails(ParsedFiscalReceipt receipt) {
@@ -393,10 +430,10 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         QestoCard(
           child: Column(
             children: [
-              const Icon(
+              Icon(
                 Icons.qr_code_scanner_rounded,
                 size: 58,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(height: 14),
               Text(
@@ -418,9 +455,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                 const SizedBox(height: 14),
                 Text(
                   _error!,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: QestoColors.orange),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: context.qestoColors.orange,
+                  ),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -496,9 +533,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
                 Text(
                   'В бюджете сумма будет округлена до ближайшего рубля. '
                   'Точная сумма сохранится в комментарии.',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: context.qestoColors.orange,
+                  ),
                 ),
               ],
             ],
@@ -577,7 +614,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
             _error!,
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium?.copyWith(color: QestoColors.orange),
+            ).textTheme.bodyMedium?.copyWith(color: context.qestoColors.orange),
             textAlign: TextAlign.center,
           ),
         ],
@@ -594,9 +631,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
         children: [
           Row(
             children: [
-              const Icon(
+              Icon(
                 Icons.document_scanner_rounded,
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
               ),
               const SizedBox(width: 10),
               Expanded(
@@ -642,9 +679,9 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
               Text(
                 'Текст прочитан, но надёжно выделить товары не удалось. '
                 'Название магазина можно указать вручную.',
-                style: Theme.of(
-                  context,
-                ).textTheme.bodySmall?.copyWith(color: QestoColors.orange),
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: context.qestoColors.orange,
+                ),
               )
             else ...[
               Text(
@@ -682,10 +719,13 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
 
   Widget _buildNewTransactionFields(BuildContext context) {
     final category = _selectedCategory;
-    final account = widget.controller.accounts.firstWhere(
-      (item) => item.type != AccountType.liability,
-      orElse: () => widget.controller.accounts.first,
-    );
+    final accounts = widget.controller.accounts
+        .where((item) => item.type != AccountType.liability)
+        .toList(growable: false);
+    final selectedAccountId =
+        accounts.any((account) => account.id == _selectedAccountId)
+        ? _selectedAccountId
+        : accounts.firstOrNull?.id;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -707,7 +747,7 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
           onTap: _pickCategory,
           child: Row(
             children: [
-              const Icon(Icons.category_rounded, color: QestoColors.primary),
+              Icon(Icons.category_rounded, color: context.qestoColors.primary),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -728,10 +768,20 @@ class _ReceiptImportScreenState extends State<ReceiptImportScreen> {
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Счёт: ${account.title}',
-          style: Theme.of(context).textTheme.bodySmall,
+        const SizedBox(height: 10),
+        DropdownButtonFormField<String>(
+          key: const Key('receipt-account-field'),
+          initialValue: selectedAccountId,
+          decoration: const InputDecoration(
+            labelText: 'Счёт',
+            prefixIcon: Icon(Icons.account_balance_wallet_outlined),
+            border: OutlineInputBorder(),
+          ),
+          items: [
+            for (final account in accounts)
+              DropdownMenuItem(value: account.id, child: Text(account.title)),
+          ],
+          onChanged: (value) => setState(() => _selectedAccountId = value),
         ),
       ],
     );
@@ -761,7 +811,9 @@ class _ReceiptChoice extends StatelessWidget {
             selected
                 ? Icons.radio_button_checked_rounded
                 : Icons.radio_button_off_rounded,
-            color: selected ? QestoColors.primary : QestoColors.secondaryText,
+            color: selected
+                ? context.qestoColors.primary
+                : context.qestoColors.secondaryText,
           ),
           const SizedBox(width: 12),
           Expanded(

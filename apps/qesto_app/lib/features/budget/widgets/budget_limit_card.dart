@@ -22,10 +22,10 @@ class BudgetLimitCard extends StatelessWidget {
     final hasBudget = summary.hasAssignedBudget;
     final exceeded = hasBudget && summary.remainingAmount < 0;
     final accent = !hasBudget
-        ? QestoColors.secondaryText
+        ? context.qestoColors.secondaryText
         : exceeded
-        ? QestoColors.danger
-        : QestoColors.primary;
+        ? context.qestoColors.danger
+        : context.qestoColors.primary;
     final percent = hasBudget ? formatPercent(summary.progress) : 'Не назначен';
     final periodName = formatBudgetPeriod(period.month, period.year);
 
@@ -38,7 +38,7 @@ class BudgetLimitCard extends StatelessWidget {
           Text(
             'Бюджет на $periodName',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: QestoColors.secondaryText,
+              color: context.qestoColors.secondaryText,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -62,7 +62,7 @@ class BudgetLimitCard extends StatelessWidget {
                             ? '/ ${formatMoney(period.totalPlan, period.currency)}'
                             : '/ бюджет не назначен',
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                     ),
@@ -95,7 +95,9 @@ class BudgetLimitCard extends StatelessWidget {
                 ? 'Превышение лимита на ${formatMoney(summary.remainingAmount.abs(), period.currency)}'
                 : 'Осталось ${formatMoney(summary.remainingAmount, period.currency)} до лимита',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: exceeded ? QestoColors.danger : QestoColors.secondaryText,
+              color: exceeded
+                  ? context.qestoColors.danger
+                  : context.qestoColors.secondaryText,
               fontWeight: FontWeight.w600,
             ),
           ),

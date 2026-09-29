@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="ru" data-material="silver" data-brand="petrol">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Qesto Financial Computer — Retro Future / Design Lab 3.0</title>
+<meta name="description" content="Автономный Qesto Design Lab: финансовый компьютер из альтернативного 2005 года. Только демонстрационные данные.">
+<style>
+
+/* Qesto v3: local, dependency-free experiment. Brand and financial colors are separate. */
+:root{
+ color-scheme:light;--desk:#dfe7e8;--desk-light:#f4f8f5;--body:#f7faf8;--well:#eaf0ee;
+ --metal-light:#ffffff;--metal:#e0e8e8;--metal-low:#bccbcd;--ink:#243c43;--muted:#586d73;
+ --border:#8a9fa4;--line:#d1dddf;--white:#fff;--bevel-low:#a4b7bd;
+ --green:#00764f;--red:#8b2f41;--green-soft:#e7f3ec;--red-soft:#f5e9ed;
+ --brand:#006b6b;--brand-ink:#004f50;--brand-soft:#d1e9e5;--brand-line:#82b9b3;
+ --focus:var(--brand-ink);--select:var(--brand-soft);
+ --screen:#172c34;--screen-deep:#0e1e25;--screen-line:#324c55;--screen-text:#dbe7e9;--screen-muted:#9fb8bf;--screen-expense:#ffb0c1;
+ --ui:'Segoe UI',Arial,sans-serif;--display:Georgia,'Times New Roman',serif;--mono:Consolas,'Liberation Mono',monospace;
+ --header:57px;--menu:36px;--taskbar:46px;
+ --shadow:0 2px 2px #1c394225,0 16px 22px -14px #263f4957;
+ --hover:0 3px 4px #1c394229,0 21px 28px -14px #263f4960;
+}
+html[data-brand="jade"]{--brand:#008f7a;--brand-ink:#006958;--brand-soft:#d0ede2;--brand-line:#79b8a7}
+html[data-brand="cold"]{--brand:#367c86;--brand-ink:#245d68;--brand-soft:#d7e9ef;--brand-line:#88b1bc}
+html[data-material="graphite"]{color-scheme:dark;--desk:#36474d;--desk-light:#52636a;--body:#45585e;--well:#3b4d54;--metal-light:#85969b;--metal:#64787f;--metal-low:#455b64;--ink:#f3f7f5;--muted:#c9d8db;--border:#8fa4ab;--line:#61777e;--white:#aabcc0;--bevel-low:#314a52;--green:#8ee5b6;--red:#ffb0c1;--green-soft:#355d4f;--red-soft:#654a58;--brand-ink:#ecfaf7;--brand-soft:#3d6268;--brand-line:#93c8c5;--focus:#d9f0ed;--shadow:0 3px 4px #11242b55,0 15px 25px -10px #10242d66;--hover:0 4px 8px #11242b55,0 23px 26px -10px #10242d99}
+html[data-material="paper"]{color-scheme:light;--desk:#e6e1d3;--desk-light:#f3f0e7;--body:#fffdf3;--well:#f0edde;--metal-light:#fffdf5;--metal:#e5dfce;--metal-low:#d2c9b2;--ink:#383f36;--muted:#687064;--border:#9c9d8b;--line:#dedbcc;--white:#fffefa;--bevel-low:#b4b29e;--shadow:0 3px 0 #a7a58e55,0 9px 15px #64644814;--hover:0 4px 0 #a7a58e55,0 15px 24px #64644823}
+*{box-sizing:border-box}body{margin:0;background:var(--desk);color:var(--ink);font:13px/1.45 var(--ui)}
+button,input,select,textarea{font:inherit;color:inherit}button{cursor:pointer;touch-action:manipulation}button:disabled{cursor:default;opacity:.5}[hidden]{display:none!important}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:3px}
+::selection{background:var(--brand-soft);color:var(--brand-ink)}.mono{font:11px var(--mono);letter-spacing:.025em}.muted{color:var(--muted)}.positive{color:var(--green)}.negative{color:var(--red)}
+.metal{background:linear-gradient(180deg,var(--metal-light),var(--metal) 53%,var(--metal-low));box-shadow:inset 0 1px var(--white)}
+.raised{border:1px solid var(--border);border-radius:3px;background:linear-gradient(var(--metal-light),var(--metal) 65%,var(--metal-low));box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),0 1px 1px #14323d18}
+.raised:hover{border-color:var(--brand-line);background:linear-gradient(var(--white),var(--metal))}
+.raised:active,.raised[aria-pressed="true"]{color:var(--brand-ink);background:var(--brand-soft);box-shadow:inset 1px 1px var(--bevel-low),inset -1px -1px var(--white)}
+.system-button{padding:5px 11px;min-height:30px;font-size:12px}.system-button.primary{color:var(--brand-ink);font-weight:650}
+.app-shell{height:100vh;height:100dvh;display:grid;grid-template-rows:var(--header) var(--menu) minmax(0,1fr) var(--taskbar);overflow:hidden}
+.system-header{display:flex;align-items:center;padding:8px 22px;gap:24px;border-bottom:1px solid var(--border);z-index:50}
+.brand{display:flex;gap:10px;align-items:center;font-size:27px;font-weight:700;letter-spacing:-1.3px}
+.brand-mark{display:grid;place-items:center;color:var(--brand-ink);width:30px;height:32px;background:linear-gradient(var(--white),var(--brand-soft));border:1px solid var(--brand-line);box-shadow:inset 1px 1px var(--white),0 2px 2px #123d411a;border-radius:8px}
+.brand-mark svg{width:19px;height:19px;stroke-width:1.6}.brand small{font:10px var(--mono);letter-spacing:.06em;color:var(--muted);border-left:1px solid var(--bevel-low);padding-left:12px;margin-left:5px}
+.environment{display:flex;gap:4px;flex-direction:column}.environment strong{font:11px var(--mono);letter-spacing:.15em;font-weight:400}.environment small{font:10px var(--mono);color:var(--muted);letter-spacing:.045em}
+.header-actions{margin-left:auto;display:flex;gap:11px;align-items:center}
+.period{display:flex;gap:14px;align-items:center;border:1px solid var(--border);box-shadow:inset 1px 1px var(--bevel-low),inset -1px -1px var(--white);background:var(--well);padding:6px 11px;font-size:12px}.period .mono{font-size:10px;color:var(--muted)}
+.menu-bar{display:flex;align-items:center;gap:5px;padding:3px 17px;border-bottom:1px solid var(--border);background:var(--metal);box-shadow:inset 0 1px var(--white);z-index:49;position:relative}
+.menu-label{font-size:11px;font-weight:600;padding:3px 10px;margin-right:4px;border-right:1px solid var(--bevel-low)}
+.menu-button{border:1px solid transparent;padding:3px 10px;min-height:28px;background:none;border-radius:2px;font-size:12px}.menu-button:hover,.menu-button[aria-expanded="true"]{border-color:var(--border);background:var(--metal-light);box-shadow:inset 1px 1px var(--white)}
+.menu-meta{margin-left:auto;font:10px var(--mono);color:var(--muted);display:flex;gap:16px;align-items:center}.demo{border:1px solid var(--border);padding:2px 6px;background:var(--well);letter-spacing:.08em}
+.window-menu{position:absolute;left:139px;top:32px;width:295px;padding:4px;z-index:60;background:var(--metal);border:1px solid var(--border);box-shadow:inset 1px 1px var(--white),3px 5px 10px #23394730}
+.window-menu button{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 10px;border:0;background:none;text-align:left}.window-menu button:hover,.window-menu button:focus-visible{background:var(--select);color:var(--brand-ink)}.window-menu small{color:var(--muted);font:10px var(--mono)}
+.workspace{overflow:auto;position:relative;padding:20px 30px 36px;background:radial-gradient(ellipse at 16% 0%,var(--desk-light),transparent 64%),radial-gradient(ellipse at 95% 80%,var(--brand-soft),transparent 58%),var(--desk);scrollbar-color:var(--border) var(--metal);scrollbar-width:thin}
+.workspace-label{display:flex;justify-content:space-between;align-items:center;max-width:1570px;margin:0 auto 12px;color:var(--muted);font:10px var(--mono);letter-spacing:.075em;gap:15px}.workspace-label strong{font-weight:400}.workspace-label span:last-child{letter-spacing:0}
+.window-grid{max-width:1570px;margin:auto;display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px 21px;align-items:start}
+.window{min-width:0;background:linear-gradient(155deg,var(--metal-light),var(--metal) 36%,var(--metal-low));padding:5px;border:1px solid var(--border);border-radius:6px;box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),0 0 0 1px #ffffff30,var(--shadow);display:flex;flex-direction:column;position:relative;transition:box-shadow .18s,border-color .18s}
+.window::after{content:"";position:absolute;pointer-events:none;inset:2px;border:1px solid #ffffff60;border-bottom-color:#233f4920;border-radius:3px}
+@media(hover:hover){.window:not(.maximized):hover{box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),var(--hover);border-color:var(--brand-line)}}
+.window.active{border-color:var(--brand);box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),0 0 0 1px var(--brand-line),var(--hover);z-index:2}
+.window-title{display:flex;align-items:center;justify-content:space-between;gap:9px;min-height:45px;padding:5px 5px 5px 9px;background:linear-gradient(180deg,var(--metal-light),var(--metal) 55%,var(--metal-low));border:1px solid var(--bevel-low);box-shadow:inset 0 1px var(--white);user-select:none;flex-shrink:0;border-radius:2px}
+.window.active .window-title{background:linear-gradient(180deg,var(--white),var(--brand-soft) 72%,var(--metal));border-left:3px solid var(--brand);padding-left:7px}
+.window-title h2{display:flex;align-items:center;gap:9px;font-size:12px;font-weight:650;letter-spacing:.045em;margin:0;min-width:0}
+.title-copy{display:flex;flex-direction:column;gap:1px;min-width:0}.title-copy>span{white-space:nowrap}.title-copy small{font:9px var(--mono);letter-spacing:.065em;color:var(--muted)}
+.module-icon{display:grid;place-items:center;width:25px;height:28px;flex-shrink:0;color:var(--muted)}.module-icon svg{width:21px;height:21px;stroke-width:1.55}.window.active .module-icon{color:var(--brand-ink)}
+.window-controls{display:flex;gap:3px;flex-shrink:0}.control{width:27px;height:25px;padding:0;display:grid;place-items:center;font:17px/1 Arial,sans-serif}.control.close:hover{background:var(--red-soft);color:var(--red)}.control:active{padding-top:2px}
+.client{background:linear-gradient(135deg,var(--body),var(--well));border:1px solid var(--border);border-top-color:var(--bevel-low);margin-top:5px;min-height:0;flex:1;box-shadow:inset 0 1px 3px #18373f0c}
+.status-line{display:flex;gap:3px;padding-top:4px;font:9px/1.3 var(--mono);color:var(--muted);flex-shrink:0}
+.status-cell{border:1px solid var(--bevel-low);box-shadow:inset 1px 1px #3247510b,inset -1px -1px var(--white);padding:4px 6px;min-width:0}.status-cell:first-child{flex:1}
+.status-line .grip{width:12px;flex-shrink:0;background:repeating-linear-gradient(135deg,transparent 0 3px,var(--bevel-low) 3px 4px,transparent 4px 6px);margin:7px 2px 0 3px;height:11px;opacity:.6}
+.kicker{color:var(--muted);font:10px var(--mono);letter-spacing:.1em}
+.capital{grid-column:1/6;grid-row:1;min-height:356px}
+.capital .client{padding:22px 26px 21px;position:relative;display:flex;flex-direction:column;justify-content:center;background:radial-gradient(ellipse at 5% 0%,var(--white),transparent 85%),linear-gradient(145deg,var(--body),var(--well))}
+.capital-top{display:flex;justify-content:space-between;align-items:center;gap:12px}.position-code{font:10px var(--mono);color:var(--muted);border-bottom:1px solid var(--line);padding-bottom:4px}
+.capital-value{font:clamp(60px,6.8vw,103px)/1.12 var(--display);letter-spacing:-4.5px;font-variant-numeric:lining-nums tabular-nums;white-space:nowrap;margin:23px 0 22px;position:relative;color:var(--ink);text-shadow:0 2px 0 var(--white)}
+.capital-value .currency{font-size:.46em;letter-spacing:-1px;color:var(--muted);vertical-align:12%}
+.capital-bottom{display:flex;justify-content:space-between;gap:16px;align-items:end;border-top:1px solid var(--line);padding-top:15px}
+.position-change{display:flex;align-items:baseline;gap:10px}.position-change strong{font:30px/1 var(--display);letter-spacing:-.5px;font-variant-numeric:lining-nums}.position-change small{font:9px/1.4 var(--mono);color:var(--muted)}
+.capital-meta{font:10px/1.6 var(--mono);color:var(--muted);text-align:right}
+.analysis{grid-column:6/13;grid-row:1;margin-top:23px;min-height:380px}
+.module-toolbar{display:flex;gap:12px;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--well);border-bottom:1px solid var(--line);font-size:11px}.tool-group{display:flex;gap:4px;align-items:center}.tool-group .system-button{padding:3px 9px;min-height:26px;font-size:11px}
+.analysis-content{padding:12px}
+.analysis-summary{display:flex;align-items:center;justify-content:space-between;gap:20px;margin:0 3px 11px}.analysis-value{font:32px/1.05 var(--display);letter-spacing:-.7px;margin-top:5px}.analysis-period{display:grid;gap:3px;font:11px var(--mono);color:var(--muted);text-align:right}.analysis-period strong{font-weight:400;color:var(--green)}
+.chart-panel{border:1px solid #5d7781;border-radius:5px;background:radial-gradient(ellipse at 45% -30%,#385760,transparent 70%),linear-gradient(180deg,var(--screen),var(--screen-deep));box-shadow:inset 0 3px 8px #03182090,0 1px var(--white),0 0 0 3px var(--metal);position:relative;overflow:hidden}
+.screen-header{padding:10px 13px 0;display:flex;justify-content:space-between;gap:10px;color:var(--screen-muted);font:9px var(--mono);letter-spacing:.065em}
+.screen-header span:first-child{color:var(--screen-text)}
+.chart-panel svg{display:block;width:100%;height:190px;cursor:crosshair;touch-action:pan-y}
+.chart-panel svg:focus-visible{outline-color:var(--screen-text);outline-offset:-3px}
+.chart-caption{display:flex;gap:12px;justify-content:space-between;margin:10px 2px 0;color:var(--muted);font:10px var(--mono)}
+.chart-caption .line{border-top:2px solid var(--red);display:inline-block;width:14px;vertical-align:middle;margin-right:5px}
+.chart-tip{position:absolute;pointer-events:none;top:35px;padding:7px 10px;background:#263e46;border:1px solid #6b858d;box-shadow:2px 3px 9px #03182066;font:10px var(--mono);color:#edf5f3;min-width:145px;z-index:2}.chart-tip strong{display:block;font:23px var(--display);margin-top:3px;color:var(--screen-expense)}
+.ai{grid-column:1/4;grid-row:2;margin-top:8px;min-height:298px}
+.ai .client{padding:16px;display:flex;flex-direction:column;gap:13px}
+.core-status{display:flex;justify-content:space-between;align-items:start;gap:7px;font:9px var(--mono);color:var(--muted);padding-bottom:10px;border-bottom:1px solid var(--line)}.core-status strong{display:block;font-size:10px;color:var(--brand-ink);font-weight:400;margin-top:4px;line-height:1.45}
+.core-chip{display:grid;place-items:center;border:1px solid var(--brand-line);box-shadow:inset 1px 1px var(--white);background:var(--brand-soft);color:var(--brand-ink);width:31px;height:31px;flex-shrink:0}.core-chip svg{width:19px;height:19px;stroke-width:1.4}
+.ai-observation{display:flex;gap:11px;align-items:center}.ai-delta{font:43px/1 var(--display);letter-spacing:-1px;color:var(--red);white-space:nowrap}.ai-observation p{margin:0;font-size:12px;line-height:1.6}
+.report-action{font-size:12px;border-left:2px solid var(--brand-line);padding-left:10px}.report-action .kicker{display:block;margin-bottom:4px;font-size:9px}
+.ai .system-button{align-self:start;font-size:11px}.ai-detail{margin:0;color:var(--muted);font-size:11px;border-top:1px solid var(--line);padding-top:10px}.ai-sample{font:9px var(--mono);color:var(--muted)}
+.log{grid-column:4/10;grid-row:2;margin-top:0;min-height:365px}.log .client{display:flex;flex-direction:column}.log .module-toolbar{flex-wrap:wrap;gap:7px}
+.search{background:var(--body);border:1px solid var(--border);box-shadow:inset 1px 1px #32475216;min-height:27px;padding:4px 7px;font-size:11px;width:146px;max-width:100%}
+.table-scroll{overflow:auto;flex:1;scrollbar-width:thin}
+table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:11px;text-align:left}
+th{position:sticky;top:0;z-index:1;background:linear-gradient(var(--metal-light),var(--metal));font:10px var(--mono);box-shadow:inset 0 1px var(--white)}
+th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:9px 9px}th:last-child,td:last-child{border-right:0}tbody tr:nth-child(even){background:var(--well)}tbody tr:hover{background:var(--select)}tbody tr:last-child td{border-bottom:0}
+.row-index{width:30px;padding:8px 7px;text-align:center;background:var(--metal);font:10px var(--mono);color:var(--muted)}.date{font:10px var(--mono);color:var(--muted)}.amount{text-align:right;font:12px var(--mono);font-variant-numeric:tabular-nums}.category{color:var(--muted);font-size:11px}.record-status{font:9px var(--mono);color:var(--muted)}
+.sort{font:inherit;border:0;background:none;padding:0;display:block;text-align:inherit;width:100%;min-height:20px}.empty{text-align:center;padding:27px;color:var(--muted)}
+.ledger-total{display:flex;justify-content:space-between;gap:14px;background:var(--well);border-top:1px solid var(--border);padding:8px 10px;font:10px var(--mono)}.ledger-total span{display:flex;gap:8px}
+.material{grid-column:10/13;grid-row:2;margin-top:33px;min-height:315px}.material .client{padding:11px}
+.material fieldset{border:1px solid var(--bevel-low);box-shadow:inset 1px 1px var(--white);padding:6px;margin:0}.material legend{padding:0 5px;font:9px var(--mono);color:var(--muted)}
+.material-options{display:grid;gap:3px}.material-option{display:flex;width:100%;align-items:center;gap:7px;padding:4px 6px;border:1px solid transparent;background:none;text-align:left;font-size:11px;min-height:27px}.material-option:hover{background:var(--well)}.material-option[aria-pressed="true"]{border-color:var(--brand-line);background:var(--select);color:var(--brand-ink);box-shadow:inset 1px 1px var(--bevel-low),inset -1px -1px var(--white)}
+.sample{width:15px;height:15px;flex-shrink:0;border:1px solid #8f9ca2;box-shadow:inset 1px 1px #ffffff99}.sample.silver{background:linear-gradient(#fff,#bbcdd0)}.sample.graphite{background:linear-gradient(#81949c,#455d68)}.sample.paper{background:#f3ecdc}.material-check{margin-left:auto;font:9px var(--mono)}
+.brand-group{margin-top:11px!important}.brand-options{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.brand-option{min-width:0;border:1px solid var(--border);border-radius:2px;padding:5px 2px;background:var(--body);font:9px var(--mono);text-align:center}.brand-option[aria-pressed="true"]{outline:1px solid var(--brand);border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+.brand-swatch{display:block;height:10px;margin-bottom:5px}.brand-swatch.petrol{background:#006b6b}.brand-swatch.jade{background:#008f7a}.brand-swatch.cold{background:#367c86}
+.material-setting{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:10px}.material-setting select{min-width:0;max-width:112px;background:var(--well);border:1px solid var(--border);padding:3px;font-size:10px;height:26px}.material-setting input{max-width:100px;width:48%;accent-color:var(--brand)}
+.brand-readout{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font:9px var(--mono);color:var(--muted)}
+.taskbar{padding:5px 7px;display:flex;gap:7px;align-items:center;border-top:1px solid var(--border);z-index:51;box-shadow:inset 0 1px var(--white);min-width:0}.desktop-button{font-weight:700;color:var(--brand-ink);padding:5px 13px;min-height:32px;flex-shrink:0}
+.task-list{display:flex;gap:5px;flex:1;min-width:0;overflow:auto;scrollbar-width:none}.task-button{display:flex;gap:7px;align-items:center;min-width:103px;max-width:174px;flex:1;padding:6px 9px;height:32px;font-size:11px;white-space:nowrap}.task-button.minimized{color:var(--muted)}.task-button .task-state{font:9px var(--mono);opacity:.6;margin-left:auto}.task-button[aria-pressed="true"]{border-bottom:2px solid var(--brand)}
+.tray{display:flex;border:1px solid var(--bevel-low);box-shadow:inset 1px 1px #24374612,inset -1px -1px var(--white);min-height:31px;align-items:center;gap:12px;padding:4px 9px;font:9px var(--mono);flex-shrink:0}.tray span+span{border-left:1px solid var(--bevel-low);padding-left:10px}
+.empty-desktop{max-width:440px;margin:80px auto;text-align:center;color:var(--muted);padding:30px}.empty-desktop h1{font-size:20px;font-weight:500;margin:0 0 12px}.empty-desktop p{font-size:13px;margin:0 0 18px}
+.window.maximized{position:fixed;inset:calc(var(--header) + var(--menu) + 8px) 8px calc(var(--taskbar) + 8px);margin:0;min-height:0;z-index:40;animation:maximize .2s ease;box-shadow:inset 1px 1px var(--white),inset -1px -1px var(--bevel-low),0 4px 16px #26394626}
+.maximized .client{overflow:auto}.maximized.capital .client{align-items:center}.maximized .capital-top,.maximized .capital-bottom{width:min(640px,100%)}.maximized .capital-value{font-size:clamp(68px,14vw,160px);margin:40px 0}.maximized.analysis .analysis-content{max-width:1300px;margin:16px auto;width:100%}.maximized .chart-panel svg{height:clamp(250px,47vh,600px)}.maximized .analysis-value{font-size:48px}
+.maximized.material .client{padding:30px max(25px,calc((100% - 550px)/2))}.maximized.ai .client{padding:35px max(25px,calc((100% - 560px)/2));justify-content:center}.maximized.ai .ai-delta{font-size:74px}.maximized.ai .system-button{margin-top:0}.maximized table th,.maximized table td{padding-top:13px;padding-bottom:13px}
+.toast{position:fixed;bottom:calc(var(--taskbar) + 12px);right:16px;z-index:80;border:1px solid var(--border);background:var(--body);padding:12px 16px;box-shadow:var(--shadow);max-width:calc(100vw - 32px);font-size:12px}
+dialog{width:min(720px,94vw);border:1px solid var(--border);border-radius:4px;padding:4px;background:var(--metal);color:var(--ink);box-shadow:inset 1px 1px var(--white),0 14px 50px #182b3540}dialog::backdrop{background:#23364555}.dialog-title{padding:8px 12px;background:linear-gradient(var(--white),var(--brand-soft));font-size:13px;font-weight:600}.dialog-client{background:var(--body);padding:15px;border:1px solid var(--border);margin-top:3px}.dialog-client p{font-size:12px;margin:0 0 12px}.dialog-client textarea{width:100%;height:240px;border:1px solid var(--border);background:var(--well);padding:10px;font:11px var(--mono);resize:vertical}.dialog-actions{display:flex;gap:9px;justify-content:flex-end;margin-top:12px}
+@keyframes maximize{from{opacity:.8;transform:scale(.985)}to{opacity:1;transform:scale(1)}}
+@media(min-width:1650px){.workspace{padding:28px 42px 36px}.window-grid{gap:20px 26px}.capital{min-height:391px}.capital .client{padding:26px 34px}.capital-value{font-size:110px;margin:30px 0}.analysis{margin-top:30px;min-height:412px}.chart-panel svg{height:213px}.ai{margin-top:17px;min-height:316px}.material{margin-top:37px}.log{min-height:382px}}
+@media(max-width:1230px){.workspace{padding:16px 18px 26px}.window-grid{gap:16px;grid-template-columns:repeat(12,minmax(0,1fr))}.capital{grid-column:1/6;min-height:335px}.analysis{grid-column:6/13}.capital .client{padding:19px}.capital-value{font-size:clamp(54px,7vw,80px);letter-spacing:-3px}.position-change strong{font-size:26px}.position-change{gap:7px}.capital-meta{font-size:9px}.ai{grid-column:1/5;grid-row:2;min-height:280px}.material{grid-column:1/5;grid-row:3;margin-top:0}.log{grid-column:5/13;grid-row:2/4;min-height:380px}.environment{display:none}.tray .material-tray{display:none}.log table{font-size:12px}.analysis-summary{gap:10px}.analysis-period{font-size:10px}.analysis-value{font-size:30px}.title-copy>span{font-size:11px}.window-controls{gap:2px}.control{width:25px}.ai .title-copy>span,.material .title-copy>span{font-size:10px}}
+@media(max-width:780px){:root{--header:53px;--menu:37px;--taskbar:49px}.system-header{padding:8px 10px;gap:10px}.brand{font-size:22px}.brand small,.period .mono,.menu-label,.menu-meta .hint,.workspace-label span:last-child{display:none}.brand-mark{width:25px;height:29px}.period{padding:5px 7px;font-size:11px}.header-actions{gap:6px}.header-actions .system-button{padding:5px 7px;font-size:11px}.menu-bar{padding:3px 8px;gap:0}.menu-button{padding:4px 8px;font-size:11px}.menu-meta{font-size:9px}.window-menu{left:8px;top:34px}.workspace{padding:12px 10px 24px}.window-grid{grid-template-columns:minmax(0,1fr);gap:17px}.window{grid-column:1;grid-row:auto;margin:0;min-height:0}.capital{order:0}.analysis{order:1}.ai{order:3}.log{order:2}.material{order:4}.capital .client{padding:23px 25px}.capital-value{font-size:clamp(56px,12vw,89px);margin:20px 0}.capital-top{font-size:10px}.title-copy>span,.ai .title-copy>span,.material .title-copy>span{font-size:12px}.title-copy small{font-size:9px}.control{width:30px;height:28px}.analysis .module-toolbar{flex-wrap:wrap;gap:8px}.analysis-period{font-size:10px}.analysis-value{font-size:32px}.chart-panel svg{height:231px}.chart-caption{font-size:9px}.ai .client{padding:20px}.ai-observation{gap:15px}.material .client{padding:17px}.material-options{grid-template-columns:repeat(3,1fr);gap:6px}.material-option{flex-direction:column;align-items:start;padding:7px;font-size:11px}.material-check{margin-left:0;min-height:11px}.brand-options{gap:8px}.brand-option{font-size:10px;padding:8px}.material-setting{font-size:12px}.material-setting select{font-size:12px;height:29px;max-width:155px}.log{min-height:340px}.task-button{min-width:103px;flex:none;font-size:11px}.task-button .task-state{display:none}.tray .material-tray,.tray .demo-tray{display:none}.tray{padding:4px 7px}.tray span+span{border:0;padding:0}.desktop-button{padding:6px 9px;font-size:12px}.maximized.capital .client{padding:20px}.maximized .capital-value{font-size:clamp(51px,13vw,115px)}.maximized.analysis .analysis-content{margin:0}.maximized .chart-panel svg{height:40vh}}
+@media(max-width:380px){.header-actions .period{display:none}.brand small{display:none}.window-title{gap:4px;padding-left:6px}.title-copy>span,.ai .title-copy>span,.material .title-copy>span{font-size:10px}.module-icon{width:21px}.control{width:26px}.capital .client{padding:20px 15px}.capital-value{letter-spacing:-2.5px;font-size:58px}.position-change strong{font-size:25px}.position-change small{font-size:8px}.analysis-period{font-size:9px}.analysis-value{font-size:30px}.tool-group .system-button{font-size:10px;padding:3px 7px}.chart-caption span:last-child{display:none}.menu-button{font-size:10px;padding:4px 6px}.menu-meta{font-size:8px}}
+@media(pointer:coarse){.control{min-width:34px;min-height:32px}.window-title{min-height:48px}.system-button,.menu-button,.material-option,.brand-option{min-height:36px}.search{font-size:16px}.window-title h2{gap:5px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+
+<body>
+<div class="app-shell">
+ <header class="system-header metal">
+  <div class="brand"><span class="brand-mark"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 3a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3H6a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3V6a3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3h12a3 3 0 0 0 3-3 3 3 0 0 0-3-3z"/></svg></span>Qesto<small>DESKTOP 03</small></div>
+  <div class="environment"><strong>FINANCIAL COMPUTER</strong><small>PERSONAL WORKSTATION / QST–003</small></div>
+  <div class="header-actions"><div class="period"><span class="mono">PERIOD</span><span>Сентябрь 2026</span></div><button id="copy-html" class="system-button raised primary">Копировать HTML</button></div>
+ </header>
+ <nav class="menu-bar" aria-label="Управление рабочим столом">
+  <span class="menu-label">Рабочая среда</span><button id="windows-button" class="menu-button" aria-expanded="false" aria-controls="window-menu">Окна</button><button id="restore-layout" class="menu-button">Восстановить окна</button><button id="refresh-demo" class="menu-button">Обновить демо</button>
+  <div class="menu-meta"><span class="hint">LOCAL SYSTEM / NO BANK CONNECTION</span><span class="demo">DEMO</span></div>
+  <div class="window-menu" id="window-menu" hidden aria-label="Список окон"></div>
+ </nav>
+ <main class="workspace" id="workspace">
+  <div class="workspace-label"><strong>01 / PERSONAL FINANCE</strong><span>Двойной щелчок по заголовку — развернуть</span></div>
+  <div class="window-grid" id="window-grid">
+   <section class="window capital active" id="capital" data-name="Капитал" aria-labelledby="capital-title" tabindex="-1">
+    <header class="window-title"><h2 id="capital-title"><span class="module-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span><span class="title-copy"><span>CAPITAL.EXE</span><small>SYSTEM MODULE 001</small></span></h2><div class="window-controls"></div></header>
+    <div class="client">
+     <div class="capital-top"><span class="kicker">CURRENT POSITION</span><span class="position-code">RUB / 14.09.26</span></div>
+     <div class="capital-value" aria-label="Капитал 84 320 рублей">84 320 <span class="currency">₽</span></div>
+     <div class="capital-bottom"><div class="position-change" title="Демонстрационные снимки капитала: 77 786 ₽ → 84 320 ₽"><strong class="positive">+8,4%</strong><small>POSITION CHANGE<br>К 01.09.26</small></div><div class="capital-meta">СНИМОК КАПИТАЛА<br>Демонстрационные данные</div></div>
+    </div>
+    <footer class="status-line"><span class="status-cell">POSITION / SNAPSHOT</span><span class="status-cell">RUB</span><span class="grip" aria-hidden="true"></span></footer>
+   </section>
+   <section class="window analysis" id="analysis" data-name="Расходы" aria-labelledby="analysis-title" tabindex="-1">
+    <header class="window-title"><h2 id="analysis-title"><span class="module-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span><span class="title-copy"><span>EXPENSE MONITOR</span><small>SYSTEM MODULE 002</small></span></h2><div class="window-controls"></div></header>
+    <div class="client">
+     <div class="module-toolbar"><div class="tool-group" aria-label="Режим графика"><button class="system-button raised" data-chart="cumulative" aria-pressed="true">Накопительно</button><button class="system-button raised" data-chart="daily" aria-pressed="false">По дням</button></div><span class="mono muted">01—14 SEP 2026</span></div>
+     <div class="analysis-content">
+      <div class="analysis-summary"><div><span class="kicker">EXPENDITURE / RUB</span><div class="analysis-value negative">11 984 ₽</div></div><div class="analysis-period"><span>Доходы <strong>20 390 ₽</strong></span><span>Кэшфлоу <strong>+8 406 ₽</strong></span></div></div>
+      <div class="chart-panel"><div class="screen-header"><span>EXPENSE SIGNAL</span><span>6 RECORDS / RUB</span></div><svg id="chart" viewBox="0 0 760 220" role="img" tabindex="0" aria-label="Демо-график расходов. Стрелки влево и вправо — выбор дня."></svg><div class="chart-tip" id="chart-tip" hidden></div></div>
+      <div class="chart-caption"><span><i class="line"></i><span id="chart-label">Накопленные расходы</span></span><span>CURSOR / ← →</span></div>
+     </div>
+    </div>
+    <footer class="status-line"><span class="status-cell" id="chart-status">EXPENSE / CUMULATIVE</span><span class="status-cell">LOCAL</span><span class="grip" aria-hidden="true"></span></footer>
+   </section>
+   <section class="window ai" id="ai" data-name="AI Core" aria-labelledby="ai-title" tabindex="-1">
+    <header class="window-title"><h2 id="ai-title"><span class="module-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg></span><span class="title-copy"><span>QESTO AI CORE</span><small>SYSTEM MODULE 003</small></span></h2><div class="window-controls"></div></header>
+    <div class="client">
+     <div class="core-status"><div>STATUS<strong>ANALYSIS COMPLETE</strong></div><span class="core-chip"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg></span></div>
+     <span class="kicker">FINDING / ПРОДУКТЫ</span>
+     <div class="ai-observation"><span class="ai-delta" id="food-delta">+12%</span><p>Рост расходов<br><span class="muted">к прошлому периоду</span></p></div>
+     <div class="report-action"><span class="kicker">NEXT ACTION</span>Проверить покупки продуктов.</div>
+     <button class="system-button raised" id="report-details" aria-expanded="false" aria-controls="ai-detail">Данные анализа</button>
+     <p class="ai-detail" id="ai-detail" hidden>Продукты: 2 944 ₽ в журнале против 2 629 ₽ в демонстрационном прошлом периоде. Рост округлён до 12%. Это локальный расчёт, нейросеть не подключена.</p>
+     <span class="ai-sample">DEMO MODEL / REPORT 014</span>
+    </div>
+    <footer class="status-line"><span class="status-cell">AI / DEMO</span><span class="status-cell">014</span><span class="grip" aria-hidden="true"></span></footer>
+   </section>
+   <section class="window log" id="log" data-name="Операции" aria-labelledby="log-title" tabindex="-1">
+    <header class="window-title"><h2 id="log-title"><span class="module-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg></span><span class="title-copy"><span>TRANSACTIONS.DB</span><small>SYSTEM MODULE 004</small></span></h2><div class="window-controls"></div></header>
+    <div class="client">
+     <div class="module-toolbar"><div class="tool-group" aria-label="Тип операций"><button class="system-button raised" data-filter="all" aria-pressed="true">Все</button><button class="system-button raised" data-filter="expense" aria-pressed="false">Расходы</button><button class="system-button raised" data-filter="income" aria-pressed="false">Доходы</button></div><input id="search" class="search" type="search" placeholder="Найти запись…" aria-label="Поиск по описанию и категории"></div>
+     <div class="table-scroll"><table aria-label="Демонстрационная база финансовых операций"><thead><tr><th class="row-index" scope="col">ID</th><th id="date-heading" scope="col" aria-sort="descending"><button class="sort" data-sort="date">Дата ↓</button></th><th scope="col">Операция</th><th scope="col">Категория</th><th class="amount" id="amount-heading" scope="col" aria-sort="none"><button class="sort" data-sort="amount">Сумма ↕</button></th><th scope="col">STATUS</th></tr></thead><tbody id="rows"></tbody></table></div>
+     <div class="ledger-total" aria-live="polite"><span class="muted">Σ <b id="selection-total" class="positive">+8 406 ₽</b></span><span class="muted" id="record-count">7 / 7 строк</span></div>
+    </div>
+    <footer class="status-line"><span class="status-cell">DATABASE / LOCAL FIXTURE</span><span class="status-cell">READY</span><span class="grip" aria-hidden="true"></span></footer>
+   </section>
+   <section class="window material" id="material" data-name="Оформление" aria-labelledby="material-title" tabindex="-1">
+    <header class="window-title"><h2 id="material-title"><span class="module-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg></span><span class="title-copy"><span>APPEARANCE</span><small>SYSTEM MODULE 005</small></span></h2><div class="window-controls"></div></header>
+    <div class="client">
+     <fieldset><legend>MATERIAL</legend><div class="material-options" role="group" aria-label="Материал">
+      <button class="material-option" data-material="silver" aria-pressed="true"><span class="sample silver" aria-hidden="true"></span>Silver Aero<span class="material-check">ON</span></button>
+      <button class="material-option" data-material="graphite" aria-pressed="false"><span class="sample graphite" aria-hidden="true"></span>Graphite Aero<span class="material-check"></span></button>
+      <button class="material-option" data-material="paper" aria-pressed="false"><span class="sample paper" aria-hidden="true"></span>Paper Editorial<span class="material-check"></span></button>
+     </div></fieldset>
+     <fieldset class="brand-group"><legend>QESTO ACCENT</legend><div class="brand-options" role="group" aria-label="Брендовый цвет Qesto">
+      <button class="brand-option" data-brand="petrol" aria-pressed="true" title="Petrol #006B6B"><span class="brand-swatch petrol" aria-hidden="true"></span>A · Petrol</button>
+      <button class="brand-option" data-brand="jade" aria-pressed="false" title="Jade #008F7A"><span class="brand-swatch jade" aria-hidden="true"></span>B · Jade</button>
+      <button class="brand-option" data-brand="cold" aria-pressed="false" title="Cold teal #367C86"><span class="brand-swatch cold" aria-hidden="true"></span>C · Cold</button>
+     </div></fieldset>
+     <label class="material-setting">Крупные суммы<select id="display-font"><option value="serif">Georgia / Serif</option><option value="sans">System / Sans</option><option value="mono">System / Mono</option></select></label>
+     <label class="material-setting">Световой след<input id="glow" type="range" min="0" max="100" value="48" aria-label="Интенсивность светового следа графика"></label>
+     <div class="brand-readout"><span id="brand-status">PETROL / #006B6B</span><span>UI ONLY</span></div>
+    </div>
+    <footer class="status-line"><span class="status-cell" id="material-status">SILVER AERO</span><span class="status-cell">LIVE</span><span class="grip" aria-hidden="true"></span></footer>
+   </section>
+  </div>
+  <div class="empty-desktop" id="empty-desktop" hidden><h1>Рабочий стол свободен</h1><p>Откройте модуль через меню «Окна» или верните все окна.</p><button class="system-button raised" id="restore-empty">Восстановить окна</button></div>
+ </main>
+ <footer class="taskbar metal"><button class="desktop-button raised" id="desktop-button" title="Свернуть все окна или восстановить свёрнутые">Qesto</button><div class="task-list" id="task-list" aria-label="Открытые и свёрнутые окна"></div><div class="tray"><span class="material-tray" id="tray-material">SILVER / PETROL</span><span class="demo-tray">SYNC OFFLINE · DEMO</span><span id="last-refresh" title="Последнее обновление локального демо"></span></div></footer>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+<dialog id="source-dialog" aria-labelledby="source-title"><div class="dialog-title" id="source-title">Qesto / Копирование HTML</div><div class="dialog-client"><p>Браузер ограничил буфер обмена. Код выделен — нажмите Ctrl+C или ⌘C.</p><textarea id="source-code" readonly aria-label="Весь HTML-файл"></textarea><div class="dialog-actions"><button class="system-button raised" id="select-source">Выделить всё</button><button class="system-button raised" id="close-source">Закрыть</button></div></div></dialog>
+
+<!--
+Module icons: Feather v4.29.2, https://github.com/feathericons/feather
+The MIT License (MIT)
+Copyright (c) 2013-2023 Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-->
+<script>
+'use strict';
+// The clean source is captured before any UI mutation. It can be copied offline.
+const pristineSource='<!DOCTYPE html>\n'+document.documentElement.outerHTML+'\n<!--\nQesto Design Lab Prototype\nVersion 3.0 — Retro Future\n-->\n';
+const root=document.documentElement;
+const data=Object.freeze([
+ {day:14,description:'Аренда студии',category:'Жильё',amount:-5400},
+ {day:12,description:'Кофейня «Ритм»',category:'Кафе',amount:-860},
+ {day:9,description:'Книжный магазин',category:'Покупки',amount:-2480},
+ {day:7,description:'Продуктовая лавка',category:'Продукты',amount:-1704},
+ {day:4,description:'Городской транспорт',category:'Транспорт',amount:-300},
+ {day:2,description:'Продуктовая лавка',category:'Продукты',amount:-1240},
+ {day:1,description:'Поступление',category:'Доход',amount:20390}
+]);
+const money=n=>new Intl.NumberFormat('ru-RU').format(n)+' ₽';
+const signed=n=>(n>0?'+':n<0?'−':'')+money(Math.abs(n));
+const panels=[...document.querySelectorAll('.window')];
+const state=new Map(panels.map(p=>[p.id,{mode:'normal',previous:'normal'}]));
+const taskButtons=new Map(),menuButtons=new Map();
+let activeId='capital',maximizedId=null,chartMode='cumulative',selectedDay=null,sortKey='date',sortDirection=-1,filter='all',toastTimer;
+const daily=Array.from({length:14},(_,i)=>data.filter(t=>t.day===i+1&&t.amount<0).reduce((sum,t)=>sum-t.amount,0));
+const cumulative=daily.map((_,i)=>daily.slice(0,i+1).reduce((sum,n)=>sum+n,0));
+function notify(message){const el=document.getElementById('toast');el.textContent=message;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.hidden=true,2600)}
+function isVisible(id){return ['normal','maximized'].includes(state.get(id).mode)}
+function updateWindows(){
+ const labels={normal:'Открыто',maximized:'Развёрнуто',minimized:'Свёрнуто',closed:'Закрыто'};
+ panels.forEach(panel=>{
+  const item=state.get(panel.id),visible=isVisible(panel.id);panel.hidden=!visible;panel.inert=!!maximizedId&&maximizedId!==panel.id;
+  panel.classList.toggle('active',panel.id===activeId);panel.classList.toggle('maximized',item.mode==='maximized');
+  const maxButton=panel.querySelector('[data-control="maximize"]');maxButton.setAttribute('aria-pressed',String(item.mode==='maximized'));maxButton.textContent=item.mode==='maximized'?'❐':'□';maxButton.title=item.mode==='maximized'?'Восстановить размер':'Развернуть';maxButton.setAttribute('aria-label',maxButton.title+' — '+panel.dataset.name);
+  const task=taskButtons.get(panel.id);task.hidden=item.mode==='closed';task.classList.toggle('minimized',item.mode==='minimized');task.setAttribute('aria-pressed',String(visible&&activeId===panel.id));task.title=panel.dataset.name+' · '+labels[item.mode];task.querySelector('.task-state').textContent=item.mode==='minimized'?'_':item.mode==='maximized'?'□':'';
+  menuButtons.get(panel.id).querySelector('small').textContent=labels[item.mode];
+ });
+ document.getElementById('empty-desktop').hidden=panels.some(p=>isVisible(p.id));
+ document.getElementById('workspace').style.overflow=maximizedId?'hidden':'';
+}
+function exitMaximum(){if(maximizedId){state.get(maximizedId).mode='normal';maximizedId=null}}
+function focusWindow(id,moveFocus=false){
+ if(maximizedId&&maximizedId!==id)exitMaximum();
+ const item=state.get(id);if(item.mode==='closed'){item.mode='normal';item.previous='normal'}
+ if(item.mode==='minimized'){item.mode=item.previous;if(item.mode==='maximized')maximizedId=id}
+ activeId=id;updateWindows();if(moveFocus)document.getElementById(id).querySelector('[data-control="maximize"]').focus({preventScroll:true});
+}
+function toggleMaximum(id){
+ const item=state.get(id);
+ if(item.mode==='maximized'){item.mode='normal';maximizedId=null}else{exitMaximum();item.mode='maximized';maximizedId=id}
+ activeId=id;selectedDay=null;updateWindows();drawChart();
+ document.getElementById(id).querySelector('[data-control="maximize"]').focus({preventScroll:true});
+}
+function hideWindow(id,mode){
+ const item=state.get(id);if(mode==='minimized')item.previous=item.mode;
+ item.mode=mode;if(maximizedId===id)maximizedId=null;
+ if(activeId===id)activeId=panels.find(p=>isVisible(p.id))?.id??null;
+ updateWindows();(mode==='minimized'?taskButtons.get(id):document.getElementById('windows-button')).focus({preventScroll:true});
+ if(mode==='closed')notify('Окно скрыто. Вернуть: Окна → '+document.getElementById(id).dataset.name);
+}
+function closeMenu(){document.getElementById('window-menu').hidden=true;document.getElementById('windows-button').setAttribute('aria-expanded','false')}
+function restoreLayout(){maximizedId=null;activeId='capital';state.forEach(item=>{item.mode='normal';item.previous='normal'});closeMenu();updateWindows();drawChart();document.getElementById('workspace').scrollTo({top:0,behavior:'instant'})}
+panels.forEach(panel=>{
+ const actions=[['minimize','−','Свернуть'],['maximize','□','Развернуть'],['close','×','Закрыть / скрыть']];
+ actions.forEach(([action,glyph,label])=>{const b=document.createElement('button');b.className='control raised '+action;b.dataset.control=action;b.textContent=glyph;b.title=label;b.setAttribute('aria-label',label+' — '+panel.dataset.name);b.addEventListener('click',()=>action==='maximize'?toggleMaximum(panel.id):hideWindow(panel.id,action==='minimize'?'minimized':'closed'));panel.querySelector('.window-controls').append(b)});
+ panel.addEventListener('pointerdown',event=>{if(!event.target.closest('.window-controls'))focusWindow(panel.id)});
+ panel.addEventListener('focusin',()=>{if(activeId!==panel.id)focusWindow(panel.id)});
+ panel.querySelector('.window-title').addEventListener('dblclick',event=>{if(!event.target.closest('button'))toggleMaximum(panel.id)});
+ const task=document.createElement('button');task.className='task-button raised';task.setAttribute('aria-controls',panel.id);const name=document.createElement('span');name.textContent=panel.dataset.name;const status=document.createElement('span');status.className='task-state';status.setAttribute('aria-hidden','true');task.append(name,status);task.addEventListener('click',()=>{if(activeId===panel.id&&isVisible(panel.id))hideWindow(panel.id,'minimized');else focusWindow(panel.id,true)});document.getElementById('task-list').append(task);taskButtons.set(panel.id,task);
+ const menu=document.createElement('button');const label=document.createElement('span');label.textContent=panel.dataset.name;menu.append(label,document.createElement('small'));menu.addEventListener('click',()=>{closeMenu();focusWindow(panel.id,true)});document.getElementById('window-menu').append(menu);menuButtons.set(panel.id,menu);
+});
+document.getElementById('windows-button').addEventListener('click',()=>{const menu=document.getElementById('window-menu');menu.hidden=!menu.hidden;document.getElementById('windows-button').setAttribute('aria-expanded',String(!menu.hidden));if(!menu.hidden)menu.querySelector('button').focus()});
+document.addEventListener('pointerdown',event=>{if(!event.target.closest('#window-menu,#windows-button'))closeMenu()});
+document.getElementById('window-menu').addEventListener('keydown',event=>{if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();const buttons=[...menuButtons.values()],i=buttons.indexOf(document.activeElement);buttons[event.key==='Home'?0:event.key==='End'?buttons.length-1:(i+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length].focus()}});
+document.getElementById('restore-layout').addEventListener('click',restoreLayout);document.getElementById('restore-empty').addEventListener('click',restoreLayout);
+document.getElementById('desktop-button').addEventListener('click',()=>{
+ const visible=panels.filter(p=>isVisible(p.id));
+ if(visible.length){visible.forEach(p=>{const item=state.get(p.id);item.previous=item.mode;item.mode='minimized'});maximizedId=null;activeId=null;updateWindows()}
+ else {let restored=false;state.forEach((item,id)=>{if(item.mode==='minimized'){item.mode='normal';activeId=id;restored=true}});if(restored)updateWindows();else document.getElementById('windows-button').click()}
+});
+document.addEventListener('keydown',event=>{if(event.key!=='Escape'||document.getElementById('source-dialog').open)return;if(!document.getElementById('window-menu').hidden){closeMenu();document.getElementById('windows-button').focus()}else if(maximizedId){event.preventDefault();toggleMaximum(maximizedId)}});
+function updateTray(){document.getElementById('tray-material').textContent=root.dataset.material.toUpperCase()+' / '+root.dataset.brand.toUpperCase()}
+function setBrand(value){
+ const names={petrol:'PETROL / #006B6B',jade:'JADE / #008F7A',cold:'COLD TEAL / #367C86'};
+ if(!Object.hasOwn(names,value))return;
+ root.dataset.brand=value;
+ document.querySelectorAll('button[data-brand]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.brand===value)));
+ document.getElementById('brand-status').textContent=names[value];updateTray();
+}
+document.querySelectorAll('button[data-brand]').forEach(b=>b.addEventListener('click',()=>setBrand(b.dataset.brand)));
+function setMaterial(value){root.dataset.material=value;document.querySelectorAll('[data-material]').forEach(b=>{if(b.tagName!=='BUTTON')return;const active=b.dataset.material===value;b.setAttribute('aria-pressed',String(active));b.querySelector('.material-check').textContent=active?'ON':''});const names={silver:'SILVER AERO',graphite:'GRAPHITE AERO',paper:'PAPER EDITORIAL'};document.getElementById('material-status').textContent=names[value];updateTray();drawChart()}
+document.querySelectorAll('button[data-material]').forEach(b=>b.addEventListener('click',()=>setMaterial(b.dataset.material)));
+document.getElementById('display-font').addEventListener('change',event=>root.style.setProperty('--display',({serif:"Georgia,'Times New Roman',serif",sans:"'Segoe UI',Arial,sans-serif",mono:"Consolas,'Liberation Mono',monospace"})[event.target.value]));
+document.getElementById('glow').addEventListener('input',drawChart);
+const chart=document.getElementById('chart');
+let chartGeometry=null;
+// Resize the coordinate system, not the tick labels.
+function chartLayout(values,width,height){
+ const w=Math.max(180,width),h=Math.max(160,height),left=43,right=w-17,top=16,bottom=h-31;
+ const max=Math.max(2000,Math.ceil(Math.max(...values)/2000)*2000);
+ return {w,h,left,right,top,bottom,max,step:(right-left)/13,x:i=>left+i*(right-left)/13,y:n=>bottom-n/max*(bottom-top)};
+}
+function drawChart(){
+ const values=chartMode==='daily'?daily:cumulative,r=chart.getBoundingClientRect();
+ if(!r.width||!r.height)return;
+ const g=chartLayout(values,r.width,r.height);chartGeometry=g;chart.setAttribute('viewBox','0 0 '+g.w+' '+g.h);
+ const styles=getComputedStyle(root),red=styles.getPropertyValue('--screen-expense').trim(),muted=styles.getPropertyValue('--screen-muted').trim(),line=styles.getPropertyValue('--screen-line').trim(),surface=styles.getPropertyValue('--screen').trim();
+ const points=values.map((n,i)=>g.x(i)+','+g.y(n)).join(' '),glow=Number(document.getElementById('glow').value)/100;
+ let svg='<defs><linearGradient id="chart-area" x1="0" y1="0" x2="0" y2="1"><stop stop-color="'+red+'" stop-opacity=".13"/><stop offset="1" stop-color="'+red+'" stop-opacity=".01"/></linearGradient><filter id="chart-glow" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="3"/></filter></defs>';
+ [0,1,2,3].forEach(i=>{const n=g.max*i/3,yy=g.y(n),tick=i?new Intl.NumberFormat('ru-RU',{maximumFractionDigits:1}).format(n/1000)+' т.':'0';
+  svg+='<line x1="'+g.left+'" y1="'+yy+'" x2="'+g.right+'" y2="'+yy+'" stroke="'+line+'" stroke-width=".7"/><text x="'+(g.left-9)+'" y="'+(yy+4)+'" text-anchor="end" fill="'+muted+'" font-size="11" font-family="Consolas,monospace">'+tick+'</text>';
+ });
+ const ticks=g.w<450?[0,6,13]:[0,3,6,9,13];
+ ticks.forEach(i=>{svg+='<line x1="'+g.x(i)+'" y1="'+g.top+'" x2="'+g.x(i)+'" y2="'+g.bottom+'" stroke="'+line+'" stroke-dasharray="1 5" opacity=".65"/><text x="'+g.x(i)+'" y="'+(g.h-10)+'" text-anchor="'+(i===0?'start':i===13?'end':'middle')+'" fill="'+muted+'" font-size="11" font-family="Consolas,monospace">'+String(i+1).padStart(2,'0')+' сен</text>'});
+ svg+='<polygon points="'+g.left+','+g.bottom+' '+points+' '+g.right+','+g.bottom+'" fill="url(#chart-area)"/><polyline points="'+points+'" fill="none" stroke="'+red+'" stroke-width="5" opacity="'+glow+'" filter="url(#chart-glow)"/><polyline points="'+points+'" fill="none" stroke="'+red+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>';
+ if(selectedDay!==null){const i=selectedDay;svg+='<line x1="'+g.x(i)+'" y1="'+g.top+'" x2="'+g.x(i)+'" y2="'+g.bottom+'" stroke="'+muted+'" stroke-dasharray="3 4"/><circle cx="'+g.x(i)+'" cy="'+g.y(values[i])+'" r="4" fill="'+surface+'" stroke="'+red+'" stroke-width="1.5"/>'}
+ else svg+='<circle cx="'+g.x(13)+'" cy="'+g.y(values[13])+'" r="3" fill="'+red+'"/>';
+ chart.innerHTML=svg;chart.setAttribute('aria-label','Демо-расходы '+(chartMode==='daily'?'по дням':'накопительно')+'. Всего 11 984 рубля. Стрелки — выбор дня.'+(selectedDay!==null?' '+(selectedDay+1)+' сентября: '+money(values[selectedDay]):''));
+ const tip=document.getElementById('chart-tip');tip.hidden=selectedDay===null;
+ if(selectedDay!==null){tip.replaceChildren();const label=document.createElement('span');label.textContent=(selectedDay+1)+' сентября · '+(chartMode==='daily'?'за день':'всего');const amount=document.createElement('strong');amount.textContent=money(values[selectedDay]);tip.append(label,amount);const tipWidth=tip.getBoundingClientRect().width||155;tip.style.left=Math.max(4,Math.min(r.width-tipWidth-4,g.x(selectedDay)-tipWidth/2))+'px'}
+}
+function selectPoint(event){const r=chart.getBoundingClientRect();if(!r.width||!chartGeometry)return;selectedDay=Math.max(0,Math.min(13,Math.round((event.clientX-r.left-chartGeometry.left)/chartGeometry.step)));drawChart()}
+chart.addEventListener('pointermove',selectPoint);chart.addEventListener('pointerdown',selectPoint);chart.addEventListener('pointerleave',()=>{if(document.activeElement!==chart){selectedDay=null;drawChart()}});chart.addEventListener('blur',()=>{selectedDay=null;drawChart()});chart.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();selectedDay=event.key==='Home'?0:event.key==='End'?13:Math.max(0,Math.min(13,(selectedDay??0)+(event.key==='ArrowRight'?1:-1)));drawChart()}});
+document.querySelectorAll('[data-chart]').forEach(b=>b.addEventListener('click',()=>{chartMode=b.dataset.chart;document.querySelectorAll('[data-chart]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)));document.getElementById('chart-label').textContent=chartMode==='daily'?'Расходы по дням':'Накопленные расходы';document.getElementById('chart-status').textContent='EXPENSE / '+chartMode.toUpperCase();drawChart()}));
+function drawTable(){
+ const query=document.getElementById('search').value.toLocaleLowerCase('ru'),rows=data.filter(t=>(t.description+' '+t.category).toLocaleLowerCase('ru').includes(query)&&(filter==='all'||(filter==='expense'?t.amount<0:t.amount>0))).slice().sort((a,b)=>sortDirection*(sortKey==='date'?a.day-b.day:a.amount-b.amount));
+ const tbody=document.getElementById('rows');tbody.replaceChildren();rows.forEach((t,i)=>{const row=document.createElement('tr');[['row-index',String(data.indexOf(t)+1).padStart(3,'0')],['date',String(t.day).padStart(2,'0')+'.09.26'],['description',t.description],['category',t.category],['amount '+(t.amount<0?'negative':'positive'),signed(t.amount)],['record-status','LOCAL']].forEach(([className,text])=>{const cell=document.createElement('td');cell.className=className;cell.textContent=text;row.append(cell)});tbody.append(row)});
+ if(!rows.length){const cell=tbody.insertRow().insertCell();cell.colSpan=6;cell.className='empty';cell.textContent='Операций не найдено'}
+ const total=rows.reduce((sum,t)=>sum+t.amount,0),totalEl=document.getElementById('selection-total');totalEl.textContent=signed(total);totalEl.className=total<0?'negative':total>0?'positive':'muted';document.getElementById('record-count').textContent=rows.length+' / '+data.length+' строк';
+ ['date','amount'].forEach(key=>{document.getElementById(key+'-heading').setAttribute('aria-sort',sortKey===key?(sortDirection===1?'ascending':'descending'):'none');document.querySelector('[data-sort="'+key+'"]').textContent=(key==='date'?'Дата':'Сумма')+' '+(sortKey===key?(sortDirection===1?'↑':'↓'):'↕')});
+}
+document.getElementById('search').addEventListener('input',drawTable);document.querySelectorAll('[data-sort]').forEach(b=>b.addEventListener('click',()=>{sortDirection=sortKey===b.dataset.sort?-sortDirection:-1;sortKey=b.dataset.sort;drawTable()}));document.querySelectorAll('[data-filter]').forEach(b=>b.addEventListener('click',()=>{filter=b.dataset.filter;document.querySelectorAll('[data-filter]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)));drawTable()}));
+document.getElementById('report-details').addEventListener('click',event=>{const detail=document.getElementById('ai-detail');detail.hidden=!detail.hidden;event.currentTarget.setAttribute('aria-expanded',String(!detail.hidden))});
+function refreshDemo(){drawChart();drawTable();document.getElementById('last-refresh').textContent=new Intl.DateTimeFormat('ru-RU',{hour:'2-digit',minute:'2-digit'}).format(new Date())}
+document.getElementById('refresh-demo').addEventListener('click',()=>{refreshDemo();notify('Локальное демо обновлено. Запросов к банкам нет.')});
+document.getElementById('copy-html').addEventListener('click',async()=>{try{if(!navigator.clipboard)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(pristineSource);notify('Весь HTML скопирован')}catch{const dialog=document.getElementById('source-dialog'),field=document.getElementById('source-code');field.value=pristineSource;dialog.showModal();field.focus();field.select()}});document.getElementById('select-source').addEventListener('click',()=>{const field=document.getElementById('source-code');field.focus();field.select()});document.getElementById('close-source').addEventListener('click',()=>document.getElementById('source-dialog').close());
+const foodTotal=-data.filter(t=>t.category==='Продукты'&&t.amount<0).reduce((sum,t)=>sum+t.amount,0);
+const previousFoodTotal=2629; // Explicit demo comparator, not bank data.
+document.getElementById('food-delta').textContent='+'+Math.round((foodTotal/previousFoodTotal-1)*100)+'%';
+if(typeof ResizeObserver!=='undefined'){const chartObserver=new ResizeObserver(()=>drawChart());chartObserver.observe(chart)}
+else window.addEventListener('resize',drawChart);
+updateWindows();refreshDemo();updateTray();
+</script>
+</body>
+</html>
+<!--
+Qesto Design Lab Prototype
+Version 3.0 — Retro Future
+-->

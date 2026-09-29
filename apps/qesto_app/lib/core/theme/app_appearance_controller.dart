@@ -57,49 +57,16 @@ class AppAppearanceScope extends InheritedNotifier<AppAppearanceController> {
   }
 }
 
-/// The desktop UI still contains legacy light palette constants. This filter
-/// supplies one coherent dark surface while those widgets migrate to semantic
-/// color tokens. Its hue-preserving inversion keeps Qesto's blue/orange/purple
-/// accents recognizable and maps pure white/black to softer dark/light values.
+/// Compatibility wrapper: native themes now replace the old pixel inversion.
+@Deprecated('Use MaterialApp themeMode and native themes')
 class QestoDarkSurface extends StatelessWidget {
   const QestoDarkSurface({
     required this.enabled,
     required this.child,
     super.key,
   });
-
   final bool enabled;
   final Widget child;
-
-  static const _matrix = <double>[
-    0.49364,
-    -1.2298,
-    -0.12384,
-    0,
-    237.3,
-    -0.36636,
-    -0.3698,
-    -0.12384,
-    0,
-    237.3,
-    -0.36636,
-    -1.2298,
-    0.73616,
-    0,
-    237.3,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-
   @override
-  Widget build(BuildContext context) => enabled
-      ? ColorFiltered(
-          key: const Key('qesto-dark-surface'),
-          colorFilter: const ColorFilter.matrix(_matrix),
-          child: child,
-        )
-      : child;
+  Widget build(BuildContext context) => child;
 }

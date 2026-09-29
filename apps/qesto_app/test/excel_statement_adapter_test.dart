@@ -135,6 +135,48 @@ void main() {
     );
   });
 
+  test('incoming personal transfers and salary are normalized as income', () {
+    final workbook = Excel.createExcel();
+    final sheet = workbook['Операции'];
+    sheet.updateCell(CellIndex.indexByString('A1'), TextCellValue('Дата'));
+    sheet.updateCell(CellIndex.indexByString('B1'), TextCellValue('Описание'));
+    sheet.updateCell(CellIndex.indexByString('C1'), TextCellValue('Сумма'));
+    sheet.updateCell(
+      CellIndex.indexByString('A2'),
+      DateCellValue(year: 2026, month: 8, day: 20),
+    );
+    sheet.updateCell(
+      CellIndex.indexByString('B2'),
+      TextCellValue('Перевод от Иван Иванов'),
+    );
+    sheet.updateCell(CellIndex.indexByString('C2'), DoubleCellValue(15000));
+    sheet.updateCell(
+      CellIndex.indexByString('A3'),
+      DateCellValue(year: 2026, month: 8, day: 21),
+    );
+    sheet.updateCell(
+      CellIndex.indexByString('B3'),
+      TextCellValue('Зарплата за август'),
+    );
+    sheet.updateCell(CellIndex.indexByString('C3'), DoubleCellValue(90000));
+
+    final statement = const UniversalExcelStatementAdapter().parse(
+      bytes: Uint8List.fromList(workbook.save()!),
+      fileName: 'доходы.xlsx',
+      referenceDate: DateTime(2026, 8, 23),
+    );
+
+    expect(statement.transactions, hasLength(2));
+    expect(
+      statement.transactions.map((item) => item.kind),
+      everyElement(StatementTransactionKind.income),
+    );
+    expect(
+      statement.transactions.map((item) => item.isIncoming),
+      everyElement(isTrue),
+    );
+  });
+
   test(
     'monthly matrix preserves hierarchy, separates capital and infers year',
     () {

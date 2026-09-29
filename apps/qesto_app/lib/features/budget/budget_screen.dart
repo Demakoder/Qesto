@@ -5,6 +5,7 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../core/widgets/states.dart';
 import '../../data/models/qesto_models.dart';
 import '../shared/placeholder_screen.dart';
+import '../bank_screenshot_import/presentation/bank_screenshot_import_screen.dart';
 import '../receipt_import/presentation/receipt_import_screen.dart';
 import '../statistics/presentation/screens/statistics_screen.dart';
 import '../statement_import/data/bank_statement_file_models.dart';
@@ -203,7 +204,7 @@ class BudgetScreenState extends State<BudgetScreen> {
       context: context,
       useSafeArea: true,
       showDragHandle: true,
-      backgroundColor: QestoColors.surface,
+      backgroundColor: context.qestoColors.surface,
       builder: (sheetContext) => Padding(
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 24),
         child: SingleChildScrollView(
@@ -276,6 +277,11 @@ class BudgetScreenState extends State<BudgetScreen> {
                 title: 'Добавить чек',
                 onTap: () => _openReceiptImport(sheetContext),
               ),
+              _AddMenuItem(
+                icon: Icons.screenshot_monitor_outlined,
+                title: 'Добавить скриншоты банка',
+                onTap: () => _openBankScreenshots(sheetContext),
+              ),
             ],
           ),
         ),
@@ -307,6 +313,20 @@ class BudgetScreenState extends State<BudgetScreen> {
     final message = await Navigator.of(context).push<String>(
       MaterialPageRoute<String>(
         builder: (_) => ReceiptImportScreen(controller: widget.controller),
+      ),
+    );
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _openBankScreenshots(BuildContext sheetContext) async {
+    Navigator.of(sheetContext).pop();
+    final message = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
+        builder: (_) =>
+            BankScreenshotImportScreen(controller: widget.controller),
       ),
     );
     if (!mounted || message == null) return;
@@ -388,6 +408,7 @@ class BudgetScreenState extends State<BudgetScreen> {
                   children: [
                     Expanded(
                       child: QestoButton(
+                        key: const Key('budget-capital-button'),
                         label: 'Капитал',
                         icon: Icons.account_balance_rounded,
                         style: QestoButtonStyle.secondary,
@@ -455,16 +476,16 @@ class _AddMenuItem extends StatelessWidget {
       leading: Container(
         width: 42,
         height: 42,
-        decoration: const BoxDecoration(
-          color: QestoColors.primarySoft,
+        decoration: BoxDecoration(
+          color: context.qestoColors.primarySoft,
           shape: BoxShape.circle,
         ),
-        child: Icon(icon, color: QestoColors.primary),
+        child: Icon(icon, color: context.qestoColors.primary),
       ),
       title: Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-      trailing: const Icon(
+      trailing: Icon(
         Icons.chevron_right_rounded,
-        color: QestoColors.secondaryText,
+        color: context.qestoColors.secondaryText,
       ),
     );
   }

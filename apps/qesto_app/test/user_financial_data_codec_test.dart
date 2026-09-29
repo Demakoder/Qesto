@@ -23,6 +23,13 @@ void main() {
           type: AccountType.bankCard,
         ),
       ],
+      accountPreferences: const [
+        QestoAccountPreferences(
+          accountId: 'account-1',
+          role: QestoAccountRole.salary,
+          includeInEmergencyFund: true,
+        ),
+      ],
       categoryCustomizations: const [
         BudgetCategoryCustomization(
           categoryId: 'groceries',
@@ -74,6 +81,128 @@ void main() {
           history: [
             SavingsHistoryPoint(date: DateTime(2026, 8, 1), amount: 2000),
           ],
+          category: 'Путешествие',
+          type: GoalType.targetAmountDate,
+          targetDate: DateTime(2027, 6, 1),
+          comment: 'Первый отпуск',
+          desiredMonthlyContribution: 1000,
+          priority: GoalPriority.high,
+          reminder: const GoalReminder(enabled: true, amount: 1000, day: 12),
+        ),
+      ],
+      goalAllocations: [
+        GoalAllocation(
+          id: 'allocation-1',
+          goalId: 'goal-1',
+          sourceType: GoalAllocationSourceType.account,
+          sourceId: 'account-1',
+          allocatedAmount: 2000,
+          currency: 'RUB',
+          updatedAt: DateTime(2026, 8, 9),
+        ),
+      ],
+      goalContributions: [
+        GoalContribution(
+          id: 'goal-contribution-1',
+          goalId: 'goal-1',
+          date: DateTime(2026, 8, 5),
+          amount: 1000,
+          currency: 'RUB',
+          type: GoalContributionType.contribution,
+          source: GoalContributionSource.manual,
+          createdAt: DateTime(2026, 8, 5),
+        ),
+      ],
+      goalHistoryEvents: [
+        GoalHistoryEvent(
+          id: 'goal-event-1',
+          goalId: 'goal-1',
+          type: GoalHistoryEventType.created,
+          date: DateTime(2026, 8, 1),
+          description: 'Цель создана',
+          amount: 10000,
+        ),
+      ],
+      investmentAccounts: [
+        InvestmentAccount(
+          id: 'investment-1',
+          userId: 'user-1',
+          linkedAccountId: 'investment-account-1',
+          name: 'Брокер',
+          type: InvestmentAccountType.iis,
+          currency: 'RUB',
+          currentBalance: 50000,
+          status: InvestmentAccountStatus.active,
+          source: InvestmentDataSource.manual,
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 9),
+          lastBalanceUpdateAt: DateTime(2026, 8, 9),
+          plan: const InvestmentPlan(amount: 10000, preferredDay: 12),
+        ),
+      ],
+      investmentBalanceSnapshots: [
+        InvestmentBalanceSnapshot(
+          id: 'investment-snapshot-1',
+          investmentAccountId: 'investment-1',
+          date: DateTime(2026, 8, 9),
+          balance: 50000,
+          currency: 'RUB',
+          source: InvestmentDataSource.manual,
+          createdAt: DateTime(2026, 8, 9),
+        ),
+      ],
+      investmentContributions: [
+        InvestmentContribution(
+          id: 'investment-contribution-1',
+          investmentAccountId: 'investment-1',
+          date: DateTime(2026, 8, 5),
+          amount: 10000,
+          currency: 'RUB',
+          type: InvestmentContributionType.contribution,
+          source: InvestmentDataSource.manual,
+          createdAt: DateTime(2026, 8, 5),
+        ),
+      ],
+      debts: [
+        DebtAccount(
+          id: 'debt-1',
+          userId: 'user-1',
+          name: 'Credit card',
+          type: DebtType.creditCard,
+          currency: 'RUB',
+          currentBalance: 15000,
+          status: DebtStatus.active,
+          source: DebtSource.manual,
+          dataQuality: DebtDataQuality.manual,
+          confidence: 1,
+          createdAt: DateTime(2026, 8, 1),
+          updatedAt: DateTime(2026, 8, 9),
+          creditCardDetails: CreditCardDebtDetails(
+            creditLimit: 100000,
+            minimumPayment: 1500,
+            graceDeadline: DateTime(2026, 8, 25),
+          ),
+        ),
+      ],
+      debtBalanceSnapshots: [
+        DebtBalanceSnapshot(
+          id: 'snapshot-1',
+          debtId: 'debt-1',
+          date: DateTime(2026, 8, 9),
+          totalBalance: 15000,
+          source: DebtSource.manual,
+          confidence: 1,
+        ),
+      ],
+      debtPayments: [
+        DebtPayment(
+          id: 'payment-1',
+          debtId: 'debt-1',
+          date: DateTime(2026, 8, 8),
+          amount: 1500,
+          currency: 'RUB',
+          source: DebtSource.manual,
+          confidence: 1,
         ),
       ],
       trackedProducts: const [
@@ -105,12 +234,31 @@ void main() {
 
     expect(restored.user.id, source.user.id);
     expect(restored.accounts.single.type, AccountType.bankCard);
+    expect(restored.accountPreferences.single.role, QestoAccountRole.salary);
+    expect(restored.accountPreferences.single.includeInEmergencyFund, isTrue);
     expect(restored.transactions.single.type, TransactionType.transfer);
     expect(
       restored.transactions.single.transferDirection,
       TransferDirection.incoming,
     );
     expect(restored.savingsGoals.single.savedAmount, 2000);
+    expect(restored.savingsGoals.single.type, GoalType.targetAmountDate);
+    expect(restored.goalContributions.single.amount, 1000);
+    expect(
+      restored.goalHistoryEvents.single.type,
+      GoalHistoryEventType.created,
+    );
+    expect(restored.investmentAccounts.single.type, InvestmentAccountType.iis);
+    expect(restored.investmentAccounts.single.plan?.amount, 10000);
+    expect(restored.investmentBalanceSnapshots.single.balance, 50000);
+    expect(restored.investmentContributions.single.amount, 10000);
+    expect(restored.savingsGoals.single.priority, GoalPriority.high);
+    expect(restored.savingsGoals.single.reminder?.day, 12);
+    expect(restored.goalAllocations.single.allocatedAmount, 2000);
+    expect(restored.debts.single.type, DebtType.creditCard);
+    expect(restored.debts.single.creditCardDetails?.creditLimit, 100000);
+    expect(restored.debtBalanceSnapshots.single.totalBalance, 15000);
+    expect(restored.debtPayments.single.amount, 1500);
     expect(restored.trackedProducts.single.changePercent, -2.5);
     expect(restored.actions.single.title, 'Statement import');
     expect(restored.transactions.single.receipt?.merchant, 'Тестовый магазин');
@@ -149,6 +297,12 @@ void main() {
 
     expect(restored.transactions.single.id, 'imported-operation');
     expect(restored.transactions.single.tags, ['statement-import']);
+    final today = DateTime.now();
+    expect(
+      restored.referenceDate,
+      DateTime(today.year, today.month, today.day),
+      reason: 'analytics must not reuse the previous launch date',
+    );
   });
 
   test('local repository deletes only private financial data', () async {

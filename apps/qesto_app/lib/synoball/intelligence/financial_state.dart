@@ -154,7 +154,8 @@ class FinancialStateService {
         .toList();
     final mandatory = streams.fold<int>(
       0,
-      (total, item) => total + item.typicalAmount.minorUnits,
+      (total, item) =>
+          total + (item.isTentative ? 0 : item.typicalAmount.minorUnits),
     );
     final liquidTypes = {
       SynoballAccountType.checking,

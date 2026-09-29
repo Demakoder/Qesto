@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_window.dart';
+import '../../design_system/qesto_expandable_tool.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/budget/widgets/budget_category_icon.dart';
 import '../desktop_financial_helpers.dart';
 import '../overview/desktop_overview_data.dart';
+import '../overview/overview_drilldown_panel.dart';
 import '../overview/overview_expense_map.dart';
 import '../overview/overview_expense_trend_chart.dart';
 import '../widgets/desktop_components.dart';
@@ -21,6 +24,7 @@ class DesktopDashboardPage extends StatefulWidget {
     required this.onOpenBudget,
     required this.onOpenRecurring,
     required this.onOpenTransaction,
+    required this.onOpenFilteredTransactions,
     super.key,
   });
 
@@ -30,6 +34,7 @@ class DesktopDashboardPage extends StatefulWidget {
   final VoidCallback onOpenBudget;
   final VoidCallback onOpenRecurring;
   final ValueChanged<String> onOpenTransaction;
+  final ValueChanged<List<String>> onOpenFilteredTransactions;
 
   @override
   State<DesktopDashboardPage> createState() => _DesktopDashboardPageState();
@@ -41,11 +46,19 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
   var _capitalMetric = OverviewCapitalMetric.capital;
   var _granularity = OverviewTrendGranularity.days;
   var _transactionSort = OverviewTransactionSort.dateDescending;
+  var _compactFlow = true;
+  var _refreshing = false;
+
+  DesktopOverviewData _buildOverviewData() => DesktopOverviewData.build(
+    widget.controller,
+    widget.period,
+    flowCategoryLimit: _compactFlow ? 4 : null,
+  );
 
   @override
   void initState() {
     super.initState();
-    _data = DesktopOverviewData.build(widget.controller, widget.period);
+    _data = _buildOverviewData();
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -58,7 +71,7 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
     }
     if (oldWidget.controller != widget.controller ||
         oldWidget.period.id != widget.period.id) {
-      _data = DesktopOverviewData.build(widget.controller, widget.period);
+      _data = _buildOverviewData();
     }
   }
 
@@ -71,32 +84,124 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
   void _handleControllerChanged() {
     if (!mounted) return;
     setState(() {
-      _data = DesktopOverviewData.build(widget.controller, widget.period);
+      _data = _buildOverviewData();
     });
+  }
+
+  Future<void> _refreshLocalData() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      widget.controller.refreshLocalReadModel();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось обновить данные обзора')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  void _openTrendSelection(OverviewTrendSelection selection) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forTrend(
+        controller: widget.controller,
+        period: widget.period,
+        selection: selection,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openFlowSelection(OverviewFlowSelection selection) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forFlow(
+        controller: widget.controller,
+        period: widget.period,
+        selection: selection,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openMerchant(BudgetTransaction transaction) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forMerchant(
+        controller: widget.controller,
+        period: widget.period,
+        selected: transaction,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openCategory(OverviewCategoryBudgetRow category) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forCategory(
+        controller: widget.controller,
+        period: widget.period,
+        category: category,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
       key: const Key('desktop-overview-scroll'),
-      padding: const EdgeInsets.fromLTRB(26, 24, 26, 38),
+      padding: QestoSpacing.workspace(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Добрый день',
-            style: TextStyle(
-              color: QestoColors.text,
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Добрый день',
+                  style: TextStyle(
+                    color: context.qestoColors.text,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const Key('overview-refresh'),
+                onPressed: _refreshing ? null : _refreshLocalData,
+                icon: _refreshing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(_refreshing ? 'Обновляется…' : 'Обновить'),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             'Вот, что происходит с вашими деньгами',
             style: TextStyle(
-              color: QestoColors.secondaryText,
+              color: context.qestoColors.secondaryText,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
@@ -113,23 +218,32 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
               _capitalMetric = value;
             }),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           _OverviewVisuals(
             data: _data,
             granularity: _granularity,
+            compactFlow: _compactFlow,
             onGranularityChanged: (value) => setState(() {
               _granularity = value;
             }),
+            onCompactFlowChanged: (value) => setState(() {
+              _compactFlow = value;
+              _data = _buildOverviewData();
+            }),
+            onTrendSelection: _openTrendSelection,
+            onFlowSelection: _openFlowSelection,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           _OverviewPlanningRow(
             controller: widget.controller,
             data: _data,
             onOpenTransactions: widget.onOpenTransactions,
             onOpenBudget: widget.onOpenBudget,
             onOpenRecurring: widget.onOpenRecurring,
+            onOpenMerchant: _openMerchant,
+            onOpenCategory: _openCategory,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           _RecentTransactionsCard(
             controller: widget.controller,
             data: _data,
@@ -182,89 +296,153 @@ class _OverviewMetricGrid extends StatelessWidget {
       OverviewCapitalMetric.savings => 'Накопительные счета',
     };
 
-    final cards = <Widget>[
-      _MetricCard(
-        key: const Key('overview-primary-metric'),
-        label: primaryLabel,
-        value: formatMoney(primaryValue, data.currency),
-        detail:
-            '$primaryLabel за ${formatBudgetPeriod(data.period.month, data.period.year)}',
-        valueColor: primaryIsExpense
-            ? QestoColors.negative
-            : QestoColors.positive,
-        control: _MetricMenu<OverviewPrimaryMetric>(
-          value: primaryMetric,
-          tooltip: 'Выбрать доходы или расходы',
-          onSelected: onPrimaryMetricChanged,
-          items: const {
-            OverviewPrimaryMetric.expenses: 'Расходы',
-            OverviewPrimaryMetric.income: 'Доходы',
-          },
-        ),
+    final capital = QestoWindow(
+      key: const Key('overview-capital-metric'),
+      title: 'Финансовая позиция',
+      actions: _MetricMenu<OverviewCapitalMetric>(
+        value: capitalMetric,
+        tooltip: 'Выбрать показатель капитала',
+        onSelected: onCapitalMetricChanged,
+        items: const {
+          OverviewCapitalMetric.capital: 'Капитал',
+          OverviewCapitalMetric.investments: 'Инвестиции',
+          OverviewCapitalMetric.savings: 'Накопления',
+        },
       ),
-      _MetricCard(
-        key: const Key('overview-cash-flow'),
-        label: 'Кэшфлоу',
-        value: formatMoney(data.cashFlow, data.currency, showSign: true),
-        detail: 'Доходы − расходы',
-        valueColor: data.cashFlow == 0
-            ? QestoColors.text
-            : data.cashFlow > 0
-            ? QestoColors.positive
-            : QestoColors.negative,
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(capitalLabel, style: QestoTypography.sectionTitle),
+          const SizedBox(height: 12),
+          QestoHeroMoney(formatMoney(capitalValue, data.currency)),
+          const SizedBox(height: 12),
+          Text(capitalDetail, style: QestoTypography.caption),
+        ],
       ),
-      _MetricCard(
-        key: const Key('overview-capital-metric'),
-        label: capitalLabel,
-        value: formatMoney(capitalValue, data.currency),
-        detail: capitalDetail,
-        control: _MetricMenu<OverviewCapitalMetric>(
-          value: capitalMetric,
-          tooltip: 'Выбрать показатель капитала',
-          onSelected: onCapitalMetricChanged,
-          items: const {
-            OverviewCapitalMetric.capital: 'Капитал',
-            OverviewCapitalMetric.investments: 'Инвестиции',
-            OverviewCapitalMetric.savings: 'Накопления',
-          },
-        ),
+    );
+    final primary = _MetricReadout(
+      key: const Key('overview-primary-metric'),
+      label: primaryLabel,
+      value: formatMoney(primaryValue, data.currency),
+      detail:
+          '$primaryLabel за ${formatBudgetPeriod(data.period.month, data.period.year)}',
+      color: primaryIsExpense
+          ? context.qestoColors.negative
+          : context.qestoColors.positive,
+      hero: true,
+      control: _MetricMenu<OverviewPrimaryMetric>(
+        value: primaryMetric,
+        tooltip: 'Выбрать доходы или расходы',
+        onSelected: onPrimaryMetricChanged,
+        items: const {
+          OverviewPrimaryMetric.expenses: 'Расходы',
+          OverviewPrimaryMetric.income: 'Доходы',
+        },
       ),
-      _MetricCard(
-        key: const Key('desktop-free-to-spend'),
-        label: 'Свободные деньги',
-        value: data.freeToSpend == null
-            ? 'Не рассчитаны'
-            : formatMoney(data.freeToSpend!, data.currency),
-        detail: data.freeToSpend == null
-            ? 'Назначьте бюджет'
-            : 'Доступно к тратам',
-        valueColor: data.freeToSpend == null
-            ? QestoColors.secondaryText
-            : data.freeToSpend! >= 0
-            ? QestoColors.positive
-            : QestoColors.negative,
-        control: const Tooltip(
-          message: 'Дополнительные показатели появятся позже',
-          child: _MetricControlIcon(),
-        ),
-      ),
-    ];
-
+    );
+    final cashFlow = _MetricReadout(
+      key: const Key('overview-cash-flow'),
+      label: 'Кэшфлоу',
+      value: formatMoney(data.cashFlow, data.currency, showSign: true),
+      detail: 'Доходы − расходы',
+      color: data.cashFlow == 0
+          ? context.qestoColors.text
+          : data.cashFlow > 0
+          ? context.qestoColors.positive
+          : context.qestoColors.negative,
+    );
+    final free = _MetricReadout(
+      key: const Key('desktop-free-to-spend'),
+      label: 'Свободные деньги',
+      value: data.freeToSpend == null
+          ? 'Не рассчитаны'
+          : formatMoney(data.freeToSpend!, data.currency),
+      detail: data.freeToSpend == null
+          ? 'Назначьте бюджет'
+          : 'Доступно к тратам',
+      numeric: data.freeToSpend != null,
+      color: data.freeToSpend == null
+          ? context.qestoColors.secondaryText
+          : data.freeToSpend! >= 0
+          ? context.qestoColors.positive
+          : context.qestoColors.negative,
+    );
     return LayoutBuilder(
       builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 1080
-            ? 4
-            : constraints.maxWidth >= 640
-            ? 2
-            : 1;
-        const gap = 14.0;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
+        final wide = constraints.maxWidth >= 820;
+        final period = QestoWindow(
+          title: 'Результат периода',
+          padding: const EdgeInsets.all(20),
+          child: constraints.maxWidth < 480
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    primary,
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 16),
+                    cashFlow,
+                    const SizedBox(height: 16),
+                    free,
+                  ],
+                )
+              : Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(child: primary),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          cashFlow,
+                          const SizedBox(height: 16),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          free,
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+        );
+        if (!wide) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [capital, const SizedBox(height: 20), period],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            for (final card in cards)
-              SizedBox(width: width, height: 136, child: card),
+            Expanded(
+              flex: 5,
+              child: SizedBox(
+                height:
+                    320 *
+                    math.max(
+                      1,
+                      MediaQuery.textScalerOf(context).scale(14) / 14,
+                    ),
+                child: capital,
+              ),
+            ),
+            const SizedBox(width: 20),
+            Expanded(
+              flex: 7,
+              child: SizedBox(
+                height:
+                    320 *
+                    math.max(
+                      1,
+                      MediaQuery.textScalerOf(context).scale(14) / 14,
+                    ),
+                child: period,
+              ),
+            ),
           ],
         );
       },
@@ -272,77 +450,58 @@ class _OverviewMetricGrid extends StatelessWidget {
   }
 }
 
-class _MetricCard extends StatelessWidget {
-  const _MetricCard({
+class _MetricReadout extends StatelessWidget {
+  const _MetricReadout({
     required this.label,
     required this.value,
     required this.detail,
-    this.valueColor = QestoColors.text,
+    this.color,
+    this.hero = false,
+    this.numeric = true,
     this.control,
     super.key,
   });
-
-  final String label;
-  final String value;
-  final String detail;
-  final Color valueColor;
+  final String label, value, detail;
+  final Color? color;
+  final bool hero, numeric;
   final Widget? control;
-
   @override
-  Widget build(BuildContext context) {
-    return DesktopCard(
-      padding: const EdgeInsets.fromLTRB(18, 15, 14, 15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: QestoColors.text,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-              ?control,
-            ],
-          ),
-          const Spacer(),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: context.qestoTypography.display(
-              TextStyle(
-                color: valueColor,
-                fontSize: value.length > 16 ? 20 : 25,
-                height: 1,
-                fontWeight: FontWeight.w800,
-                letterSpacing: -0.65,
-              ),
-              numeric: true,
+          Expanded(
+            child: Text(
+              label,
+              style: hero
+                  ? QestoTypography.sectionTitle
+                  : QestoTypography.uiMedium,
             ),
           ),
-          const SizedBox(height: 9),
-          Text(
-            detail,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: QestoColors.secondaryText,
-              fontSize: 11.5,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          ?control,
         ],
       ),
-    );
-  }
+      SizedBox(height: hero ? 14 : 6),
+      if (numeric)
+        QestoHeroMoney(
+          value,
+          color: color ?? context.qestoColors.text,
+          large: hero,
+        )
+      else
+        Text(
+          value,
+          style: QestoTypography.ui.copyWith(
+            fontSize: 17,
+            color: color ?? context.qestoColors.text,
+          ),
+        ),
+      const SizedBox(height: 7),
+      Text(detail, style: QestoTypography.metadata),
+    ],
+  );
 }
 
 class _MetricMenu<T> extends StatelessWidget {
@@ -373,10 +532,10 @@ class _MetricMenu<T> extends StatelessWidget {
                 SizedBox(
                   width: 22,
                   child: entry.key == value
-                      ? const Icon(
+                      ? Icon(
                           Icons.check_rounded,
                           size: 16,
-                          color: QestoColors.primary,
+                          color: context.qestoColors.primary,
                         )
                       : null,
                 ),
@@ -399,13 +558,13 @@ class _MetricControlIcon extends StatelessWidget {
       width: 30,
       height: 30,
       decoration: BoxDecoration(
-        border: Border.all(color: QestoColors.border),
-        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: context.qestoColors.border),
+        borderRadius: QestoGeometry.control,
       ),
-      child: const Icon(
+      child: Icon(
         Icons.keyboard_arrow_down_rounded,
         size: 18,
-        color: QestoColors.text,
+        color: context.qestoColors.text,
       ),
     );
   }
@@ -415,79 +574,116 @@ class _OverviewVisuals extends StatelessWidget {
   const _OverviewVisuals({
     required this.data,
     required this.granularity,
+    required this.compactFlow,
     required this.onGranularityChanged,
+    required this.onCompactFlowChanged,
+    required this.onTrendSelection,
+    required this.onFlowSelection,
   });
 
   final DesktopOverviewData data;
   final OverviewTrendGranularity granularity;
+  final bool compactFlow;
   final ValueChanged<OverviewTrendGranularity> onGranularityChanged;
+  final ValueChanged<bool> onCompactFlowChanged;
+  final ValueChanged<OverviewTrendSelection> onTrendSelection;
+  final ValueChanged<OverviewFlowSelection> onFlowSelection;
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final stacked = constraints.maxWidth < 1050;
+        final stacked = constraints.maxWidth < 900;
         final flowHeight = math
-            .max(430.0, (data.flow?.branches.length ?? 1) * 62 + 92)
+            .max(350.0, (data.flow?.branches.length ?? 1) * 62 + 92)
             .toDouble();
-        final chart = DesktopCard(
+        final chart = QestoExpandableTool(
           key: const Key('overview-expense-trend'),
-          child: Column(
-            children: [
-              DesktopSectionHeader(
-                title: 'Расходы',
-                trailing: _CompactMenu<OverviewTrendGranularity>(
-                  value: granularity,
-                  onSelected: onGranularityChanged,
-                  items: const {
-                    OverviewTrendGranularity.days: 'По дням',
-                    OverviewTrendGranularity.weeks: 'По неделям',
-                  },
-                ),
-              ),
-              const SizedBox(height: 10),
-              OverviewExpenseTrendChart(
+          title: 'Динамика расходов',
+          actions: _CompactMenu<OverviewTrendGranularity>(
+            value: granularity,
+            onSelected: onGranularityChanged,
+            items: const {
+              OverviewTrendGranularity.days: 'По дням',
+              OverviewTrendGranularity.weeks: 'По неделям',
+            },
+          ),
+          builder: (context, expanded) => LayoutBuilder(
+            builder: (context, constraints) {
+              final chart = OverviewExpenseTrendChart(
                 points: data.trend,
                 currency: data.currency,
                 granularity: granularity,
-                height: stacked ? 310 : flowHeight,
-              ),
-            ],
+                onSelection: onTrendSelection,
+              );
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Расходы', style: QestoTypography.sectionTitle),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    fit: expanded && constraints.hasBoundedHeight
+                        ? FlexFit.tight
+                        : FlexFit.loose,
+                    child: chart,
+                  ),
+                ],
+              );
+            },
           ),
         );
-        final map = DesktopCard(
+        final map = QestoExpandableTool(
           key: const Key('overview-expense-map'),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const DesktopSectionHeader(
-                title: 'Карта расходов',
-                subtitle: 'Источники → общий поток → направления → операции',
-              ),
-              const SizedBox(height: 8),
-              if (data.flow case final flow?)
-                OverviewExpenseMap(data: flow)
-              else
-                SizedBox(
-                  height: stacked ? 310 : flowHeight,
-                  child: const _BlockEmptyState(
-                    icon: Icons.account_tree_outlined,
-                    message:
-                        'Добавьте доходы за выбранный период, чтобы увидеть движение денег.',
-                  ),
+          title: 'Карта расходов',
+          actions: TextButton(
+            key: const Key('overview-flow-category-mode'),
+            onPressed: () => onCompactFlowChanged(!compactFlow),
+            child: Text(compactFlow ? 'Все категории' : 'Топ-4'),
+          ),
+          builder: (context, expanded) => SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Движение денег',
+                  style: QestoTypography.sectionTitle,
                 ),
-            ],
+                const SizedBox(height: 6),
+                const Text(
+                  'Доходы → направления → операции',
+                  style: QestoTypography.metadata,
+                ),
+                const SizedBox(height: 12),
+                if (data.flow case final flow?)
+                  OverviewExpenseMap(data: flow, onSelection: onFlowSelection)
+                else
+                  SizedBox(
+                    height: stacked ? 285 : flowHeight,
+                    child: const _BlockEmptyState(
+                      icon: Icons.account_tree_outlined,
+                      message:
+                          'Добавьте доходы за выбранный период, чтобы увидеть движение денег.',
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Оставшаяся часть дохода за период — не текущий остаток на счетах.',
+                  style: QestoTypography.metadata,
+                ),
+              ],
+            ),
           ),
         );
         if (stacked) {
-          return Column(children: [chart, const SizedBox(height: 16), map]);
+          return Column(children: [chart, const SizedBox(height: 20), map]);
         }
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(flex: 5, child: chart),
             const SizedBox(width: 16),
-            Expanded(flex: 8, child: map),
+            Expanded(flex: 7, child: map),
           ],
         );
       },
@@ -518,9 +714,9 @@ class _CompactMenu<T> extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: QestoColors.surface,
-          border: Border.all(color: QestoColors.border),
-          borderRadius: BorderRadius.circular(10),
+          color: context.qestoColors.surface,
+          border: Border.all(color: context.qestoColors.border),
+          borderRadius: QestoGeometry.control,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -545,6 +741,8 @@ class _OverviewPlanningRow extends StatelessWidget {
     required this.onOpenTransactions,
     required this.onOpenBudget,
     required this.onOpenRecurring,
+    required this.onOpenMerchant,
+    required this.onOpenCategory,
   });
 
   final BudgetController controller;
@@ -552,12 +750,22 @@ class _OverviewPlanningRow extends StatelessWidget {
   final VoidCallback onOpenTransactions;
   final VoidCallback onOpenBudget;
   final VoidCallback onOpenRecurring;
+  final ValueChanged<BudgetTransaction> onOpenMerchant;
+  final ValueChanged<OverviewCategoryBudgetRow> onOpenCategory;
 
   @override
   Widget build(BuildContext context) {
     final cards = <Widget>[
-      _TopExpensesCard(data: data, onOpenAll: onOpenTransactions),
-      _CategoryBudgetsCard(data: data, onOpenAll: onOpenBudget),
+      _TopExpensesCard(
+        data: data,
+        onOpenAll: onOpenTransactions,
+        onOpenMerchant: onOpenMerchant,
+      ),
+      _CategoryBudgetsCard(
+        data: data,
+        onOpenAll: onOpenBudget,
+        onOpenCategory: onOpenCategory,
+      ),
       _PlannedExpensesCard(
         controller: controller,
         data: data,
@@ -566,7 +774,7 @@ class _OverviewPlanningRow extends StatelessWidget {
     ];
     return LayoutBuilder(
       builder: (context, constraints) {
-        const gap = 16.0;
+        const gap = 20.0;
         final columns = constraints.maxWidth >= 960
             ? 3
             : constraints.maxWidth >= 720
@@ -578,7 +786,7 @@ class _OverviewPlanningRow extends StatelessWidget {
           runSpacing: gap,
           children: [
             for (final card in cards)
-              SizedBox(width: width, height: 390, child: card),
+              SizedBox(width: width, height: 370, child: card),
           ],
         );
       },
@@ -587,10 +795,15 @@ class _OverviewPlanningRow extends StatelessWidget {
 }
 
 class _TopExpensesCard extends StatelessWidget {
-  const _TopExpensesCard({required this.data, required this.onOpenAll});
+  const _TopExpensesCard({
+    required this.data,
+    required this.onOpenAll,
+    required this.onOpenMerchant,
+  });
 
   final DesktopOverviewData data;
   final VoidCallback onOpenAll;
+  final ValueChanged<BudgetTransaction> onOpenMerchant;
 
   @override
   Widget build(BuildContext context) {
@@ -624,6 +837,7 @@ class _TopExpensesCard extends StatelessWidget {
                         transaction: data.topExpenses[index],
                         total: data.expenses,
                         currency: data.currency,
+                        onTap: () => onOpenMerchant(data.topExpenses[index]),
                       ),
                     ),
                 ],
@@ -642,100 +856,111 @@ class _TopExpenseRow extends StatelessWidget {
     required this.transaction,
     required this.total,
     required this.currency,
+    required this.onTap,
   });
 
   final int rank;
   final BudgetTransaction transaction;
   final int total;
   final String currency;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final title = desktopTransactionTitle(transaction);
     final percent = total <= 0 ? 0.0 : transaction.amount / total;
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: QestoColors.border)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: QestoColors.primarySoft,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Text(
-              '$rank',
-              style: const TextStyle(
-                color: QestoColors.primary,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
+    return InkWell(
+      key: Key('overview-top-expense-${transaction.id}'),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.qestoColors.border)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: context.qestoColors.primarySoft,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                '$rank',
+                style: TextStyle(
+                  color: context.qestoColors.primary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 9),
-          _MerchantMark(title: title),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
+            const SizedBox(width: 9),
+            _MerchantMark(title: title),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formatDate(transaction.date, includeYear: true),
+                    style: TextStyle(
+                      color: context.qestoColors.secondaryText,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  formatMoney(transaction.amount, currency),
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
-                  formatDate(transaction.date, includeYear: true),
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  formatPercent(percent, decimals: 1),
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 9.5,
                   ),
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatMoney(transaction.amount, currency),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              Text(
-                formatPercent(percent, decimals: 1),
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
-                  fontSize: 9.5,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _CategoryBudgetsCard extends StatelessWidget {
-  const _CategoryBudgetsCard({required this.data, required this.onOpenAll});
+  const _CategoryBudgetsCard({
+    required this.data,
+    required this.onOpenAll,
+    required this.onOpenCategory,
+  });
 
   final DesktopOverviewData data;
   final VoidCallback onOpenAll;
+  final ValueChanged<OverviewCategoryBudgetRow> onOpenCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -750,13 +975,13 @@ class _CategoryBudgetsCard extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (relative)
-                  const Tooltip(
+                  Tooltip(
                     message:
                         'Бюджеты не заданы — шкала сравнивает объём расходов по категориям.',
                     child: Icon(
                       Icons.info_outline_rounded,
                       size: 16,
-                      color: QestoColors.secondaryText,
+                      color: context.qestoColors.secondaryText,
                     ),
                   ),
                 const SizedBox(width: 7),
@@ -781,7 +1006,11 @@ class _CategoryBudgetsCard extends StatelessWidget {
                 children: [
                   for (final row in data.categoryBudgets)
                     Expanded(
-                      child: _CategoryBudgetRow(row: row, data: data),
+                      child: _CategoryBudgetRow(
+                        row: row,
+                        data: data,
+                        onTap: () => onOpenCategory(row),
+                      ),
                     ),
                 ],
               ),
@@ -794,73 +1023,85 @@ class _CategoryBudgetsCard extends StatelessWidget {
 }
 
 class _CategoryBudgetRow extends StatelessWidget {
-  const _CategoryBudgetRow({required this.row, required this.data});
+  const _CategoryBudgetRow({
+    required this.row,
+    required this.data,
+    required this.onTap,
+  });
 
   final OverviewCategoryBudgetRow row;
   final DesktopOverviewData data;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final progressColor = row.isRelative
         ? row.color
         : row.progress > 1
-        ? QestoColors.negative
+        ? context.qestoColors.negative
         : row.progress >= 0.85
-        ? QestoColors.warning
+        ? context.qestoColors.warning
         : row.color;
-    return Row(
-      children: [
-        BudgetCategoryIcon(iconKey: row.iconKey, color: row.color, size: 32),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      row.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
+    return InkWell(
+      key: Key('overview-category-budget-${row.id}'),
+      onTap: onTap,
+      child: Row(
+        children: [
+          BudgetCategoryIcon(iconKey: row.iconKey, color: row.color, size: 32),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        row.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    '${(row.progress * 100).round()}%',
-                    style: const TextStyle(
-                      color: QestoColors.secondaryText,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
+                    Text(
+                      '${(row.progress * 100).round()}%',
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              DesktopProgressBar(
-                value: row.progress,
-                color: progressColor,
-                height: 6,
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 7),
+                DesktopProgressBar(
+                  value: row.progress,
+                  color: progressColor,
+                  height: 6,
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 70,
-          child: Text(
-            formatMoney(row.spent, data.currency),
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 70,
+            child: Text(
+              formatMoney(row.spent, data.currency),
+              textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -930,11 +1171,11 @@ class _PlannedExpenseRow extends StatelessWidget {
         .where((item) => item.id == expense.categoryId)
         .firstOrNull;
     final color = category == null
-        ? QestoColors.purple
+        ? context.qestoColors.purple
         : Color(category.colorValue);
     return Container(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: QestoColors.border)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.qestoColors.border)),
       ),
       child: Row(
         children: [
@@ -952,8 +1193,8 @@ class _PlannedExpenseRow extends StatelessWidget {
                 ),
                 Text(
                   _shortMonth(expense.plannedDate.month),
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 9,
                   ),
                 ),
@@ -985,8 +1226,8 @@ class _PlannedExpenseRow extends StatelessWidget {
                   _upcomingType(expense),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 9.5,
                   ),
                 ),
@@ -1125,8 +1366,8 @@ class _TransactionsHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 35,
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: QestoColors.border)),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: context.qestoColors.border)),
       ),
       child: Row(
         children: [
@@ -1193,7 +1434,9 @@ class _SortHeader extends StatelessWidget {
               label,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: active ? QestoColors.primary : QestoColors.secondaryText,
+                color: active
+                    ? context.qestoColors.primary
+                    : context.qestoColors.secondaryText,
                 fontSize: 9.5,
                 fontWeight: FontWeight.w700,
               ),
@@ -1207,7 +1450,9 @@ class _SortHeader extends StatelessWidget {
                 ? Icons.arrow_upward_rounded
                 : Icons.arrow_downward_rounded,
             size: 13,
-            color: active ? QestoColors.primary : QestoColors.secondaryText,
+            color: active
+                ? context.qestoColors.primary
+                : context.qestoColors.secondaryText,
           ),
         ],
       ),
@@ -1226,8 +1471,8 @@ class _TableHeader extends StatelessWidget {
       label,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: QestoColors.secondaryText,
+      style: TextStyle(
+        color: context.qestoColors.secondaryText,
         fontSize: 9.5,
         fontWeight: FontWeight.w700,
       ),
@@ -1256,8 +1501,8 @@ class _TransactionRow extends StatelessWidget {
       onTap: onTap,
       child: Container(
         height: 54,
-        decoration: const BoxDecoration(
-          border: Border(bottom: BorderSide(color: QestoColors.border)),
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.qestoColors.border)),
         ),
         child: Row(
           children: [
@@ -1298,8 +1543,8 @@ class _TransactionRow extends StatelessWidget {
                             description,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: QestoColors.secondaryText,
+                            style: TextStyle(
+                              color: context.qestoColors.secondaryText,
                               fontSize: 8.5,
                             ),
                           ),
@@ -1315,24 +1560,19 @@ class _TransactionRow extends StatelessWidget {
                 desktopCategoryName(controller, transaction),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 9.5,
                 ),
               ),
             ),
             Expanded(
               flex: 18,
-              child: Text(
+              child: QestoMoneyCell(
                 formatMoney(amount, transaction.currency, showSign: amount > 0),
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: amount > 0 ? QestoColors.positive : QestoColors.text,
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w800,
-                ),
+                color: amount > 0
+                    ? context.qestoColors.positive
+                    : context.qestoColors.text,
               ),
             ),
             if (!compact)
@@ -1344,8 +1584,8 @@ class _TransactionRow extends StatelessWidget {
                     desktopAccountName(controller, transaction),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: QestoColors.secondaryText,
+                    style: TextStyle(
+                      color: context.qestoColors.secondaryText,
                       fontSize: 9.5,
                     ),
                   ),
@@ -1384,27 +1624,27 @@ class _TransactionTypePill extends StatelessWidget {
     final (label, color, icon) = switch (transaction.type) {
       TransactionType.income || TransactionType.refund => (
         'Доход',
-        QestoColors.positive,
+        context.qestoColors.positive,
         Icons.arrow_upward_rounded,
       ),
       TransactionType.transfer => (
         'Перевод',
-        QestoColors.primary,
+        context.qestoColors.primary,
         Icons.swap_horiz_rounded,
       ),
       TransactionType.savingsTransfer => (
         'Накопление',
-        QestoColors.purple,
+        context.qestoColors.purple,
         Icons.savings_outlined,
       ),
       TransactionType.investment => (
         'Инвестиция',
-        QestoColors.purple,
+        context.qestoColors.purple,
         Icons.trending_up_rounded,
       ),
       TransactionType.expense => (
         'Расход',
-        QestoColors.negative,
+        context.qestoColors.negative,
         Icons.arrow_downward_rounded,
       ),
     };
@@ -1495,8 +1735,8 @@ class _CircleArrowButton extends StatelessWidget {
         minimumSize: const Size(31, 31),
         maximumSize: const Size(31, 31),
         padding: EdgeInsets.zero,
-        side: const BorderSide(color: QestoColors.border),
-        foregroundColor: QestoColors.secondaryText,
+        side: BorderSide(color: context.qestoColors.border),
+        foregroundColor: context.qestoColors.secondaryText,
       ),
     );
   }
@@ -1519,8 +1759,9 @@ class _ShowAllButton extends StatelessWidget {
         style: TextButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
           visualDensity: VisualDensity.compact,
-          foregroundColor: QestoColors.primary,
+          foregroundColor: context.qestoColors.primary,
           textStyle: const TextStyle(
+            fontFamily: QestoTypography.uiFamily,
             fontSize: 10.5,
             fontWeight: FontWeight.w800,
           ),
@@ -1548,17 +1789,17 @@ class _BlockEmptyState extends StatelessWidget {
               width: 42,
               height: 42,
               decoration: BoxDecoration(
-                color: QestoColors.primarySoft,
-                borderRadius: BorderRadius.circular(13),
+                color: context.qestoColors.primarySoft,
+                borderRadius: QestoGeometry.control,
               ),
-              child: Icon(icon, size: 21, color: QestoColors.primary),
+              child: Icon(icon, size: 21, color: context.qestoColors.primary),
             ),
             const SizedBox(height: 11),
             Text(
               message,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: QestoColors.secondaryText,
+              style: TextStyle(
+                color: context.qestoColors.secondaryText,
                 fontSize: 11.5,
                 height: 1.4,
               ),

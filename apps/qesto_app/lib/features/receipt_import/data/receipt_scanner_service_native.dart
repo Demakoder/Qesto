@@ -51,6 +51,8 @@ if ([string]::IsNullOrWhiteSpace($path)) {
   }
   $path = $dialog.FileName
 }
+# WinRT rejects otherwise valid Windows paths with forward slashes.
+$path = [IO.Path]::GetFullPath($path)
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
 $null = [Windows.Storage.StorageFile, Windows.Storage, ContentType=WindowsRuntime]
 $null = [Windows.Storage.FileAccessMode, Windows.Storage, ContentType=WindowsRuntime]

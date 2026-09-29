@@ -4,6 +4,7 @@ import '../../../../data/models/qesto_models.dart';
 import '../../../budget/state/budget_controller.dart';
 import '../../domain/models/statistics_models.dart';
 import '../../domain/services/statistics_calculation_service.dart';
+import '../../domain/services/statistics_period_range.dart';
 
 class StatisticsController extends ChangeNotifier {
   StatisticsController({
@@ -14,12 +15,44 @@ class StatisticsController extends ChangeNotifier {
       (period) => period.contains(budgetController.referenceDate),
       orElse: () => budgetController.periods.last,
     );
-    _query = StatisticsQuery(
-      period: StatisticsDateRange(
-        activePeriod.startDate,
-        budgetController.referenceDate,
-      ),
+    var initialRange = StatisticsDateRange(
+      activePeriod.startDate,
+      budgetController.referenceDate,
     );
+    var initialPreset = StatisticsPeriodPreset.currentBudget;
+    final hasOperationsInActiveRange = budgetController.transactions.any(
+      (transaction) => initialRange.contains(transaction.date),
+    );
+    if (!hasOperationsInActiveRange &&
+        budgetController.transactions.isNotEmpty) {
+      final newest = budgetController.transactions
+          .map((item) => item.date)
+          .reduce((left, right) => left.isAfter(right) ? left : right);
+      final recentEnd = newest.isAfter(budgetController.referenceDate)
+          ? newest
+          : budgetController.referenceDate;
+      final recentRange = StatisticsDateRange(
+        recentEnd.subtract(const Duration(days: 29)),
+        recentEnd,
+      );
+      if (budgetController.transactions.any(
+        (transaction) => recentRange.contains(transaction.date),
+      )) {
+        initialRange = recentRange;
+        initialPreset = StatisticsPeriodPreset.last30Days;
+      } else {
+        final latestPeriod = budgetController.periods.firstWhere(
+          (period) => period.contains(newest),
+          orElse: () => budgetController.periods.last,
+        );
+        initialRange = StatisticsDateRange(
+          latestPeriod.startDate,
+          latestPeriod.endDate,
+        );
+        initialPreset = StatisticsPeriodPreset.custom;
+      }
+    }
+    _query = StatisticsQuery(period: initialRange, preset: initialPreset);
     _tracked.addAll([
       const TrackedStatisticsItem(
         id: 'cafes',
@@ -44,15 +77,40 @@ class StatisticsController extends ChangeNotifier {
   StatisticsSection _section = StatisticsSection.overview;
   final List<TrackedStatisticsItem> _tracked = [];
   final Set<String> _ignoredQualityIssueIds = {};
+  bool _isRefreshing = false;
+  bool _disposed = false;
 
   StatisticsQuery get query => _query;
   StatisticsSnapshot get snapshot => _snapshot;
   StatisticsSection get section => _section;
   List<TrackedStatisticsItem> get tracked => List.unmodifiable(_tracked);
+  bool get isRefreshing => _isRefreshing;
 
   void _handleBudgetChanged() {
+    // A manual refresh already reads the latest ledger after its await. Avoid
+    // calculating the same snapshot twice when a mutation lands meanwhile.
+    if (_isRefreshing) return;
     _recalculate();
     notifyListeners();
+  }
+
+  /// Rebuilds the current query from the local Synoball read model only.
+  /// This neither persists data nor invokes any bank/import integration.
+  Future<bool> refreshFromLocalData() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
+    notifyListeners();
+    try {
+      // Give the compact progress indicator one frame to become visible.
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      if (_disposed) return false;
+      _recalculate(); // Assignment is atomic; a failed build keeps the last snapshot.
+      notifyListeners();
+      return true;
+    } finally {
+      _isRefreshing = false;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   void _recalculate() {
@@ -67,57 +125,20 @@ class StatisticsController extends ChangeNotifier {
     );
   }
 
-  void selectSection(StatisticsSection value) {
+  void selectSection(StatisticsSection value, {bool notify = true}) {
     if (_section == value) return;
     _section = value;
-    notifyListeners();
+    if (notify) notifyListeners();
   }
 
   void setPeriodPreset(StatisticsPeriodPreset preset) {
-    final reference = budgetController.referenceDate;
-    late final StatisticsDateRange range;
-    switch (preset) {
-      case StatisticsPeriodPreset.currentWeek:
-        final start = reference.subtract(Duration(days: reference.weekday - 1));
-        range = StatisticsDateRange(start, reference);
-      case StatisticsPeriodPreset.currentBudget:
-        final period = budgetController.periods.firstWhere(
-          (item) => item.contains(reference),
-          orElse: () => budgetController.periods.last,
-        );
-        range = StatisticsDateRange(period.startDate, reference);
-      case StatisticsPeriodPreset.last30Days:
-        range = StatisticsDateRange(
-          reference.subtract(const Duration(days: 29)),
-          reference,
-        );
-      case StatisticsPeriodPreset.threeMonths:
-        range = StatisticsDateRange(
-          DateTime(reference.year, reference.month - 2),
-          reference,
-        );
-      case StatisticsPeriodPreset.sixMonths:
-        range = StatisticsDateRange(
-          DateTime(reference.year, reference.month - 5),
-          reference,
-        );
-      case StatisticsPeriodPreset.currentYear:
-        range = StatisticsDateRange(DateTime(reference.year), reference);
-      case StatisticsPeriodPreset.last12Months:
-        range = StatisticsDateRange(
-          DateTime(reference.year, reference.month - 11),
-          reference,
-        );
-      case StatisticsPeriodPreset.allTime:
-        final earliest = budgetController.transactions.isEmpty
-            ? reference
-            : budgetController.transactions
-                  .map((item) => item.date)
-                  .reduce((a, b) => a.isBefore(b) ? a : b);
-        range = StatisticsDateRange(earliest, reference);
-      case StatisticsPeriodPreset.custom:
-        return;
-    }
+    final range = statisticsPeriodRange(
+      preset: preset,
+      reference: budgetController.referenceDate,
+      transactionDates: budgetController.transactions.map((t) => t.date),
+      budgetPeriods: budgetController.periods,
+    );
+    if (range == null) return;
     _query = _query.copyWith(period: range, preset: preset);
     _recalculate();
     notifyListeners();
@@ -242,6 +263,7 @@ class StatisticsController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     budgetController.removeListener(_handleBudgetChanged);
     super.dispose();
   }

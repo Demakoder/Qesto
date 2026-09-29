@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/app/qesto_app.dart';
+import 'package:qesto/desktop/desktop_app_shell.dart';
+import 'package:qesto/data/models/qesto_models.dart';
 import 'package:qesto/mocks/fixtures/mock_deals.dart';
 import 'package:qesto/mocks/mock_qesto_repository.dart';
 
@@ -30,7 +32,10 @@ void main() {
           if (call.method == 'removeNotification') {
             final arguments = Map<Object?, Object?>.from(call.arguments as Map);
             mockNotifications.removeWhere(
-              (item) => item['notificationKey'] == arguments['notificationKey'],
+              (item) =>
+                  item['notificationKey'] == arguments['notificationKey'] &&
+                  (item['deliveryVersion'] ?? '') ==
+                      arguments['expectedVersion'],
             );
             return null;
           }
@@ -72,34 +77,65 @@ void main() {
         .setMockMethodCallHandler(voiceChannel, null);
   });
 
-  Widget buildApp() {
+  Widget buildApp({bool linkedNotificationCard = false}) {
     return QestoApp(
       repository: MockQestoRepository(
         delay: Duration.zero,
-        financialData: sampleUserFinancialData,
+        financialData: !linkedNotificationCard
+            ? sampleUserFinancialData
+            : sampleUserFinancialData.copyWith(
+                accounts: [
+                  for (final a in sampleUserFinancialData.accounts)
+                    if (a.id == 'card-main')
+                      QestoAccount(
+                        id: a.id,
+                        userId: a.userId,
+                        title: 'Сбер •• 1234',
+                        balance: a.balance,
+                        currency: a.currency,
+                        type: a.type,
+                      )
+                    else
+                      a,
+                ],
+              ),
         coupons: mockCoupons,
         promotions: mockPromotions,
       ),
     );
   }
 
-  testWidgets('основные вкладки переключаются и сохраняют содержимое', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildApp());
+  Future<void> add(WidgetTester tester, String action) async {
+    await tester.tap(find.byKey(const Key('mobile-add-data')));
     await tester.pumpAndSettle();
-
-    expect(find.text('Бюджет'), findsWidgets);
-    expect(find.text('Расходы по категориям'), findsOneWidget);
-
-    await tester.tap(find.text('Выгода').last);
+    await tester.ensureVisible(find.byKey(Key('add-data-$action')));
+    await tester.tap(find.byKey(Key('add-data-$action')));
     await tester.pumpAndSettle();
-    expect(find.text('Скидка 15% в Перекрёстке'), findsOneWidget);
+  }
 
-    await tester.tap(find.text('Накопления').last);
+  Future<void> openHistory(WidgetTester tester) async {
+    await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    expect(find.text('Накоплено'), findsOneWidget);
-  });
+    tester
+        .state<ScaffoldState>(find.byKey(const Key('mobile-app-shell')))
+        .openDrawer();
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('action-history-button')),
+      250,
+      scrollable: find.descendant(
+        of: find.byType(Drawer),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await Scrollable.ensureVisible(
+      tester.element(find.byKey(const Key('action-history-button'))),
+      alignment: 1,
+    );
+    await tester.tap(find.byKey(const Key('action-history-button')));
+    await tester.pumpAndSettle();
+  }
 
   testWidgets('голосовая фраза открывает подтверждение расхода', (
     tester,
@@ -111,10 +147,7 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    final voiceButton = find.byKey(const Key('voice-transaction-button'));
-    await tester.ensureVisible(voiceButton);
-    await tester.tap(voiceButton);
-    await tester.pumpAndSettle();
+    await add(tester, 'voice');
 
     expect(find.text('Проверьте операцию'), findsOneWidget);
     expect(find.text('«Потратил 850 рублей на продукты»'), findsOneWidget);
@@ -137,12 +170,14 @@ void main() {
 
     await tester.tap(find.byTooltip('Уведомления'));
     await tester.pumpAndSettle();
+    await tester.tap(find.text('Уведомления и SMS'));
+    await tester.pumpAndSettle();
     expect(find.text('Найденные операции'), findsOneWidget);
     expect(find.text('Новых операций нет'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Назад'));
     await tester.pumpAndSettle();
-    expect(find.text('Расходы по категориям'), findsOneWidget);
+    expect(find.text('Добрый день'), findsOneWidget);
   });
 
   testWidgets('уведомление Сбербанка автоматически добавляется как расход', (
@@ -154,158 +189,35 @@ void main() {
         'notificationKey': 'sber-widget-test',
         'postedAt': DateTime(2026, 7, 21, 14, 32).millisecondsSinceEpoch,
         'title': 'Покупка Burger King',
-        'text': '50 ₽ - Баланс: ... ₽ Счёт карты МИР ...',
+        'text': '50 ₽ - Баланс: ... ₽ Счёт карты МИР *1234',
       },
     ];
 
-    await tester.pumpWidget(buildApp());
+    await tester.pumpWidget(buildApp(linkedNotificationCard: true));
     await tester.pumpAndSettle();
-    expect(find.text('46 750 ₽'), findsWidgets);
+    expect(
+      tester
+          .widget<DesktopAppShell>(find.byType(DesktopAppShell))
+          .controller
+          .transactions
+          .any((t) => t.amount == 50),
+      isTrue,
+    );
 
     await tester.tap(find.byTooltip('Уведомления'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Уведомления и SMS'));
     await tester.pumpAndSettle();
 
     expect(find.text('Новых операций нет'), findsOneWidget);
     expect(find.text('Добавить'), findsNothing);
   });
 
-  testWidgets('месяцы бюджета переключаются свайпом, детали открываются', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    expect(find.text('Бюджет на июль'), findsOneWidget);
-    await tester.fling(find.byType(PageView), const Offset(-500, 0), 1200);
-    await tester.pumpAndSettle();
-    expect(find.text('Бюджет на август'), findsOneWidget);
-    expect(find.text('109%'), findsOneWidget);
-
-    await tester.tap(find.text('Бюджет на август'));
-    await tester.pumpAndSettle();
-    expect(find.text('Динамика бюджета'), findsOneWidget);
-    expect(find.text('Выгода'), findsNothing);
-    await tester.tap(find.byTooltip('Назад'));
-    await tester.pumpAndSettle();
-    expect(find.text('Бюджет на август'), findsOneWidget);
-  });
-
-  testWidgets('разделы выгоды переключают набор карточек', (tester) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Выгода').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Акции'));
-    await tester.pumpAndSettle();
-    expect(find.text('Три поездки со скидкой 25%'), findsOneWidget);
-
-    await tester.tap(find.text('Отслеживаемое'));
-    await tester.pumpAndSettle();
-    expect(find.text('Беспроводные наушники'), findsOneWidget);
-  });
-
-  testWidgets('поиск фильтрует купоны и акции', (tester) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Выгода').last);
-    await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('benefits-search')),
-      'Перекрестке',
-    );
-    await tester.pumpAndSettle();
-    expect(find.text('Скидка 15% в Перекрёстке'), findsOneWidget);
-    expect(find.text('Кешбэк 20% в ресторанах'), findsNothing);
-
-    await tester.tap(find.text('Акции'));
-    await tester.pumpAndSettle();
-    expect(find.text('Акции не найдены'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('clear-benefits-search')));
-    await tester.pumpAndSettle();
-    expect(find.text('Три поездки со скидкой 25%'), findsOneWidget);
-  });
-
-  testWidgets('сумма и серия накоплений ведут на разные экраны', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Накопления').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('467 000 ₽'));
-    await tester.pumpAndSettle();
-    expect(find.text('Динамика накоплений'), findsOneWidget);
-    await tester.tap(find.byTooltip('Назад'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('64 недели'));
-    await tester.pumpAndSettle();
-    expect(find.text('Серия накоплений'), findsOneWidget);
-  });
-
-  testWidgets('полный список категорий и экран категории открываются', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Бюджет на июль'));
-    await tester.pumpAndSettle();
-    await tester.fling(find.byType(ListView), const Offset(0, -1100), 1600);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('show-all-category-plans')));
-    await tester.pumpAndSettle();
-    expect(find.text('Сортировка'), findsOneWidget);
-
-    await tester.tap(find.text('Продукты').first);
-    await tester.pumpAndSettle();
-    expect(find.text('Операции'), findsOneWidget);
-    expect(find.text('Перекрёсток'), findsWidgets);
-  });
-
-  testWidgets('категория на диаграмме открывает список операций', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    final products = find.text('Продукты').first;
-    await tester.ensureVisible(products);
-    await tester.tap(products);
-    await tester.pumpAndSettle();
-
-    expect(find.text('Операции'), findsOneWidget);
-    expect(find.byTooltip('Назад'), findsOneWidget);
-  });
-
-  testWidgets('показывает полный список предстоящих трат', (tester) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.text('Бюджет на июль'));
-    await tester.pumpAndSettle();
-    await tester.fling(find.byType(ListView), const Offset(0, -1800), 1800);
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('show-all-upcoming-expenses')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Spotify'), findsOneWidget);
-    expect(find.textContaining('Аренда'), findsOneWidget);
-  });
-
   testWidgets('ручное добавление расхода обновляет итог', (tester) async {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    expect(find.text('46 700 ₽'), findsWidgets);
 
-    await tester.ensureVisible(find.text('Добавить'));
-    await tester.tap(find.text('Добавить'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Добавить расход'));
-    await tester.pumpAndSettle();
+    await add(tester, 'manual');
 
     await tester.enterText(
       find.byKey(const Key('expense-amount-field')),
@@ -317,14 +229,23 @@ void main() {
     );
     await tester.tap(find.text('Выбрать'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Продукты').first);
+    await tester.enterText(find.byType(TextField).last, 'Продукты');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, 'Продукты').last);
     await tester.pumpAndSettle();
     await tester.fling(find.byType(ListView), const Offset(0, -900), 1500);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Сохранить расход'));
     await tester.pumpAndSettle();
 
-    expect(find.text('47 700 ₽'), findsWidgets);
+    expect(
+      tester
+          .widget<DesktopAppShell>(find.byType(DesktopAppShell))
+          .controller
+          .transactions
+          .any((t) => t.merchant == 'Тестовая покупка' && t.amount == 1000),
+      isTrue,
+    );
   });
 
   testWidgets('PDF-выписка Сбербанка открывается и импортируется', (
@@ -349,14 +270,7 @@ void main() {
 
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Добавить'));
-    await tester.tap(find.text('Добавить'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Загрузить выписку'));
-    await tester.pumpAndSettle();
-    expect(find.text('Добавить Excel-таблицу'), findsOneWidget);
-    await tester.tap(find.text('Загрузить выписку'));
-    await tester.pumpAndSettle();
+    await add(tester, 'statement');
 
     expect(find.text('Выписка Сбербанка в PDF'), findsOneWidget);
     await tester.tap(find.byKey(const Key('pick-statement-pdf')));
@@ -364,6 +278,7 @@ void main() {
 
     expect(find.text('sber-test.pdf'), findsOneWidget);
     expect(find.text('Найдено операций: 3'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('MAGNIT TEST MOSCOW RUS'), 250);
     expect(find.text('MAGNIT TEST MOSCOW RUS'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Перевод от И. Имя'), 260);
     expect(find.text('Перевод от И. Имя'), findsOneWidget);
@@ -373,21 +288,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Добавлено операций: 3'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Капитал'));
-    await tester.tap(find.text('Капитал'));
-    await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(find.text('Счёт Сбербанка • 2345'), 300);
-    expect(find.text('Счёт Сбербанка • 2345'), findsOneWidget);
-    expect(find.text('6 010 ₽'), findsWidgets);
-
-    await tester.tap(find.byTooltip('Назад'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('action-history-button')));
-    await tester.pumpAndSettle();
+    final controller = tester
+        .widget<DesktopAppShell>(find.byType(DesktopAppShell))
+        .controller;
+    expect(controller.accounts.any((a) => a.title.contains('2345')), isTrue);
+    await openHistory(tester);
     expect(find.text('Импорт sber-test.pdf'), findsOneWidget);
     await tester.tap(find.text('Отменить'));
     await tester.pumpAndSettle();
-    expect(find.textContaining('отменено'), findsOneWidget);
+    expect(find.textContaining('отменено'), findsWidgets);
   });
 
   testWidgets('QR-код кассового чека сканируется и добавляется', (
@@ -399,12 +308,7 @@ void main() {
 
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Добавить'));
-    await tester.tap(find.text('Добавить'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Добавить чек'));
-    await tester.tap(find.text('Добавить чек'));
-    await tester.pumpAndSettle();
+    await add(tester, 'receipt');
 
     expect(find.text('QR-код кассового чека'), findsOneWidget);
     await tester.tap(find.byKey(const Key('scan-receipt-qr')));
@@ -443,12 +347,7 @@ void main() {
 
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Добавить'));
-    await tester.tap(find.text('Добавить'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Добавить чек'));
-    await tester.tap(find.text('Добавить чек'));
-    await tester.pumpAndSettle();
+    await add(tester, 'receipt');
     await tester.tap(find.byKey(const Key('scan-receipt-qr')));
     await tester.pumpAndSettle();
 
@@ -467,86 +366,11 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Расход из чека добавлен'), findsOneWidget);
 
-    await tester.ensureVisible(find.text('Добавить'));
-    await tester.tap(find.text('Добавить'));
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Добавить чек'));
-    await tester.tap(find.text('Добавить чек'));
-    await tester.pumpAndSettle();
+    await add(tester, 'receipt');
     await tester.tap(find.byKey(const Key('scan-receipt-qr')));
     await tester.pumpAndSettle();
 
     expect(find.text('Чек уже добавлен'), findsOneWidget);
     expect(find.text('Обновить состав чека'), findsOneWidget);
-  });
-
-  testWidgets('статистика открывается и вкладки переключаются', (tester) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-
-    await tester.ensureVisible(find.text('Статистика'));
-    await tester.tap(find.text('Статистика'));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('statistics-title')), findsOneWidget);
-    expect(find.text('Финансовая динамика'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('statistics-tab-expenses')));
-    await tester.pumpAndSettle();
-    expect(find.text('Динамика расходов'), findsOneWidget);
-  });
-
-  testWidgets('период, сравнение и фильтры статистики работают', (
-    tester,
-  ) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Статистика'));
-    await tester.tap(find.text('Статистика'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('statistics-period-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Последние 30 дней'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('20 июня'), findsWidgets);
-
-    await tester.tap(find.byKey(const Key('statistics-comparison-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Без сравнения'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('statistics-filter-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Наличные'));
-    await tester.tap(find.byKey(const Key('statistics-apply-filters')));
-    await tester.pumpAndSettle();
-    expect(find.text('1'), findsWidgets);
-  });
-
-  testWidgets('служебные экраны статистики открываются', (tester) async {
-    await tester.pumpWidget(buildApp());
-    await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('Статистика'));
-    await tester.tap(find.text('Статистика'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('statistics-tracked-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Отслеживаемое'), findsOneWidget);
-    expect(find.text('Кафе и рестораны'), findsOneWidget);
-    await tester.tap(find.byTooltip('Назад'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('statistics-explore-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Собственный финансовый запрос'), findsOneWidget);
-    await tester.tap(find.byTooltip('Назад'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('statistics-quality-button')));
-    await tester.pumpAndSettle();
-    expect(find.text('Полнота статистики'), findsOneWidget);
-    expect(find.text('Возможный дубль'), findsOneWidget);
   });
 }

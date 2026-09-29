@@ -54,6 +54,14 @@ String formatBudgetPeriod(int month, int year, {bool includeYear = false}) {
   return includeYear ? '$name $year' : name;
 }
 
+/// Exact two-decimal monetary label without a floating-point conversion.
+String formatMinorMoney(int amountMinor, String currency) {
+  final magnitude = amountMinor.abs();
+  final major = formatMoney(magnitude ~/ 100, '').trimRight();
+  final cents = (magnitude % 100).toString().padLeft(2, '0');
+  return '${amountMinor < 0 ? '−' : ''}$major,$cents ${currencySymbol(currency)}';
+}
+
 String capitalize(String value) {
   if (value.isEmpty) return value;
   return '${value[0].toUpperCase()}${value.substring(1)}';

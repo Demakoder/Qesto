@@ -49,9 +49,9 @@ class _ForecastMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!period.hasAssignedBudget) {
-      return const _ForecastNotice(
+      return _ForecastNotice(
         icon: Icons.account_balance_wallet_outlined,
-        color: QestoColors.secondaryText,
+        color: context.qestoColors.secondaryText,
         message:
             'Бюджет не назначен. Задайте лимит, чтобы увидеть план и прогноз.',
       );
@@ -59,22 +59,22 @@ class _ForecastMessage extends StatelessWidget {
     final (icon, color, message) = switch (forecast.state) {
       BudgetForecastState.projectedOverLimit => (
         Icons.info_outline_rounded,
-        QestoColors.primary,
+        context.qestoColors.primary,
         'При текущем темпе лимит будет достигнут ${formatDate(forecast.crossingDate!)}.',
       ),
       BudgetForecastState.underPlan => (
         Icons.check_circle_outline_rounded,
-        QestoColors.green,
+        context.qestoColors.green,
         'Текущий темп укладывается в план.',
       ),
       BudgetForecastState.exceeded => (
         Icons.warning_amber_rounded,
-        QestoColors.danger,
+        context.qestoColors.danger,
         'План уже превышен.',
       ),
       BudgetForecastState.noForecast => (
         Icons.query_stats_rounded,
-        QestoColors.secondaryText,
+        context.qestoColors.secondaryText,
         'Недостаточно данных для прогноза.',
       ),
     };
@@ -99,7 +99,7 @@ class _ForecastNotice extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
     decoration: BoxDecoration(
       color: color.withValues(alpha: 0.10),
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: QestoGeometry.control,
     ),
     child: Row(
       children: [

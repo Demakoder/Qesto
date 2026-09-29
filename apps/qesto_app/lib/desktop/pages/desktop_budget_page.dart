@@ -6,6 +6,7 @@ import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/services/category_budget_calculation_service.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/classification/classification_actions.dart';
 import '../../features/budget/widgets/budget_category_icon.dart';
 import '../widgets/desktop_components.dart';
 
@@ -55,8 +56,70 @@ class _DesktopBudgetPageState extends State<DesktopBudgetPage> {
             ? summary.currentExpense
             : forecast.projectedPoints.last.amount.round();
         final unallocated = period.totalPlan - planned;
+        if (MediaQuery.sizeOf(context).width < 600) {
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  IconButton(
+                    onPressed: _periodIndex > 0
+                        ? () => setState(() => _periodIndex--)
+                        : null,
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  Expanded(
+                    child: Text(
+                      capitalize(
+                        formatBudgetPeriod(
+                          period.month,
+                          period.year,
+                          includeYear: true,
+                        ),
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    onPressed:
+                        _periodIndex < widget.controller.periods.length - 1
+                        ? () => setState(() => _periodIndex++)
+                        : null,
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                key: const Key('desktop-customize-categories'),
+                onPressed: _openCategoryAppearance,
+                icon: const Icon(Icons.palette_outlined),
+                label: const Text('Вид категорий'),
+              ),
+              _BudgetSummaryCard(
+                currency: period.currency,
+                hasBudget: period.hasAssignedBudget,
+                income:
+                    widget.controller.financialState.monthlyIncome.minorUnits ~/
+                    100,
+                totalPlan: period.totalPlan,
+                planned: planned,
+                spent: summary.currentExpense,
+                forecast: forecastTotal,
+                unallocated: unallocated,
+                onEditBudget: () => _editTotalBudget(period),
+              ),
+              const SizedBox(height: 16),
+              for (final status in statuses)
+                _BudgetRow(
+                  controller: widget.controller,
+                  period: period,
+                  status: status,
+                ),
+            ],
+          );
+        }
         return Padding(
-          padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
+          padding: QestoSpacing.workspace(context),
           child: Column(
             children: [
               Row(
@@ -98,9 +161,9 @@ class _DesktopBudgetPageState extends State<DesktopBudgetPage> {
                     icon: const Icon(Icons.palette_outlined, size: 18),
                     label: const Text('Вид категорий'),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: QestoColors.text,
-                      side: const BorderSide(color: QestoColors.border),
-                      backgroundColor: QestoColors.surface,
+                      foregroundColor: context.qestoColors.text,
+                      side: BorderSide(color: context.qestoColors.border),
+                      backgroundColor: context.qestoColors.surface,
                       padding: const EdgeInsets.symmetric(
                         horizontal: 13,
                         vertical: 11,
@@ -123,12 +186,12 @@ class _DesktopBudgetPageState extends State<DesktopBudgetPage> {
                         ? Icons.check_circle_outline_rounded
                         : Icons.query_stats_rounded,
                     color: !period.hasAssignedBudget
-                        ? QestoColors.secondaryText
+                        ? context.qestoColors.secondaryText
                         : forecast.state == BudgetForecastState.underPlan
-                        ? QestoColors.positive
+                        ? context.qestoColors.positive
                         : forecast.state == BudgetForecastState.noForecast
-                        ? QestoColors.secondaryText
-                        : QestoColors.warning,
+                        ? context.qestoColors.secondaryText
+                        : context.qestoColors.warning,
                   ),
                 ],
               ),
@@ -219,12 +282,16 @@ class _DesktopBudgetPageState extends State<DesktopBudgetPage> {
           _CategoryAppearanceDialog(categories: widget.controller.categories),
     );
     if (selection == null) return;
-    await widget.controller.updateCategoryAppearance(
-      categoryId: selection.categoryId,
-      name: selection.name,
-      iconKey: selection.iconKey,
-      colorValue: selection.colorValue,
-    );
+    try {
+      await widget.controller.updateCategoryAppearance(
+        categoryId: selection.categoryId,
+        name: selection.name,
+        iconKey: selection.iconKey,
+        colorValue: selection.colorValue,
+      );
+    } catch (error) {
+      if (mounted) classificationError(context, error);
+    }
   }
 
   Future<void> _editTotalBudget(BudgetPeriod period) async {
@@ -373,8 +440,8 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
             width: 250,
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: QestoColors.surfaceSecondary,
-                borderRadius: BorderRadius.circular(14),
+                color: context.qestoColors.surfaceSecondary,
+                borderRadius: QestoGeometry.control,
               ),
               child: ListView.builder(
                 padding: const EdgeInsets.all(8),
@@ -385,14 +452,16 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
                   return Padding(
                     padding: const EdgeInsets.symmetric(vertical: 2),
                     child: Material(
-                      color: active ? Colors.white : Colors.transparent,
-                      borderRadius: BorderRadius.circular(10),
+                      color: active
+                          ? context.qestoColors.surface
+                          : Colors.transparent,
+                      borderRadius: QestoGeometry.control,
                       child: ListTile(
                         key: Key('category-style-${category.id}'),
                         dense: true,
                         visualDensity: VisualDensity.compact,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: QestoGeometry.control,
                         ),
                         onTap: () => _select(category),
                         leading: BudgetCategoryIcon(
@@ -445,10 +514,10 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
                                 fontWeight: FontWeight.w900,
                               ),
                             ),
-                            const Text(
+                            Text(
                               'Так категория выглядит во всех графиках Qesto',
                               style: TextStyle(
-                                color: QestoColors.secondaryText,
+                                color: context.qestoColors.secondaryText,
                                 fontSize: 11,
                               ),
                             ),
@@ -489,7 +558,7 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
                               shape: BoxShape.circle,
                               border: Border.all(
                                 color: colorValue == value
-                                    ? QestoColors.text
+                                    ? context.qestoColors.text
                                     : Colors.transparent,
                                 width: 2.5,
                               ),
@@ -518,7 +587,7 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
                       for (final value in _icons)
                         InkWell(
                           key: Key('category-icon-$value'),
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: QestoGeometry.control,
                           onTap: () => setState(() => iconKey = value),
                           child: Container(
                             width: 39,
@@ -526,8 +595,8 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
                             decoration: BoxDecoration(
                               color: iconKey == value
                                   ? Color(colorValue).withValues(alpha: 0.14)
-                                  : QestoColors.surfaceSecondary,
-                              borderRadius: BorderRadius.circular(10),
+                                  : context.qestoColors.surfaceSecondary,
+                              borderRadius: QestoGeometry.control,
                               border: Border.all(
                                 color: iconKey == value
                                     ? Color(colorValue)
@@ -539,7 +608,7 @@ class _CategoryAppearanceDialogState extends State<_CategoryAppearanceDialog> {
                               size: 20,
                               color: iconKey == value
                                   ? Color(colorValue)
-                                  : QestoColors.secondaryText,
+                                  : context.qestoColors.secondaryText,
                             ),
                           ),
                         ),
@@ -601,8 +670,8 @@ class _HeaderText extends StatelessWidget {
     alignment: alignRight ? Alignment.centerRight : Alignment.centerLeft,
     child: Text(
       value,
-      style: const TextStyle(
-        color: QestoColors.secondaryText,
+      style: TextStyle(
+        color: context.qestoColors.secondaryText,
         fontSize: 10,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.4,
@@ -625,6 +694,40 @@ class _BudgetRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = Color(status.category.colorValue);
     final hasBudget = status.hasAssignedBudget;
+    if (MediaQuery.sizeOf(context).width < 600) {
+      return Card(
+        child: ListTile(
+          onTap: () => _editBudget(context),
+          title: Text(status.category.name),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Факт: ${formatMoney(status.spentAmount, period.currency)}',
+                ),
+                Text(
+                  hasBudget
+                      ? 'План: ${formatMoney(status.plannedAmount, period.currency)} · Осталось: ${formatMoney(status.remaining, period.currency)}'
+                      : 'Бюджет не назначен',
+                ),
+                const SizedBox(height: 8),
+                DesktopProgressBar(
+                  value: status.progress,
+                  color: !hasBudget
+                      ? context.qestoColors.secondaryText
+                      : status.isExceeded
+                      ? context.qestoColors.negative
+                      : color,
+                ),
+              ],
+            ),
+          ),
+          trailing: const Icon(Icons.edit_outlined, size: 18),
+        ),
+      );
+    }
     return InkWell(
       onTap: () => _editBudget(context),
       child: SizedBox(
@@ -666,9 +769,9 @@ class _BudgetRow extends StatelessWidget {
                   DesktopProgressBar(
                     value: status.progress,
                     color: !hasBudget
-                        ? QestoColors.secondaryText
+                        ? context.qestoColors.secondaryText
                         : status.isExceeded
-                        ? QestoColors.negative
+                        ? context.qestoColors.negative
                         : color,
                     height: 5,
                   ),
@@ -714,10 +817,10 @@ class _BudgetRow extends StatelessWidget {
                   fontSize: 11,
                   fontWeight: FontWeight.w800,
                   color: !hasBudget
-                      ? QestoColors.secondaryText
+                      ? context.qestoColors.secondaryText
                       : status.isExceeded
-                      ? QestoColors.negative
-                      : QestoColors.positive,
+                      ? context.qestoColors.negative
+                      : context.qestoColors.positive,
                 ),
               ),
             ),
@@ -795,8 +898,8 @@ class _BudgetSummaryCard extends StatelessWidget {
             Expanded(
               child: Text(
                 hasBudget ? 'Осталось распределить' : 'Бюджет не назначен',
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                 ),
@@ -816,7 +919,9 @@ class _BudgetSummaryCard extends StatelessWidget {
             fontSize: 28,
             fontWeight: FontWeight.w900,
             letterSpacing: -0.7,
-            color: unallocated < 0 ? QestoColors.negative : QestoColors.text,
+            color: unallocated < 0
+                ? context.qestoColors.negative
+                : context.qestoColors.text,
           ),
         ),
         const SizedBox(height: 12),
@@ -836,14 +941,17 @@ class _BudgetSummaryCard extends StatelessWidget {
           strong: true,
           valueLabel: hasBudget ? null : 'Без бюджета',
         ),
-        const Spacer(),
+        if (MediaQuery.sizeOf(context).width >= 600)
+          const Spacer()
+        else
+          const SizedBox(height: 12),
         DesktopProgressBar(
           value: totalPlan <= 0 ? 0 : spent / totalPlan,
           color: hasBudget && spent > totalPlan
-              ? QestoColors.negative
+              ? context.qestoColors.negative
               : hasBudget
-              ? QestoColors.primary
-              : QestoColors.secondaryText,
+              ? context.qestoColors.primary
+              : context.qestoColors.secondaryText,
           height: 8,
         ),
         const SizedBox(height: 8),
@@ -851,8 +959,8 @@ class _BudgetSummaryCard extends StatelessWidget {
           totalPlan <= 0
               ? 'Задайте месячный лимит'
               : '${(spent / totalPlan * 100).round()}% месячного лимита использовано',
-          style: const TextStyle(
-            color: QestoColors.secondaryText,
+          style: TextStyle(
+            color: context.qestoColors.secondaryText,
             fontSize: 10,
           ),
         ),
@@ -883,7 +991,9 @@ class _SummaryLine extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: strong ? QestoColors.text : QestoColors.secondaryText,
+              color: strong
+                  ? context.qestoColors.text
+                  : context.qestoColors.secondaryText,
               fontSize: 11,
               fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
             ),

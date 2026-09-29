@@ -9,7 +9,7 @@ void main() {
   const entityId = 'ent-ivan';
   const cashAccount = 'acc-cash';
 
-  SynoballCore core() {
+  SynoballCore core({bool unresolvedAccount = false}) {
     final value = SynoballCore();
     value.upsertEntity(
       const SynoballEntity(
@@ -19,13 +19,14 @@ void main() {
       ),
     );
     value.upsertAccount(
-      const SynoballAccount(
+      SynoballAccount(
         id: cashAccount,
         entityId: entityId,
         name: 'Основной счёт',
         type: SynoballAccountType.card,
         currency: 'RUB',
         balance: Money(minorUnits: 19000000, currency: 'RUB'),
+        isVirtual: unresolvedAccount,
       ),
     );
     return value;
@@ -55,7 +56,7 @@ void main() {
   );
 
   test('notification, bank operation and receipt become one transaction', () {
-    final synoball = core();
+    final synoball = core(unresolvedAccount: true);
     final date = DateTime(2026, 8, 12, 12, 1);
     synoball.ingest(
       AndroidNotificationAdapter(),
@@ -188,57 +189,61 @@ void main() {
     expect(synoball.transactions, hasLength(2));
   });
 
-  test('one notification can match only one row from a statement', () {
-    final synoball = core();
-    final date = DateTime(2026, 8, 12, 10);
-    synoball.ingest(
-      AndroidNotificationAdapter(),
-      AndroidNotificationInput(
-        entityId: entityId,
-        receivedAt: date,
-        rawPayload: 'Покупка 1490 ₽ Пятёрочка',
-        notificationKey: 'notification-one-to-one',
-        packageName: 'ru.sberbankmobile',
-        transaction: seed(date: date, providerId: 'notification-one-to-one'),
-      ),
-    );
-    final statement = synoball.ingest(
-      StatementAdapter(),
-      StatementInput(
-        entityId: entityId,
-        receivedAt: date.add(const Duration(days: 1)),
-        rawPayload: 'two equal rows',
-        batchName: 'Statement',
-        account: const SynoballAccount(
-          id: 'acc-sber',
+  test(
+    'two plausible statement rows cannot greedily claim one notification',
+    () {
+      final synoball = core(unresolvedAccount: true);
+      final date = DateTime(2026, 8, 12, 10);
+      synoball.ingest(
+        AndroidNotificationAdapter(),
+        AndroidNotificationInput(
           entityId: entityId,
-          name: 'Сбер',
-          type: SynoballAccountType.card,
-          currency: 'RUB',
-          balance: Money(minorUnits: 0, currency: 'RUB'),
+          receivedAt: date,
+          rawPayload: 'Покупка 1490 ₽ Пятёрочка',
+          notificationKey: 'notification-one-to-one',
+          packageName: 'ru.sberbankmobile',
+          transaction: seed(date: date, providerId: 'notification-one-to-one'),
         ),
-        transactions: [
-          seed(
-            date: date,
-            accountId: 'acc-sber',
-            providerId: 'statement-row-1',
+      );
+      final statement = synoball.ingest(
+        StatementAdapter(),
+        StatementInput(
+          entityId: entityId,
+          receivedAt: date.add(const Duration(days: 1)),
+          rawPayload: 'two equal rows',
+          batchName: 'Statement',
+          account: const SynoballAccount(
+            id: 'acc-sber',
+            entityId: entityId,
+            name: 'Сбер',
+            type: SynoballAccountType.card,
+            currency: 'RUB',
+            balance: Money(minorUnits: 0, currency: 'RUB'),
           ),
-          seed(
-            date: date.add(const Duration(minutes: 5)),
-            accountId: 'acc-sber',
-            providerId: 'statement-row-2',
-          ),
-        ],
-      ),
-    );
+          transactions: [
+            seed(
+              date: date,
+              accountId: 'acc-sber',
+              providerId: 'statement-row-1',
+            ),
+            seed(
+              date: date.add(const Duration(minutes: 5)),
+              accountId: 'acc-sber',
+              providerId: 'statement-row-2',
+            ),
+          ],
+        ),
+      );
 
-    expect(statement.matchedTransactionIds, hasLength(1));
-    expect(statement.createdTransactionIds, hasLength(1));
-    expect(synoball.transactions, hasLength(2));
-  });
+      expect(statement.matchedTransactionIds, isEmpty);
+      expect(statement.createdTransactionIds, isEmpty);
+      expect(statement.pendingCandidateIds, hasLength(2));
+      expect(synoball.transactions, hasLength(1));
+    },
+  );
 
   test('statement enriches account but keeps precise receipt time', () {
-    final synoball = core();
+    final synoball = core(unresolvedAccount: true);
     final purchaseTime = DateTime(2026, 8, 12, 12, 34);
     synoball.ingest(
       ReceiptAdapter(),
@@ -383,6 +388,8 @@ void main() {
 
     synoball.deleteTransaction(lastTransactionId, actorId: 'ivan');
 
+    expect(synoball.state.recurringStreams.single.isTentative, isTrue);
+    synoball.deleteTransaction(synoball.transactions.last.id, actorId: 'ivan');
     expect(synoball.state.recurringStreams, isEmpty);
     expect(synoball.transactions.every((item) => !item.isRecurring), isTrue);
     expect(
@@ -483,7 +490,7 @@ void main() {
   });
 
   test('statement import enriches existing notification records', () {
-    final synoball = core();
+    final synoball = core(unresolvedAccount: true);
     final dates = [DateTime(2026, 8, 10, 10), DateTime(2026, 8, 11, 11)];
     for (var index = 0; index < dates.length; index++) {
       synoball.ingest(

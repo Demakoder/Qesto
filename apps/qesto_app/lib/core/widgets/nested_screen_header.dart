@@ -35,7 +35,7 @@ class NestedScreenHeader extends StatelessWidget
       titleSpacing: centerTitle ? 0 : 2,
       title: title,
       actions: actions,
-      backgroundColor: QestoColors.background,
+      backgroundColor: context.qestoColors.background,
       surfaceTintColor: Colors.transparent,
     );
   }

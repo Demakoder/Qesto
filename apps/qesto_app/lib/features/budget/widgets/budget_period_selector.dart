@@ -76,8 +76,8 @@ class _PeriodArrow extends StatelessWidget {
       child: IconButton(
         onPressed: enabled ? onTap : null,
         icon: Icon(icon, size: 23),
-        color: QestoColors.secondaryText,
-        disabledColor: QestoColors.border,
+        color: context.qestoColors.secondaryText,
+        disabledColor: context.qestoColors.border,
       ),
     );
   }

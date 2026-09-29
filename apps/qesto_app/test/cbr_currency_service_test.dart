@@ -2,8 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/features/profile/services/cbr_currency_service.dart';
 
 void main() {
-  test('CBR XML adapter normalizes unit rates without changing finance data', () {
-    const xml = '''
+  test(
+    'CBR XML adapter normalizes unit rates without changing finance data',
+    () {
+      const xml = '''
       <ValCurs Date="14.08.2026" name="Foreign Currency Market">
         <Valute ID="R01235">
           <CharCode>USD</CharCode><Nominal>1</Nominal>
@@ -16,11 +18,25 @@ void main() {
       </ValCurs>
     ''';
 
-    final snapshot = CbrCurrencyService().parse(xml);
+      final snapshot = CbrCurrencyService().parse(xml);
 
-    expect(snapshot.date, DateTime(2026, 8, 14));
-    expect(snapshot.rates['RUB']?.rublesPerUnit, 1);
-    expect(snapshot.rates['USD']?.rublesPerUnit, closeTo(79.7653, 0.00001));
-    expect(snapshot.rates['KZT']?.rublesPerUnit, closeTo(0.1475, 0.00001));
-  });
+      expect(snapshot.date, DateTime(2026, 8, 14));
+      expect(snapshot.rates['RUB']?.rublesPerUnit, 1);
+      expect(snapshot.rates['USD']?.rublesPerUnit, closeTo(79.7653, 0.00001));
+      expect(snapshot.rates['KZT']?.rublesPerUnit, closeTo(0.1475, 0.00001));
+    },
+  );
+
+  test(
+    'embedded expense rates are fixed to the official 22.08.2026 snapshot',
+    () {
+      final snapshot = CbrCurrencyService.embeddedSnapshot;
+
+      expect(snapshot.date, DateTime(2026, 8, 22));
+      expect(snapshot.rates['USD']?.rublesPerUnit, 82.9211);
+      expect(snapshot.rates['EUR']?.rublesPerUnit, 96.8601);
+      expect(snapshot.rates['CNY']?.rublesPerUnit, 12.3343);
+      expect(CbrCurrencyService.convertRubles(82921, 'USD'), 1000);
+    },
+  );
 }

@@ -1,53 +1,82 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/qesto_theme.dart';
+import '../../design_system/qesto_window.dart';
+
+/// Card contents stack on phones; desktop keeps its original flex layout.
+class DesktopAdaptiveRow extends StatelessWidget {
+  const DesktopAdaptiveRow({
+    required this.children,
+    this.wrapOnMobile = false,
+    super.key,
+  });
+  final List<Widget> children;
+  final bool wrapOnMobile;
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.sizeOf(context).width >= 600) return Row(children: children);
+    if (wrapOnMobile) {
+      return Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          for (final child in children)
+            if (child is! Spacer) child is Expanded ? child.child : child,
+        ],
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final child in children)
+          if (child is! Spacer)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: child is Expanded
+                  ? child.child
+                  : child is SizedBox && child.child == null
+                  ? const SizedBox.shrink()
+                  : child,
+            ),
+      ],
+    );
+  }
+}
+
+class DesktopCollapsibleFilters extends StatelessWidget {
+  const DesktopCollapsibleFilters({required this.child, super.key});
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width < 600
+      ? ExpansionTile(title: const Text('Поиск и фильтры'), children: [child])
+      : child;
+}
 
 class DesktopCard extends StatelessWidget {
   const DesktopCard({
     required this.child,
     this.padding = const EdgeInsets.all(20),
     this.onTap,
-    this.color = QestoColors.surface,
-    this.borderColor = QestoColors.border,
+    this.color,
+    this.borderColor,
     super.key,
   });
 
   final Widget child;
   final EdgeInsetsGeometry padding;
   final VoidCallback? onTap;
-  final Color color;
-  final Color borderColor;
+  final Color? color;
+  final Color? borderColor;
 
   @override
-  Widget build(BuildContext context) {
-    final decoration = BoxDecoration(
-      color: color,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: borderColor),
-      boxShadow: const [
-        BoxShadow(
-          color: Color(0x0726324A),
-          blurRadius: 16,
-          offset: Offset(0, 5),
-        ),
-      ],
-    );
-    final content = Padding(padding: padding, child: child);
-    if (onTap == null) {
-      return DecoratedBox(decoration: decoration, child: content);
-    }
-    return Material(
-      color: Colors.transparent,
-      child: Ink(
-        decoration: decoration,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: content,
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => QestoWindow(
+    padding: padding,
+    color: color,
+    borderColor: borderColor,
+    onTap: onTap,
+    child: child,
+  );
 }
 
 class DesktopKpiCard extends StatelessWidget {
@@ -57,7 +86,7 @@ class DesktopKpiCard extends StatelessWidget {
     required this.icon,
     this.detail,
     this.detailColor,
-    this.accent = QestoColors.primary,
+    this.accent,
     super.key,
   });
 
@@ -66,10 +95,11 @@ class DesktopKpiCard extends StatelessWidget {
   final String? detail;
   final Color? detailColor;
   final IconData icon;
-  final Color accent;
+  final Color? accent;
 
   @override
   Widget build(BuildContext context) {
+    final accent = this.accent ?? context.qestoColors.primary;
     return DesktopCard(
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Column(
@@ -83,8 +113,8 @@ class DesktopKpiCard extends StatelessWidget {
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: QestoColors.secondaryText,
+                  style: TextStyle(
+                    color: context.qestoColors.secondaryText,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
@@ -95,7 +125,7 @@ class DesktopKpiCard extends StatelessWidget {
                 height: 34,
                 decoration: BoxDecoration(
                   color: accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: QestoGeometry.control,
                 ),
                 child: Icon(icon, color: accent, size: 19),
               ),
@@ -107,8 +137,8 @@ class DesktopKpiCard extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: context.qestoTypography.display(
-              const TextStyle(
-                color: QestoColors.text,
+              TextStyle(
+                color: context.qestoColors.text,
                 fontSize: 27,
                 height: 1,
                 fontWeight: FontWeight.w800,
@@ -124,7 +154,7 @@ class DesktopKpiCard extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: detailColor ?? QestoColors.secondaryText,
+                color: detailColor ?? context.qestoColors.secondaryText,
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
               ),
@@ -159,19 +189,19 @@ class DesktopSectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
-                  color: QestoColors.text,
+                  color: context.qestoColors.text,
                 ),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 3),
                 Text(
                   subtitle!,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: QestoColors.secondaryText,
+                    color: context.qestoColors.secondaryText,
                   ),
                 ),
               ],
@@ -204,8 +234,12 @@ class DesktopTextButton extends StatelessWidget {
       label: Text(label),
       style: TextButton.styleFrom(
         visualDensity: VisualDensity.compact,
-        foregroundColor: QestoColors.primary,
-        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        foregroundColor: context.qestoColors.primary,
+        textStyle: const TextStyle(
+          fontFamily: QestoTypography.uiFamily,
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
       ),
     );
   }
@@ -215,23 +249,24 @@ class DesktopPill extends StatelessWidget {
   const DesktopPill({
     required this.label,
     this.icon,
-    this.color = QestoColors.primary,
+    this.color,
     this.background,
     super.key,
   });
 
   final String label;
   final IconData? icon;
-  final Color color;
+  final Color? color;
   final Color? background;
 
   @override
   Widget build(BuildContext context) {
+    final color = this.color ?? context.qestoColors.primary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
         color: background ?? color.withValues(alpha: 0.09),
-        borderRadius: BorderRadius.circular(99),
+        borderRadius: QestoGeometry.control,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -287,10 +322,10 @@ class DesktopEmptyState extends StatelessWidget {
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: QestoColors.primarySoft,
-                  borderRadius: BorderRadius.circular(15),
+                  color: context.qestoColors.primarySoft,
+                  borderRadius: QestoGeometry.control,
                 ),
-                child: Icon(icon, color: QestoColors.primary, size: 26),
+                child: Icon(icon, color: context.qestoColors.primary, size: 26),
               ),
               const SizedBox(height: 16),
               Text(
@@ -305,8 +340,8 @@ class DesktopEmptyState extends StatelessWidget {
               Text(
                 message,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
+                style: TextStyle(
+                  color: context.qestoColors.secondaryText,
                   fontSize: 13,
                   height: 1.45,
                 ),
@@ -323,29 +358,29 @@ class DesktopEmptyState extends StatelessWidget {
 class DesktopProgressBar extends StatelessWidget {
   const DesktopProgressBar({
     required this.value,
-    this.color = QestoColors.primary,
+    this.color,
     this.height = 7,
     super.key,
   });
 
   final double value;
-  final Color color;
+  final Color? color;
   final double height;
 
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(99),
+      borderRadius: QestoGeometry.control,
       child: SizedBox(
         height: height,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const ColoredBox(color: QestoColors.surfaceSecondary),
+            ColoredBox(color: context.qestoColors.surfaceSecondary),
             FractionallySizedBox(
               alignment: Alignment.centerLeft,
               widthFactor: value.clamp(0, 1),
-              child: ColoredBox(color: color),
+              child: ColoredBox(color: color ?? context.qestoColors.primary),
             ),
           ],
         ),

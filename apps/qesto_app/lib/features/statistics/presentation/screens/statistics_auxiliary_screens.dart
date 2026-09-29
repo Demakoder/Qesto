@@ -71,7 +71,7 @@ class TrackedStatisticsScreen extends StatelessWidget {
                                   item.isPinned
                                       ? Icons.push_pin_rounded
                                       : Icons.push_pin_outlined,
-                                  color: QestoColors.primary,
+                                  color: context.qestoColors.primary,
                                 ),
                               ),
                               IconButton(
@@ -81,14 +81,14 @@ class TrackedStatisticsScreen extends StatelessWidget {
                                   item.id,
                                   item.label,
                                 ),
-                                icon: const Icon(
+                                icon: Icon(
                                   Icons.close_rounded,
-                                  color: QestoColors.secondaryText,
+                                  color: context.qestoColors.secondaryText,
                                 ),
                               ),
-                              const Icon(
+                              Icon(
                                 Icons.drag_handle_rounded,
-                                color: QestoColors.secondaryText,
+                                color: context.qestoColors.secondaryText,
                               ),
                             ],
                           ),
@@ -202,14 +202,14 @@ class ExploreStatisticsScreen extends StatelessWidget {
                 Container(
                   width: 76,
                   height: 76,
-                  decoration: const BoxDecoration(
-                    color: QestoColors.primarySoft,
+                  decoration: BoxDecoration(
+                    color: context.qestoColors.primarySoft,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.manage_search_rounded,
                     size: 38,
-                    color: QestoColors.primary,
+                    color: context.qestoColors.primary,
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -223,7 +223,7 @@ class ExploreStatisticsScreen extends StatelessWidget {
                   'Здесь можно будет самостоятельно выбирать показатель, способ группировки, фильтры и вид графика.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: QestoColors.secondaryText,
+                    color: context.qestoColors.secondaryText,
                   ),
                 ),
               ],
@@ -247,9 +247,9 @@ class ExploreStatisticsScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.auto_graph_rounded,
-                          color: QestoColors.primary,
+                          color: context.qestoColors.primary,
                         ),
                         const SizedBox(width: 10),
                         Expanded(child: Text(text)),
@@ -313,7 +313,7 @@ class DataQualityScreen extends StatelessWidget {
                     Text(
                       'Полнота статистики',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: QestoColors.secondaryText,
+                        color: context.qestoColors.secondaryText,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -327,15 +327,15 @@ class DataQualityScreen extends StatelessWidget {
                     const SizedBox(height: 12),
                     LinearProgressIndicator(
                       minHeight: 9,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: QestoGeometry.control,
                       value: report.score / 100,
-                      backgroundColor: QestoColors.border,
+                      backgroundColor: context.qestoColors.border,
                       valueColor: AlwaysStoppedAnimation(
                         report.score < 70
-                            ? QestoColors.danger
+                            ? context.qestoColors.danger
                             : report.score < 90
-                            ? QestoColors.orange
-                            : QestoColors.green,
+                            ? context.qestoColors.orange
+                            : context.qestoColors.green,
                       ),
                     ),
                     const SizedBox(height: 12),
@@ -358,12 +358,14 @@ class DataQualityScreen extends StatelessWidget {
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(
-                              color: QestoColors.primary.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(13),
+                              color: context.qestoColors.primary.withValues(
+                                alpha: 0.1,
+                              ),
+                              borderRadius: QestoGeometry.control,
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.swap_horiz_rounded,
-                              color: QestoColors.primary,
+                              color: context.qestoColors.primary,
                             ),
                           ),
                           const SizedBox(width: 12),
@@ -432,17 +434,17 @@ class DataQualityScreen extends StatelessWidget {
                             decoration: BoxDecoration(
                               color:
                                   (issue.isCritical
-                                          ? QestoColors.danger
-                                          : QestoColors.orange)
+                                          ? context.qestoColors.danger
+                                          : context.qestoColors.orange)
                                       .withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(13),
+                              borderRadius: QestoGeometry.control,
                             ),
                             child: Icon(
                               issue.isCritical
                                   ? Icons.error_outline_rounded
                                   : Icons.warning_amber_rounded,
                               color: issue.isCritical
-                                  ? QestoColors.danger
+                                  ? context.qestoColors.danger
                                   : const Color(0xFFB76500),
                             ),
                           ),

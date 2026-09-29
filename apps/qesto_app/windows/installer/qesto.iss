@@ -1,6 +1,6 @@
 #define AppName "Qesto"
 #ifndef AppVersion
-#define AppVersion "1.0.16"
+#define AppVersion "1.0.23"
 #endif
 #define AppPublisher "Qesto"
 #define AppExeName "qesto.exe"
@@ -17,7 +17,7 @@ PrivilegesRequired=lowest
 OutputDir=..\..\build\installer
 OutputBaseFilename=Qesto-Setup-{#AppVersion}
 SetupIconFile=..\runner\resources\app_icon.ico
-UninstallDisplayIcon={app}\{#AppExeName}
+UninstallDisplayIcon={app}\qesto.dll
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
@@ -35,11 +35,19 @@ Name: "russian"; MessagesFile: "compiler:Languages\Russian.isl"
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\..\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Excludes: "qesto.exp,qesto.lib,debug.log"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: files; Name: "{app}\flutter_inappwebview_windows_plugin.dll"
+Type: files; Name: "{app}\WebView2Loader.dll"
+Type: files; Name: "{app}\native_assets.json"
+Type: files; Name: "{app}\qesto.exp"
+Type: files; Name: "{app}\qesto.lib"
+Type: files; Name: "{app}\debug.log"
 
 [Icons]
-Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"
-Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\{#AppExeName}"
+Name: "{group}\{#AppName}"; Filename: "{app}\{#AppExeName}"; IconFilename: "{app}\qesto.dll"
+Name: "{userdesktop}\{#AppName}"; Filename: "{app}\{#AppExeName}"; WorkingDir: "{app}"; IconFilename: "{app}\qesto.dll"
 
 [Run]
 Filename: "{app}\{#AppExeName}"; Description: "Запустить {#AppName}"; Flags: nowait postinstall skipifsilent

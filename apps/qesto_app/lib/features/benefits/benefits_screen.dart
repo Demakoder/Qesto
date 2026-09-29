@@ -86,7 +86,7 @@ class BenefitsScreenState extends State<BenefitsScreen> {
                     Text(
                       'Лучшая цена: ${product.bestMarketplace}',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: QestoColors.secondaryText,
+                        color: context.qestoColors.secondaryText,
                       ),
                     ),
                   ],
@@ -96,14 +96,14 @@ class BenefitsScreenState extends State<BenefitsScreen> {
               Container(
                 height: 150,
                 decoration: BoxDecoration(
-                  color: QestoColors.surface,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(color: QestoColors.border),
+                  color: context.qestoColors.surface,
+                  borderRadius: QestoGeometry.control,
+                  border: Border.all(color: context.qestoColors.border),
                 ),
-                child: const Center(
+                child: Center(
                   child: Icon(
                     Icons.area_chart_outlined,
-                    color: QestoColors.border,
+                    color: context.qestoColors.border,
                     size: 70,
                   ),
                 ),

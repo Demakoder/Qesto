@@ -19,8 +19,9 @@ Windows data entry:
   structured draft, Synoball candidate and explicit confirmation;
 - manual expense: the shared canonical manual-input adapter.
 
-Overview is the standalone first destination. Budget owns operational pages and
-the unique Android analytics for expenses, rhythm, merchants and categories.
+Overview and AI are standalone destinations. Budget owns operational pages;
+expense analytics combine category structure, merchants, shopping frequency
+and average checks in one page, while rhythm remains a dedicated view.
 The former Statistics hub is intentionally absent: cash flow, budget planning
 and recurring payments use their stronger dedicated desktop pages instead of
 showing duplicate analytics tabs. All analytical pages still share the same

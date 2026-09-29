@@ -23,6 +23,7 @@ object NotificationInbox {
     private const val MAX_ITEMS = 100
     private const val RETENTION_MILLIS = 7L * 24L * 60L * 60L * 1000L
     private var cachedEncryptionKey: SecretKey? = null
+    private var writeFailed = false
 
     @Synchronized
     fun save(
@@ -32,6 +33,9 @@ object NotificationInbox {
         postedAt: Long,
         title: String,
         text: String,
+        bigText: String,
+        subText: String,
+        textLines: List<String>,
     ) {
         val prefs = context.getSharedPreferences(
             PREFS_NAME,
@@ -50,9 +54,13 @@ object NotificationInbox {
             JSONObject()
                 .put("packageName", packageName)
                 .put("notificationKey", notificationKey)
+                .put("deliveryVersion", java.util.UUID.randomUUID().toString())
                 .put("postedAt", postedAt)
                 .put("title", title)
                 .put("text", text)
+                .put("bigText", bigText)
+                .put("subText", subText)
+                .put("textLines", JSONArray(textLines))
 
         persist(prefs, updated)
     }
@@ -77,30 +85,38 @@ object NotificationInbox {
             mapOf(
                 "packageName" to item.optString("packageName"),
                 "notificationKey" to item.optString("notificationKey"),
+                "deliveryVersion" to item.optString("deliveryVersion"),
                 "postedAt" to item.optLong("postedAt"),
                 "title" to item.optString("title"),
                 "text" to item.optString("text"),
+                "bigText" to item.optString("bigText"),
+                "subText" to item.optString("subText"),
+                "textLines" to item.optJSONArray("textLines")
+                    .toStringList(),
             )
         }
     }
 
     @Synchronized
     fun clear(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val committed = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .remove(ITEMS_KEY)
-            .apply()
+            .commit()
+        writeFailed = !committed
+        check(committed) { "Notification storage write failed" }
     }
 
     @Synchronized
-    fun remove(context: Context, notificationKey: String) {
+    fun remove(context: Context, notificationKey: String, expectedVersion: String) {
         val prefs = context.getSharedPreferences(
             PREFS_NAME,
             Context.MODE_PRIVATE,
         )
         val loaded = loadItems(prefs)
         val retained = loaded.items.filter { item ->
-            item.optString("notificationKey") != notificationKey
+            item.optString("notificationKey") != notificationKey ||
+                item.optString("deliveryVersion") != expectedVersion
         }
         if (loaded.needsRewrite || retained.size != loaded.items.size) {
             persist(prefs, retained)
@@ -108,6 +124,7 @@ object NotificationInbox {
     }
 
     private fun loadItems(prefs: SharedPreferences): LoadedItems {
+        check(!writeFailed) { "Notification storage requires recovery" }
         val stored = prefs.getString(ITEMS_KEY, null)
             ?: return LoadedItems(emptyList(), needsRewrite = false)
         return try {
@@ -123,11 +140,9 @@ object NotificationInbox {
                 needsRewrite = !encrypted,
             )
         } catch (_: Exception) {
-            // The inbox is transient. If its key was invalidated or the value was
-            // modified, dropping it is safer than exposing partial notification data.
-            prefs.edit().remove(ITEMS_KEY).apply()
-            discardEncryptionKey()
-            LoadedItems(emptyList(), needsRewrite = false)
+            // Preserve both ciphertext and key. A read failure must never authorize
+            // replacing the inbox with an empty list on the next capture.
+            throw IllegalStateException("Notification storage requires recovery")
         }
     }
 
@@ -135,7 +150,9 @@ object NotificationInbox {
         val array = JSONArray()
         items.forEach(array::put)
         val encrypted = ENCRYPTED_PREFIX + encrypt(array.toString())
-        prefs.edit().putString(ITEMS_KEY, encrypted).apply()
+        val committed = prefs.edit().putString(ITEMS_KEY, encrypted).commit()
+        writeFailed = !committed
+        check(committed) { "Notification storage write failed" }
     }
 
     private fun encrypt(cleartext: String): String {
@@ -157,19 +174,20 @@ object NotificationInbox {
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(
             Cipher.DECRYPT_MODE,
-            encryptionKey(),
+            encryptionKey(createIfMissing = false),
             GCMParameterSpec(128, iv),
         )
         return String(cipher.doFinal(payload), Charsets.UTF_8)
     }
 
-    private fun encryptionKey(): SecretKey {
+    private fun encryptionKey(createIfMissing: Boolean = true): SecretKey {
         cachedEncryptionKey?.let { return it }
         val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (keyStore.getKey(KEY_ALIAS, null) as? SecretKey)?.let { key ->
             cachedEncryptionKey = key
             return key
         }
+        check(createIfMissing) { "Notification encryption key is unavailable" }
 
         val generator = KeyGenerator.getInstance(
             KeyProperties.KEY_ALGORITHM_AES,
@@ -187,18 +205,13 @@ object NotificationInbox {
         return generator.generateKey().also { cachedEncryptionKey = it }
     }
 
-    private fun discardEncryptionKey() {
-        cachedEncryptionKey = null
-        runCatching {
-            KeyStore.getInstance("AndroidKeyStore").apply {
-                load(null)
-                deleteEntry(KEY_ALIAS)
-            }
-        }
-    }
-
     private data class LoadedItems(
         val items: List<JSONObject>,
         val needsRewrite: Boolean,
     )
+
+    private fun JSONArray?.toStringList(): List<String> {
+        if (this == null) return emptyList()
+        return List(length()) { index -> optString(index) }
+    }
 }

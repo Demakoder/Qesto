@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../notification_import/services/merchant_category_classifier.dart';
 import '../domain/bank_statement_models.dart';
+import 'excel_source_identity.dart';
 
 /// Converts user-authored XLSX/XLSM workbooks into the existing statement
 /// import model. Synoball is deliberately kept outside this adapter: the
@@ -95,8 +96,9 @@ class UniversalExcelStatementAdapter {
       );
     }
 
+    final occurrences = <String, int>{};
     final transactions = ordered
-        .map((draft) => _toStatementTransaction(draft, fileName))
+        .map((draft) => _toStatementTransaction(draft, occurrences))
         .toList(growable: false);
     return ParsedBankStatement(
       bankName: 'Excel',
@@ -114,6 +116,13 @@ class UniversalExcelStatementAdapter {
     final result = <_ExcelDraft>[];
     for (final grid in grids) {
       final claimedCells = <String>{};
+      final calendar = _parseDailyCategoryCalendars(grid, fileName);
+      if (calendar.isNotEmpty) {
+        // A calendar owns its day cells and totals; do not reinterpret the same
+        // sheet using unrelated monthly/vertical heuristics.
+        result.addAll(calendar);
+        continue;
+      }
       result.addAll(
         _parsePersistentCategoryLedgers(grid, fileName, claimedCells),
       );
@@ -133,6 +142,82 @@ class UniversalExcelStatementAdapter {
       result.addAll(
         _parseCategoryMatrices(grid, fileName, fallbackDate, claimedCells),
       );
+    }
+    return result;
+  }
+
+  /// Repeated month blocks: category rows × consecutive day columns.
+  /// The month is local to each block, not guessed from the workbook filename.
+  List<_ExcelDraft> _parseDailyCategoryCalendars(
+    _SheetGrid grid,
+    String fileName,
+  ) {
+    final result = <_ExcelDraft>[];
+    for (var header = 1; header < grid.rows.length; header++) {
+      final row = grid.rows[header];
+      var start = -1;
+      var days = 0;
+      for (var column = 1; column < row.length; column++) {
+        if (_parseMoney(row[column]) != 1) continue;
+        var run = 1;
+        while (column + run < row.length &&
+            run < 31 &&
+            _parseMoney(row[column + run]) == run + 1) {
+          run++;
+        }
+        if (run >= 28) {
+          start = column;
+          days = run;
+          break;
+        }
+      }
+      if (start < 0) continue;
+      int? month;
+      for (
+        var previous = header - 1;
+        previous >= 0 && previous >= header - 3;
+        previous--
+      ) {
+        for (final value in grid.rows[previous].take(start + 1)) {
+          month ??= _monthNumber(_normalizeText(value));
+        }
+      }
+      if (month == null) continue;
+      final direction = _resolveDirection(
+        headerRole: _ColumnRole.amount,
+        rawAmount: 1,
+        sheetName: grid.name,
+        description: '',
+      );
+      for (var index = header + 1; index < grid.rows.length; index++) {
+        final values = grid.rows[index];
+        final label = _textBefore(values, start);
+        if (label == null) break;
+        if (_isSummaryLabel(label)) break;
+        if (!RegExp(r'[a-zа-яё]', caseSensitive: false).hasMatch(label)) {
+          continue;
+        }
+        for (var day = 1; day <= days; day++) {
+          final date = DateTime(grid.yearHint, month, day);
+          if (date.month != month) continue; // No 31 February rollover.
+          final column = start + day - 1;
+          final amount = _parseMoney(_at(values, column));
+          if (amount == null || amount == 0) continue;
+          result.add(
+            _draft(
+              fileName: fileName,
+              grid: grid,
+              row: index,
+              column: column,
+              date: date,
+              rawAmount: amount,
+              direction: direction,
+              description: label,
+              category: label,
+            ),
+          );
+        }
+      }
     }
     return result;
   }
@@ -895,9 +980,43 @@ class UniversalExcelStatementAdapter {
         }
       }
       var section = _textBefore(row, firstMonthColumn) ?? grid.name;
+      if (_looksLikeHeader(row)) {
+        for (
+          var previous = headerRow - 1;
+          previous >= 0 && previous >= headerRow - 3;
+          previous--
+        ) {
+          final heading = _textBefore(grid.rows[previous], firstMonthColumn);
+          if (heading != null) {
+            section = heading;
+            break;
+          }
+        }
+      }
       var emptyRun = 0;
       for (var rowIndex = headerRow + 1; rowIndex < maximum; rowIndex++) {
         final dataRow = grid.rows[rowIndex];
+        // Another period header starts another block. Continuing would reuse
+        // the old month positions and direction for unrelated financial data.
+        if (dataRow
+                .where(
+                  (value) =>
+                      (value is DateTime ||
+                          (value is String &&
+                              _monthNumber(value) != null &&
+                              _parseMoney(value) == null)) &&
+                      _parseMonthHeader(
+                            value,
+                            sheetYear: grid.yearHint,
+                            fallbackYear: fallbackDate.year,
+                            preferSheetYear: grid.yearIsExplicit,
+                          ) !=
+                          null,
+                )
+                .length >=
+            2) {
+          break;
+        }
         final labels = _textsBefore(dataRow, firstMonthColumn);
         final label = labels.isEmpty ? null : labels.last;
         final numericValues = monthColumns.entries
@@ -926,7 +1045,7 @@ class UniversalExcelStatementAdapter {
         final direction = _resolveDirection(
           headerRole: _ColumnRole.amount,
           rawAmount: 1,
-          sheetName: '${grid.name} $section',
+          sheetName: section,
           description: label,
         );
         for (final entry in monthColumns.entries) {
@@ -1098,12 +1217,25 @@ class UniversalExcelStatementAdapter {
 
   ParsedStatementTransaction _toStatementTransaction(
     _ExcelDraft draft,
-    String fileName,
+    Map<String, int> occurrences,
   ) {
     final category = classifier.classify('${draft.merchant} ${draft.category}');
-    final id = 'excel-${_stableHash(draft.sourceKey)}';
+    final observation = excelObservationKey(
+      date: draft.date,
+      amountMinor: draft.amountMinor,
+      currency: draft.currency,
+      incoming: draft.isIncoming,
+      merchant: draft.merchant,
+      description: draft.description,
+      aggregate: draft.aggregate,
+      capital: draft.capitalKind != null,
+    );
+    final occurrence = (occurrences[observation] ?? 0) + 1;
+    occurrences[observation] = occurrence;
     return ParsedStatementTransaction(
-      id: id,
+      id: '$observation-row-$occurrence',
+      excelLegacyId: 'excel-${_stableHash(draft.sourceKey)}',
+      excelObservationKey: observation,
       operationDate: draft.date,
       processingDate: draft.date,
       authorizationCode: '${draft.sheetName}:${draft.row}:${draft.column}',
@@ -1442,6 +1574,56 @@ class _SheetGrid {
       }
       rows.add(values);
     }
+    // A section of monthly capital valuations is stock, not income/expense.
+    // Preserve coordinates but hide this explicitly labelled section from all
+    // transaction heuristics (including later fallback parsers).
+    var balanceSection = false;
+    for (var index = 0; index < rows.length; index++) {
+      final labels = rows[index].map(_cleanText).whereType<String>().toList();
+      final first = labels.isEmpty ? '' : _normalizeText(labels.first);
+      if (RegExp(
+            r'^(капитал|балансы счетов|остатки по счетам)$',
+          ).hasMatch(first) &&
+          !rows[index].any((value) => _parseMoney(value) != null)) {
+        final following = rows.skip(index + 1).take(4);
+        if (following.any(
+          (row) =>
+              row
+                  .where((value) => _monthNumber(_normalizeText(value)) != null)
+                  .length >=
+              2,
+        )) {
+          balanceSection = true;
+        }
+      } else if (balanceSection &&
+          RegExp(
+            r'^(доходы|расходы|операции|накопления и инвестиции)$',
+          ).hasMatch(first) &&
+          !rows[index].any((value) => _parseMoney(value) != null)) {
+        balanceSection = false;
+      }
+      if (balanceSection) {
+        final periodHeader =
+            rows[index]
+                .where(
+                  (value) =>
+                      _parseMonthHeader(
+                        value,
+                        sheetYear: fallbackDate.year,
+                        fallbackYear: fallbackDate.year,
+                        preferSheetYear: true,
+                      ) !=
+                      null,
+                )
+                .length >=
+            2;
+        // Dividend/coupon flows may live beside stock valuations. Keep those
+        // explicitly named flows and their date header, not the stock rows.
+        if (!periodHeader && !labels.any(_isInvestmentIncomeLabel)) {
+          rows[index] = const [];
+        }
+      }
+    }
     while (rows.isNotEmpty && rows.last.every(_isBlank)) {
       rows.removeLast();
     }
@@ -1483,7 +1665,7 @@ class _SheetGrid {
   final bool yearIsExplicit;
 
   bool get isSummaryLike => RegExp(
-    r'дашборд|dashboard|граф|свод|отч[её]т|статист|инструк|настрой|шаблон|справоч|диаграм',
+    r'дашбор[дт]|dashboard|граф|свод|отч[её]т|статист|инструк|настрой|шаблон|справоч|диаграм|^итоги?(\s|$)|^total$|план[\s-]*факт',
   ).hasMatch(_normalizeText(name));
 }
 
@@ -1648,10 +1830,15 @@ _Direction _resolveDirection({
   if (headerRole == _ColumnRole.expenseAmount) return _Direction.expense;
   if (headerRole == _ColumnRole.incomeAmount) return _Direction.income;
   final context = _normalizeText('$sheetName ${typeText ?? ''} $description');
+  if (RegExp(
+    r'зарплат|оклад|преми|перевод\s+от(\s|$)|получен.*перевод|входящ.*перевод',
+  ).hasMatch(context)) {
+    return _Direction.income;
+  }
   if (RegExp(r'расход|трат|покуп|списан|плат[её]ж').hasMatch(context)) {
     return _Direction.expense;
   }
-  if (RegExp(r'доход|приход|зачислен|зарплат|пополнен').hasMatch(context)) {
+  if (RegExp(r'доход|приход|зачислен|пополнен').hasMatch(context)) {
     return _Direction.income;
   }
   return rawAmount < 0 ? _Direction.signed : _Direction.expense;
@@ -1663,6 +1850,14 @@ _ResolvedKind _kindFor(
   double rawAmount,
 ) {
   final normalized = _normalizeText(description);
+  if (_isInvestmentIncomeLabel(description)) {
+    return _ResolvedKind(
+      rawAmount >= 0
+          ? StatementTransactionKind.income
+          : StatementTransactionKind.expense,
+      rawAmount >= 0,
+    );
+  }
   if (normalized.contains('возврат')) {
     return const _ResolvedKind(StatementTransactionKind.refund, true);
   }
@@ -1671,6 +1866,12 @@ _ResolvedKind _kindFor(
     _Direction.expense => rawAmount < 0,
     _Direction.signed => rawAmount >= 0,
   };
+  if (incoming &&
+      RegExp(
+        r'зарплат|оклад|преми|перевод\s+(от|от\s+лица|от\s+физ)|получен.*перевод|входящ.*перевод',
+      ).hasMatch(normalized)) {
+    return const _ResolvedKind(StatementTransactionKind.income, true);
+  }
   if (normalized.contains('перевод') && direction == _Direction.signed) {
     return _ResolvedKind(StatementTransactionKind.transfer, incoming);
   }
@@ -2002,11 +2203,15 @@ bool _looksLikeHeader(List<Object?> values) {
   return roles >= 2;
 }
 
+bool _isInvestmentIncomeLabel(String value) => RegExp(
+  r'^(дивиденды|купоны(?: по облигациям)?|процентный доход)(\s|$)',
+).hasMatch(_normalizeText(value).replaceFirst(RegExp(r'^[^a-zа-яё]+'), ''));
+
 bool _isSummaryLabel(Object? value) {
   final text = _normalizeText(value);
   if (text.isEmpty) return false;
   return RegExp(
-    r'(^|\s)(итого|всего|total|grand total|сальдо|остаток|средн|план|бюджет|прогноз|проверка|дельта|начальная сумма|конечный капитал|предполагаемые|фактические|разница|доля,?\s*%|№|п/п|срок)(\s|:|$)',
+    r'(^|\s)(итог[ои]?|всего|total|grand total|общ(?:ий|ие|ая)\s+(?:(?:активный|пассивный)\s+)?(?:доход|расход|капитал)[а-я]*|норма сбережений|сальдо|остаток|средн|план|бюджет|прогноз|проверка|дельта|начальная сумма|конечный капитал|предполагаемые|фактические|разница|доля,?\s*%|№|п/п|срок)(\s|:|/|$)',
   ).hasMatch(text);
 }
 

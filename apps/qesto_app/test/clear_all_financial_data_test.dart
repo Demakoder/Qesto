@@ -27,6 +27,15 @@ void main() {
       expect(controller.actions, isEmpty);
       expect(controller.categoryBudgets, isEmpty);
       expect(controller.plannedCumulativePoints, isEmpty);
+      expect(controller.debts, isEmpty);
+      expect(controller.debtPayments, isEmpty);
+      expect(controller.debtBalanceSnapshots, isEmpty);
+      expect(controller.goalAllocations, isEmpty);
+      expect(controller.goalContributions, isEmpty);
+      expect(controller.goalHistoryEvents, isEmpty);
+      expect(controller.investmentAccounts, isEmpty);
+      expect(controller.investmentBalanceSnapshots, isEmpty);
+      expect(controller.investmentContributions, isEmpty);
       expect(controller.synoballState.transactions, isEmpty);
       expect(controller.synoballState.rawPayloads, isEmpty);
       expect(controller.synoballState.evidence, isEmpty);

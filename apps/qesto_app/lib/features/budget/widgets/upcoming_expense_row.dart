@@ -20,17 +20,17 @@ class UpcomingExpenseRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: QestoGeometry.control,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 2),
           child: Row(
             children: [
-              const SizedBox(
+              SizedBox(
                 width: 38,
                 height: 38,
                 child: Icon(
                   Icons.calendar_month_outlined,
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ),
               const SizedBox(width: 8),
@@ -48,9 +48,9 @@ class UpcomingExpenseRow extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
               const SizedBox(width: 2),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: QestoColors.secondaryText,
+                color: context.qestoColors.secondaryText,
               ),
             ],
           ),

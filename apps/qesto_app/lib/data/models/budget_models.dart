@@ -96,6 +96,7 @@ class BudgetTransaction {
     required this.accountId,
     required this.date,
     required this.amount,
+    this.exactAmountMinor,
     required this.currency,
     required this.type,
     this.categoryId,
@@ -121,6 +122,10 @@ class BudgetTransaction {
   final String accountId;
   final DateTime date;
   final int amount;
+
+  /// Lossless financial value; [amount] is the legacy rounded UI label.
+  final int? exactAmountMinor;
+  int get amountMinor => exactAmountMinor ?? amount * 100;
   final String currency;
   final TransactionType type;
   final String? categoryId;
@@ -144,6 +149,8 @@ class BudgetTransaction {
     String? accountId,
     DateTime? date,
     int? amount,
+    int? exactAmountMinor,
+    bool clearCategoryId = false,
     TransactionType? type,
     String? categoryId,
     String? subcategoryId,
@@ -168,9 +175,14 @@ class BudgetTransaction {
       accountId: accountId ?? this.accountId,
       date: date ?? this.date,
       amount: amount ?? this.amount,
+      exactAmountMinor:
+          exactAmountMinor ??
+          (amount == null || amount == this.amount
+              ? this.exactAmountMinor
+              : null),
       currency: currency,
       type: type ?? this.type,
-      categoryId: categoryId ?? this.categoryId,
+      categoryId: clearCategoryId ? null : categoryId ?? this.categoryId,
       subcategoryId: subcategoryId ?? this.subcategoryId,
       merchant: merchant ?? this.merchant,
       title: title ?? this.title,

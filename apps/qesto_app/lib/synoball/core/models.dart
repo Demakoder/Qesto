@@ -37,6 +37,9 @@ enum SynoballSourceType {
   manual,
   manualVoice,
   androidNotification,
+  smsNotification,
+  bankScreenshot,
+  bankWeb,
   receipt,
   statement,
   regulatedApi,
@@ -99,6 +102,9 @@ class Money {
 
   factory Money.fromJson(Map<String, dynamic> json) {
     final value = json['value'] as String;
+    if (!RegExp(r'^-?\d+(?:\.\d{1,2})?$').hasMatch(value)) {
+      throw const FormatException('Money must have at most two decimal places');
+    }
     final negative = value.startsWith('-');
     final parts = value.replaceFirst('-', '').split('.');
     final major = int.parse(parts.first);
@@ -512,6 +518,7 @@ class TransactionCandidate {
   final String? canonicalId;
 
   TransactionCandidate copyWith({
+    List<String>? tags,
     double? confidence,
     SourceTrustLevel? sourceTrust,
     CandidateStatus? status,
@@ -537,7 +544,7 @@ class TransactionCandidate {
     confidence: confidence ?? this.confidence,
     sourceTrust: sourceTrust ?? this.sourceTrust,
     status: status ?? this.status,
-    tags: tags,
+    tags: tags ?? this.tags,
     requiresConfirmation: requiresConfirmation ?? this.requiresConfirmation,
     canonicalId: canonicalId,
   );
@@ -629,6 +636,7 @@ class CanonicalTransaction {
     required this.fieldTrust,
     this.merchantId,
     this.merchantName,
+    this.userNote,
     this.merchantConfidence,
     this.providerCategory,
     this.synoballCategory,
@@ -653,6 +661,9 @@ class CanonicalTransaction {
   final String normalizedDescription;
   final String? merchantId;
   final String? merchantName;
+
+  /// User-owned note, kept separate from the bank's raw description.
+  final String? userNote;
   final double? merchantConfidence;
   final String? providerCategory;
   final String? synoballCategory;
@@ -673,6 +684,9 @@ class CanonicalTransaction {
       userCategoryOverride ?? synoballCategory ?? providerCategory;
 
   CanonicalTransaction copyWith({
+    bool clearSubcategoryId = false,
+    bool clearUserCategoryOverride = false,
+    bool clearTransferDirection = false,
     String? accountId,
     CanonicalTransactionStatus? status,
     Money? amount,
@@ -682,6 +696,7 @@ class CanonicalTransaction {
     String? normalizedDescription,
     String? merchantId,
     String? merchantName,
+    String? userNote,
     double? merchantConfidence,
     String? providerCategory,
     String? synoballCategory,
@@ -708,13 +723,20 @@ class CanonicalTransaction {
     normalizedDescription: normalizedDescription ?? this.normalizedDescription,
     merchantId: merchantId ?? this.merchantId,
     merchantName: merchantName ?? this.merchantName,
+    userNote: userNote ?? this.userNote,
     merchantConfidence: merchantConfidence ?? this.merchantConfidence,
     providerCategory: providerCategory ?? this.providerCategory,
     synoballCategory: synoballCategory ?? this.synoballCategory,
-    userCategoryOverride: userCategoryOverride ?? this.userCategoryOverride,
+    userCategoryOverride: clearUserCategoryOverride
+        ? null
+        : userCategoryOverride ?? this.userCategoryOverride,
     categoryConfidence: categoryConfidence ?? this.categoryConfidence,
-    subcategoryId: subcategoryId ?? this.subcategoryId,
-    transferDirection: transferDirection ?? this.transferDirection,
+    subcategoryId: clearSubcategoryId
+        ? null
+        : subcategoryId ?? this.subcategoryId,
+    transferDirection: clearTransferDirection
+        ? null
+        : transferDirection ?? this.transferDirection,
     eventType: eventType,
     isRecurring: isRecurring ?? this.isRecurring,
     recurringStreamId: clearRecurringStreamId
@@ -739,6 +761,7 @@ class CanonicalTransaction {
     'normalizedDescription': normalizedDescription,
     'merchantId': merchantId,
     'merchantName': merchantName,
+    'userNote': userNote,
     'merchantConfidence': merchantConfidence,
     'providerCategory': providerCategory,
     'synoballCategory': synoballCategory,
@@ -770,6 +793,7 @@ class CanonicalTransaction {
     normalizedDescription: json['normalizedDescription'] as String,
     merchantId: json['merchantId'] as String?,
     merchantName: json['merchantName'] as String?,
+    userNote: json['userNote'] as String?,
     merchantConfidence: (json['merchantConfidence'] as num?)?.toDouble(),
     providerCategory: json['providerCategory'] as String?,
     synoballCategory: json['synoballCategory'] as String?,
@@ -1017,6 +1041,10 @@ class RecurringStream {
   final DateTime nextExpectedAt;
   final double confidence;
   final List<String> transactionIds;
+
+  /// Two monthly observations are shown for review, never reserved as an
+  /// established obligation. Confidence is pattern evidence, not a contract.
+  bool get isTentative => transactionIds.length < 3 || confidence < 0.8;
 
   Map<String, dynamic> toJson() => {
     'id': id,

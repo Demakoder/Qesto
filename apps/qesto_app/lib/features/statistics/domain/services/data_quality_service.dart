@@ -31,7 +31,8 @@ class DataQualityService {
       }
       final merchant = transaction.normalizedMerchant ?? transaction.merchant;
       if (transaction.type == TransactionType.expense &&
-          (merchant == null || merchant.startsWith('Неизвестн'))) {
+          (merchant == null ||
+              merchant.toLowerCase().startsWith('неизвестн'))) {
         issues.add(
           DataQualityIssue(
             id: 'merchant-${transaction.id}',

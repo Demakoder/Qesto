@@ -21,10 +21,10 @@ int desktopSignedAmount(BudgetTransaction transaction) =>
       _ => -transaction.amount,
     };
 
-Color desktopAmountColor(BudgetTransaction transaction) =>
-    desktopSignedAmount(transaction) > 0
-    ? QestoColors.positive
-    : QestoColors.text;
+Color desktopAmountColor(
+  BudgetTransaction transaction, {
+  QestoSemanticColors colors = QestoSemanticColors.light,
+}) => desktopSignedAmount(transaction) > 0 ? colors.positive : colors.text;
 
 String desktopCategoryName(
   BudgetController controller,
@@ -68,6 +68,9 @@ String desktopSourceTypeLabel(SynoballSourceType type) => switch (type) {
   SynoballSourceType.manual => 'Вручную',
   SynoballSourceType.manualVoice => 'Голос',
   SynoballSourceType.androidNotification => 'Уведомление',
+  SynoballSourceType.smsNotification => 'SMS',
+  SynoballSourceType.bankScreenshot => 'Скриншот банка',
+  SynoballSourceType.bankWeb => 'Сайт банка',
   SynoballSourceType.receipt => 'Чек',
   SynoballSourceType.statement => 'Выписка',
   SynoballSourceType.regulatedApi => 'Open Finance',
@@ -80,6 +83,9 @@ IconData desktopSourceIcon(SynoballSourceType type) => switch (type) {
   SynoballSourceType.manual => Icons.edit_outlined,
   SynoballSourceType.manualVoice => Icons.mic_none_rounded,
   SynoballSourceType.androidNotification => Icons.notifications_none_rounded,
+  SynoballSourceType.smsNotification => Icons.sms_outlined,
+  SynoballSourceType.bankScreenshot => Icons.image_search_outlined,
+  SynoballSourceType.bankWeb => Icons.language_rounded,
   SynoballSourceType.receipt => Icons.receipt_long_outlined,
   SynoballSourceType.statement => Icons.picture_as_pdf_outlined,
   SynoballSourceType.regulatedApi ||

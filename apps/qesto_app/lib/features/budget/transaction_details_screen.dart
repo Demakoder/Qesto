@@ -8,6 +8,7 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../data/models/qesto_models.dart';
 import 'add_expense_screen.dart';
 import 'state/budget_controller.dart';
+import '../classification/classification_actions.dart';
 
 class TransactionDetailsScreen extends StatefulWidget {
   const TransactionDetailsScreen({
@@ -27,6 +28,22 @@ class TransactionDetailsScreen extends StatefulWidget {
 }
 
 class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_refresh);
+  }
+
+  void _refresh() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_refresh);
+    super.dispose();
+  }
+
   BudgetTransaction? get _transaction => widget.controller.transactions
       .where((transaction) => transaction.id == widget.transactionId)
       .firstOrNull;
@@ -48,8 +65,10 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Удалить операцию?'),
-        content: const Text('Все суммы и графики будут пересчитаны.'),
+        title: const Text('Переместить операцию в корзину?'),
+        content: const Text(
+          'Она исчезнет из статистики. Восстановить её можно в корзине.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -63,8 +82,16 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
       ),
     );
     if (confirmed == true && mounted) {
-      widget.controller.deleteTransaction(transaction.id);
-      Navigator.of(context).pop();
+      try {
+        await widget.controller.deleteTransaction(transaction.id);
+        if (mounted) Navigator.of(context).pop();
+      } on Object {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Не удалось сохранить удаление')),
+          );
+        }
+      }
     }
   }
 
@@ -82,9 +109,6 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
         body: const Center(child: Text('Операция была удалена')),
       );
     }
-    final category = transaction.categoryId == null
-        ? null
-        : widget.controller.categoryById(transaction.categoryId!);
     final account = widget.controller.accountById(transaction.accountId);
     return Scaffold(
       appBar: NestedScreenHeader(
@@ -101,24 +125,24 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                       ? 'Возврат'
                       : 'Расход',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: QestoColors.secondaryText,
+                    color: context.qestoColors.secondaryText,
                   ),
                 ),
                 const SizedBox(height: 8),
                 AmountText(
                   formatMoney(transaction.amount, transaction.currency),
                   color: transaction.type == TransactionType.refund
-                      ? QestoColors.green
-                      : QestoColors.text,
+                      ? context.qestoColors.green
+                      : context.qestoColors.text,
                 ),
                 const SizedBox(height: 22),
                 _DetailRow(
                   label: 'Дата',
                   value: formatDate(transaction.date, includeYear: true),
                 ),
-                _DetailRow(
-                  label: 'Категория',
-                  value: category?.name ?? 'Без категории',
+                TransactionClassificationFields(
+                  controller: widget.controller,
+                  id: transaction.id,
                 ),
                 _DetailRow(
                   label: 'Подкатегория',
@@ -155,7 +179,7 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             icon: const Icon(Icons.delete_outline_rounded),
             label: const Text('Удалить операцию'),
             style: OutlinedButton.styleFrom(
-              foregroundColor: QestoColors.danger,
+              foregroundColor: context.qestoColors.danger,
               minimumSize: const Size.fromHeight(54),
             ),
           ),
@@ -187,7 +211,7 @@ class _ReceiptDetailsCard extends StatelessWidget {
               child: Text(
                 'Товары не распознаны',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: QestoColors.secondaryText,
+                  color: context.qestoColors.secondaryText,
                 ),
               ),
             )

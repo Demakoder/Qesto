@@ -6,6 +6,7 @@ import '../../core/widgets/qesto_card.dart';
 import '../../core/widgets/states.dart';
 import '../../data/models/qesto_models.dart';
 import '../budget/state/budget_controller.dart';
+import '../trash/transaction_trash_screen.dart';
 
 class ActionHistoryScreen extends StatelessWidget {
   const ActionHistoryScreen({required this.controller, super.key});
@@ -20,6 +21,14 @@ class ActionHistoryScreen extends StatelessWidget {
           'История действий',
           style: Theme.of(context).textTheme.titleLarge,
         ),
+        actions: [
+          IconButton(
+            key: const Key('open-history-trash'),
+            tooltip: 'Корзина',
+            icon: const Icon(Icons.delete_outline_rounded),
+            onPressed: () => openTransactionTrash(context, controller),
+          ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: controller,
@@ -81,17 +90,17 @@ class _ActionCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               color: action.isUndone
-                  ? QestoColors.border
-                  : QestoColors.primarySoft,
-              borderRadius: BorderRadius.circular(14),
+                  ? context.qestoColors.border
+                  : context.qestoColors.primarySoft,
+              borderRadius: QestoGeometry.control,
             ),
             child: Icon(
               action.type == FinancialActionType.statementImport
                   ? Icons.upload_file_rounded
                   : Icons.add_circle_outline_rounded,
               color: action.isUndone
-                  ? QestoColors.secondaryText
-                  : QestoColors.primary,
+                  ? context.qestoColors.secondaryText
+                  : context.qestoColors.primary,
             ),
           ),
           const SizedBox(width: 12),

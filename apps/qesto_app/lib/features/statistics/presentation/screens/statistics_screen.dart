@@ -76,7 +76,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       builder: (context, _) {
         final snapshot = _controller.snapshot;
         return Scaffold(
-          backgroundColor: QestoColors.background,
+          backgroundColor: context.qestoColors.background,
           body: SafeArea(
             child: Column(
               children: [
@@ -84,6 +84,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   onBack: () => Navigator.of(context).pop(),
                   onNotifications: _openNotifications,
                   onProfile: _openProfile,
+                  onRefresh: _refreshAnalytics,
+                  isRefreshing: _controller.isRefreshing,
                 ),
                 _QuickControls(
                   controller: _controller,
@@ -106,13 +108,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                         vertical: 7,
                       ),
                       decoration: BoxDecoration(
-                        color: QestoColors.primarySoft,
-                        borderRadius: BorderRadius.circular(12),
+                        color: context.qestoColors.primarySoft,
+                        borderRadius: QestoGeometry.control,
                       ),
                       child: Text(
                         statisticsRangeLabel(_controller.query.period),
-                        style: const TextStyle(
-                          color: QestoColors.primary,
+                        style: TextStyle(
+                          color: context.qestoColors.primary,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -131,7 +133,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                     child: InkWell(
                       onTap: () =>
                           _push(DataQualityScreen(controller: _controller)),
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: QestoGeometry.control,
                       child: StatisticsInfoBanner(
                         message:
                             'Статистика может быть неполной: ${snapshot.dataQuality.issues.length} операций или признаков требуют проверки',
@@ -256,6 +258,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       builder: (context) => _StatisticsFilterSheet(controller: _controller),
     );
   }
+
+  Future<void> _refreshAnalytics() async {
+    try {
+      await _controller.refreshFromLocalData();
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось обновить аналитику')),
+      );
+    }
+  }
 }
 
 class _StatisticsHeader extends StatelessWidget {
@@ -263,10 +276,14 @@ class _StatisticsHeader extends StatelessWidget {
     required this.onBack,
     required this.onNotifications,
     required this.onProfile,
+    required this.onRefresh,
+    required this.isRefreshing,
   });
   final VoidCallback onBack;
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
+  final VoidCallback onRefresh;
+  final bool isRefreshing;
 
   @override
   Widget build(BuildContext context) {
@@ -291,10 +308,21 @@ class _StatisticsHeader extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'Обновить аналитику',
+            onPressed: isRefreshing ? null : onRefresh,
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded, size: 22),
+          ),
+          IconButton(
             onPressed: onNotifications,
             tooltip: 'Уведомления',
             icon: const Icon(Icons.notifications_none_rounded, size: 27),
-            color: const Color(0xFF43516B),
+            color: context.qestoColors.secondaryText,
           ),
           const SizedBox(width: 4),
           Semantics(
@@ -306,9 +334,12 @@ class _StatisticsHeader extends StatelessWidget {
               child: Container(
                 width: 44,
                 height: 44,
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFFDDEAFF), Color(0xFFF4E4D2)],
+                    colors: [
+                      context.qestoColors.controlHighlight,
+                      context.qestoColors.controlMid,
+                    ],
                   ),
                   shape: BoxShape.circle,
                 ),
@@ -403,8 +434,8 @@ class _QuickControls extends StatelessWidget {
                   ? '!'
                   : '${quality.issues.length}',
               badgeColor: quality.criticalCount > 0
-                  ? QestoColors.danger
-                  : QestoColors.orange,
+                  ? context.qestoColors.danger
+                  : context.qestoColors.orange,
             ),
           ],
         ),
@@ -445,7 +476,7 @@ class _StatisticsTabs extends StatelessWidget {
                     border: Border(
                       bottom: BorderSide(
                         color: controller.section == section
-                            ? QestoColors.primary
+                            ? context.qestoColors.primary
                             : Colors.transparent,
                         width: 3,
                       ),
@@ -459,8 +490,8 @@ class _StatisticsTabs extends StatelessWidget {
                           ? FontWeight.w800
                           : FontWeight.w600,
                       color: controller.section == section
-                          ? QestoColors.primary
-                          : const Color(0xFF4F5C73),
+                          ? context.qestoColors.primary
+                          : context.qestoColors.secondaryText,
                     ),
                   ),
                 ),
@@ -508,8 +539,8 @@ class _PeriodSheet extends StatelessWidget {
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_off_rounded,
                 color: selected == entry.key
-                    ? QestoColors.primary
-                    : QestoColors.secondaryText,
+                    ? context.qestoColors.primary
+                    : context.qestoColors.secondaryText,
               ),
               title: Text(entry.value),
             ),
@@ -553,8 +584,8 @@ class _ComparisonSheet extends StatelessWidget {
                     ? Icons.radio_button_checked_rounded
                     : Icons.radio_button_off_rounded,
                 color: selected == entry.key
-                    ? QestoColors.primary
-                    : QestoColors.secondaryText,
+                    ? context.qestoColors.primary
+                    : context.qestoColors.secondaryText,
               ),
               title: Text(entry.value),
             ),

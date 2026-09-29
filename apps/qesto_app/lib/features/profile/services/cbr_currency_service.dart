@@ -24,6 +24,37 @@ class CbrRateSnapshot {
 class CbrCurrencyService {
   CbrCurrencyService({this.client});
 
+  /// Embedded official Bank of Russia rates used for deterministic offline
+  /// presentation. Source date: 22.08.2026.
+  static final CbrRateSnapshot embeddedSnapshot = CbrRateSnapshot(
+    date: DateTime(2026, 8, 22),
+    rates: const {
+      'RUB': CbrCurrencyRate(
+        code: 'RUB',
+        name: 'Российский рубль',
+        rublesPerUnit: 1,
+      ),
+      'USD': CbrCurrencyRate(
+        code: 'USD',
+        name: 'Доллар США',
+        rublesPerUnit: 82.9211,
+      ),
+      'EUR': CbrCurrencyRate(code: 'EUR', name: 'Евро', rublesPerUnit: 96.8601),
+      'CNY': CbrCurrencyRate(
+        code: 'CNY',
+        name: 'Китайский юань',
+        rublesPerUnit: 12.3343,
+      ),
+    },
+  );
+
+  static const expenseDisplayCurrencies = <String>['RUB', 'USD', 'EUR', 'CNY'];
+
+  static int convertRubles(int amount, String targetCurrency) {
+    final rate = embeddedSnapshot.rates[targetCurrency]?.rublesPerUnit ?? 1;
+    return (amount / rate).round();
+  }
+
   static const supportedCurrencies = <String>[
     'RUB',
     'USD',

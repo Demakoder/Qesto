@@ -39,7 +39,7 @@ class DealDetailsScreen extends StatelessWidget {
                       height: 58,
                       decoration: BoxDecoration(
                         color: visual.color.withValues(alpha: 0.13),
-                        borderRadius: BorderRadius.circular(18),
+                        borderRadius: QestoGeometry.control,
                       ),
                       child: Icon(visual.icon, color: visual.color, size: 32),
                     ),
@@ -71,16 +71,16 @@ class DealDetailsScreen extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
                     decoration: BoxDecoration(
-                      color: QestoColors.primarySoft,
-                      borderRadius: BorderRadius.circular(16),
+                      color: context.qestoColors.primarySoft,
+                      borderRadius: QestoGeometry.control,
                     ),
                     child: Row(
                       children: [
                         Expanded(
                           child: SelectableText(
                             deal.promoCode!,
-                            style: const TextStyle(
-                              color: QestoColors.primary,
+                            style: TextStyle(
+                              color: context.qestoColors.primary,
                               fontSize: 20,
                               fontWeight: FontWeight.w800,
                               letterSpacing: 1.1,
@@ -92,7 +92,7 @@ class DealDetailsScreen extends StatelessWidget {
                           tooltip: 'Скопировать промокод',
                           onPressed: () => _copyCode(context),
                           icon: const Icon(Icons.copy_rounded),
-                          color: QestoColors.primary,
+                          color: context.qestoColors.primary,
                         ),
                       ],
                     ),
@@ -118,10 +118,10 @@ class DealDetailsScreen extends StatelessWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.check_circle_outline_rounded,
                             size: 20,
-                            color: QestoColors.green,
+                            color: context.qestoColors.green,
                           ),
                           const SizedBox(width: 9),
                           Expanded(child: Text(condition)),

@@ -15,15 +15,15 @@ class QestoBottomNavigation extends StatelessWidget {
   static const _destinations = <({String label, IconData icon})>[
     (label: 'Бюджет', icon: Icons.pie_chart_rounded),
     (label: 'Выгода', icon: Icons.local_offer_rounded),
-    (label: 'Накопления', icon: Icons.savings_rounded),
+    (label: 'Капитал', icon: Icons.account_balance_wallet_rounded),
   ];
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(
-        color: QestoColors.surface,
-        border: Border(top: BorderSide(color: QestoColors.border)),
+      decoration: BoxDecoration(
+        color: context.qestoColors.surface,
+        border: Border(top: BorderSide(color: context.qestoColors.border)),
         boxShadow: [
           BoxShadow(
             color: Color(0x122A344A),
@@ -67,7 +67,9 @@ class _NavigationItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? QestoColors.primary : QestoColors.secondaryText;
+    final color = selected
+        ? context.qestoColors.primary
+        : context.qestoColors.secondaryText;
     return Semantics(
       selected: selected,
       button: true,
@@ -93,7 +95,7 @@ class _NavigationItem extends StatelessWidget {
               width: selected ? 34 : 0,
               height: 3,
               decoration: BoxDecoration(
-                color: QestoColors.primary,
+                color: context.qestoColors.primary,
                 borderRadius: BorderRadius.circular(99),
               ),
             ),

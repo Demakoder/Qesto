@@ -16,11 +16,29 @@ class QestoReadModelService {
 
   QestoFinancialReadModel build(SynoballState state) {
     final receipts = {for (final value in state.receipts) value.id: value};
+    final knownAccounts = {
+      for (final a in state.accounts)
+        if (!a.isVirtual) a.id,
+    };
     return QestoFinancialReadModel(
       accounts: state.accounts.map(_account).toList(growable: false),
       transactions: state.transactions
-          .where((item) => item.status == CanonicalTransactionStatus.posted)
-          .map((item) => _transaction(item, receipts[item.receiptId]))
+          // Pending operations are real bank observations and must remain
+          // visible for review. Reversed/deleted operations stay out of the
+          // Qesto list; cash-flow projections can still choose to use only
+          // posted transactions through the Synoball analytics service.
+          .where(
+            (item) =>
+                item.status != CanonicalTransactionStatus.deleted &&
+                item.status != CanonicalTransactionStatus.reversed,
+          )
+          .map(
+            (item) => _transaction(
+              item,
+              receipts[item.receiptId],
+              knownAccounts.contains(item.accountId),
+            ),
+          )
           .toList(growable: false),
     );
   }
@@ -30,6 +48,7 @@ class QestoReadModelService {
     userId: _userId(value.entityId),
     title: value.name,
     balance: _roundedMajor(value.balance.minorUnits),
+    exactBalanceMinor: value.balance.minorUnits,
     currency: value.currency,
     type: switch (value.type) {
       SynoballAccountType.cash => AccountType.cash,
@@ -48,12 +67,14 @@ class QestoReadModelService {
   BudgetTransaction _transaction(
     CanonicalTransaction value,
     SynoballReceipt? receipt,
+    bool accountResolved,
   ) => BudgetTransaction(
     id: value.id,
     userId: _userId(value.entityId),
     accountId: value.accountId,
     date: value.occurredAt,
     amount: _roundedMajor(value.amount.minorUnits.abs()),
+    exactAmountMinor: value.amount.minorUnits.abs(),
     currency: value.amount.currency,
     type: _transactionType(value),
     categoryId: value.effectiveCategory,
@@ -61,11 +82,13 @@ class QestoReadModelService {
     merchant: value.merchantName,
     title: value.merchantName ?? value.normalizedDescription,
     description: value.rawDescription,
-    comment: value.rawDescription,
+    comment: value.userNote ?? value.rawDescription,
     isLargePurchase: value.tags.contains('qesto-large-purchase'),
     normalizedMerchant: value.merchantName?.toLowerCase(),
     isRecurring: value.isRecurring || value.tags.contains('qesto-recurring'),
-    isConfirmed: !value.tags.contains('qesto-unconfirmed'),
+    isConfirmed:
+        !value.tags.contains('qesto-unconfirmed') &&
+        value.status != CanonicalTransactionStatus.pending,
     isPotentialDuplicate: value.tags.contains('qesto-potential-duplicate'),
     classificationConfidence:
         value.categoryConfidence ?? value.merchantConfidence ?? 1,
@@ -73,7 +96,14 @@ class QestoReadModelService {
     transferDirection: value.transferDirection == null
         ? null
         : TransferDirection.values.byName(value.transferDirection!),
-    tags: value.tags,
+    tags: {
+      ...value.tags.where(
+        (tag) => !(accountResolved && tag == 'sber-account-unresolved'),
+      ),
+      if (value.userCategoryOverride != null ||
+          value.tags.contains('user-field:category'))
+        'qesto-manual-category',
+    }.toList(),
     receipt: receipt == null ? null : _receipt(receipt),
   );
 
@@ -115,6 +145,6 @@ class QestoReadModelService {
   }
 }
 
-int _roundedMajor(int minor) => (minor + 50) ~/ 100;
+int _roundedMajor(int minor) => minor.sign * ((minor.abs() + 50) ~/ 100);
 String _userId(String entityId) =>
     entityId.startsWith('ent-') ? entityId.substring(4) : entityId;

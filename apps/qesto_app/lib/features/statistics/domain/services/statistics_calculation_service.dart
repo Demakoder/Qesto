@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../../../../data/models/qesto_models.dart';
+import '../../../budget/services/cash_flow_calculation_service.dart';
 import '../models/statistics_models.dart';
 import 'data_quality_service.dart';
 import 'statistics_insights_service.dart';
@@ -19,13 +20,20 @@ class StatisticsCalculationService {
       return false;
     }
     return transaction.type == TransactionType.expense ||
-        transaction.type == TransactionType.refund;
+        transaction.type == TransactionType.refund ||
+        (transaction.type == TransactionType.transfer &&
+            transaction.transferDirection == TransferDirection.outgoing &&
+            !transaction.tags.contains(qestoInternalTransferTag));
   }
 
   int signedExpense(BudgetTransaction transaction) =>
       switch (transaction.type) {
         TransactionType.expense => transaction.amount,
         TransactionType.refund => -transaction.amount,
+        TransactionType.transfer
+            when transaction.transferDirection == TransferDirection.outgoing &&
+                !transaction.tags.contains(qestoInternalTransferTag) =>
+          transaction.amount,
         _ => 0,
       };
 
@@ -177,12 +185,9 @@ class StatisticsCalculationService {
 
   List<int> purchaseAmounts(Iterable<BudgetTransaction> transactions) =>
       transactions
-          .where(
-            (transaction) =>
-                transaction.type == TransactionType.expense &&
-                !(transaction.isPotentialDuplicate && !transaction.isConfirmed),
-          )
-          .map((transaction) => transaction.amount)
+          .where(isConsumerExpense)
+          .where((transaction) => signedExpense(transaction) > 0)
+          .map(signedExpense)
           .toList();
 
   double average(Iterable<int> values) {
@@ -290,8 +295,9 @@ class StatisticsCalculationService {
       final key = keyOf(transaction);
       final group = result.putIfAbsent(key, _ExpenseGroup.new);
       group.amount += signedExpense(transaction);
-      if (transaction.type == TransactionType.expense) {
-        group.amounts.add(transaction.amount);
+      final amount = signedExpense(transaction);
+      if (amount > 0) {
+        group.amounts.add(amount);
       }
     }
     return result;
@@ -329,7 +335,7 @@ class StatisticsCalculationService {
           amount: amount,
           cumulative: cumulative,
           count: dayTransactions
-              .where((item) => item.type == TransactionType.expense)
+              .where((item) => signedExpense(item) > 0)
               .length,
         ),
       );
@@ -381,9 +387,10 @@ class StatisticsCalculationService {
     for (final transaction in transactions.where(isConsumerExpense)) {
       final index = transaction.date.weekday - 1;
       amounts[index] += signedExpense(transaction);
-      if (transaction.type == TransactionType.expense) {
+      final amount = signedExpense(transaction);
+      if (amount > 0) {
         counts[index]++;
-        checks[index].add(transaction.amount);
+        checks[index].add(amount);
       }
     }
     return [
@@ -411,11 +418,7 @@ class StatisticsCalculationService {
           .where((item) => !item.date.isAfter(referenceDate))
           .toList();
       final large = periodTransactions
-          .where(
-            (item) =>
-                item.type == TransactionType.expense &&
-                isLargePurchase(item, periodTransactions),
-          )
+          .where((item) => isLargePurchase(item, periodTransactions))
           .fold<int>(0, (sum, item) => sum + item.amount);
       result.add(
         StatisticsPeriodPoint(
@@ -436,7 +439,8 @@ class StatisticsCalculationService {
   ) {
     if (transaction.isLargePurchase) return true;
     if (!transaction.isConfirmed ||
-        transaction.type != TransactionType.expense) {
+        !isConsumerExpense(transaction) ||
+        signedExpense(transaction) <= 0) {
       return false;
     }
     final ordinary = median(purchaseAmounts(context));
@@ -515,15 +519,14 @@ class StatisticsCalculationService {
       ignoredIssueIds: ignoredQualityIssueIds,
     );
     final largeAmount = current
-        .where(
-          (item) =>
-              item.type == TransactionType.expense &&
-              isLargePurchase(item, current),
-        )
-        .fold<int>(0, (sum, item) => sum + item.amount);
+        .where((item) => isLargePurchase(item, current))
+        .fold<int>(0, (sum, item) => sum + signedExpense(item));
     final largest =
-        current.where((item) => item.type == TransactionType.expense).toList()
-          ..sort((a, b) => b.amount.compareTo(a.amount));
+        current
+            .where(isConsumerExpense)
+            .where((item) => signedExpense(item) > 0)
+            .toList()
+          ..sort((a, b) => signedExpense(b).compareTo(signedExpense(a)));
     final recurring = current.where((item) => item.isRecurring).toList()
       ..sort((a, b) => b.date.compareTo(a.date));
     return StatisticsSnapshot(

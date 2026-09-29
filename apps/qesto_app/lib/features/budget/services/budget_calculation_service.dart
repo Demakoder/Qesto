@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import '../../../data/models/qesto_models.dart';
+import 'cash_flow_calculation_service.dart';
 
 class BudgetCalculationService {
   const BudgetCalculationService();
@@ -10,13 +11,20 @@ class BudgetCalculationService {
       return false;
     }
     return transaction.type == TransactionType.expense ||
-        transaction.type == TransactionType.refund;
+        transaction.type == TransactionType.refund ||
+        (transaction.type == TransactionType.transfer &&
+            transaction.transferDirection == TransferDirection.outgoing &&
+            !transaction.tags.contains(qestoInternalTransferTag));
   }
 
   int signedExpense(BudgetTransaction transaction) {
     return switch (transaction.type) {
       TransactionType.expense => transaction.amount,
       TransactionType.refund => -transaction.amount,
+      TransactionType.transfer
+          when transaction.transferDirection == TransferDirection.outgoing &&
+              !transaction.tags.contains(qestoInternalTransferTag) =>
+        transaction.amount,
       _ => 0,
     };
   }

@@ -24,7 +24,7 @@ class StatisticsIconButton extends StatelessWidget {
     required this.tooltip,
     required this.onPressed,
     this.badge,
-    this.badgeColor = QestoColors.primary,
+    this.badgeColor,
     super.key,
   });
 
@@ -32,7 +32,7 @@ class StatisticsIconButton extends StatelessWidget {
   final String tooltip;
   final VoidCallback onPressed;
   final String? badge;
-  final Color badgeColor;
+  final Color? badgeColor;
 
   @override
   Widget build(BuildContext context) {
@@ -45,17 +45,17 @@ class StatisticsIconButton extends StatelessWidget {
           clipBehavior: Clip.none,
           children: [
             Material(
-              color: QestoColors.surface,
-              borderRadius: BorderRadius.circular(17),
+              color: context.qestoColors.surface,
+              borderRadius: QestoGeometry.control,
               child: InkWell(
                 onTap: onPressed,
-                borderRadius: BorderRadius.circular(17),
+                borderRadius: QestoGeometry.control,
                 child: Container(
                   width: 50,
                   height: 50,
                   decoration: BoxDecoration(
-                    border: Border.all(color: QestoColors.border),
-                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(color: context.qestoColors.border),
+                    borderRadius: QestoGeometry.control,
                     boxShadow: const [
                       BoxShadow(
                         color: Color(0x0C26324A),
@@ -64,7 +64,11 @@ class StatisticsIconButton extends StatelessWidget {
                       ),
                     ],
                   ),
-                  child: Icon(icon, color: QestoColors.primary, size: 25),
+                  child: Icon(
+                    icon,
+                    color: context.qestoColors.primary,
+                    size: 25,
+                  ),
                 ),
               ),
             ),
@@ -82,15 +86,18 @@ class StatisticsIconButton extends StatelessWidget {
                     vertical: 1,
                   ),
                   decoration: BoxDecoration(
-                    color: badgeColor,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: QestoColors.surface, width: 2),
+                    color: badgeColor ?? context.qestoColors.primary,
+                    borderRadius: QestoGeometry.control,
+                    border: Border.all(
+                      color: context.qestoColors.surface,
+                      width: 2,
+                    ),
                   ),
                   child: Text(
                     badge!,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: Colors.white,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimary,
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
                     ),
@@ -187,14 +194,14 @@ class StatisticsMetricItem {
     required this.value,
     required this.caption,
     required this.icon,
-    this.valueColor = QestoColors.text,
+    this.valueColor,
   });
 
   final String label;
   final String value;
   final String caption;
   final IconData icon;
-  final Color valueColor;
+  final Color? valueColor;
 }
 
 class _MetricCell extends StatelessWidget {
@@ -215,7 +222,7 @@ class _MetricCell extends StatelessWidget {
                 child: Text(
                   item.label,
                   style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: const Color(0xFF526078),
+                    color: context.qestoColors.secondaryText,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -224,10 +231,14 @@ class _MetricCell extends StatelessWidget {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: QestoColors.primarySoft,
-                  borderRadius: BorderRadius.circular(12),
+                  color: context.qestoColors.primarySoft,
+                  borderRadius: QestoGeometry.control,
                 ),
-                child: Icon(item.icon, color: QestoColors.primary, size: 20),
+                child: Icon(
+                  item.icon,
+                  color: context.qestoColors.primary,
+                  size: 20,
+                ),
               ),
             ],
           ),
@@ -240,7 +251,7 @@ class _MetricCell extends StatelessWidget {
               style: TextStyle(
                 fontSize: 27,
                 fontWeight: FontWeight.w800,
-                color: item.valueColor,
+                color: item.valueColor ?? context.qestoColors.text,
                 letterSpacing: -0.5,
               ),
             ),
@@ -265,6 +276,8 @@ class StatisticsGroupList extends StatelessWidget {
     required this.onTap,
     this.limit = 3,
     this.onShowAll,
+    this.currency = 'RUB',
+    this.amountConverter,
     super.key,
   });
 
@@ -273,6 +286,8 @@ class StatisticsGroupList extends StatelessWidget {
   final ValueChanged<StatisticsGroupStat> onTap;
   final int limit;
   final VoidCallback? onShowAll;
+  final String currency;
+  final int Function(int amount)? amountConverter;
 
   @override
   Widget build(BuildContext context) {
@@ -291,6 +306,8 @@ class StatisticsGroupList extends StatelessWidget {
               item: visible[index],
               onTap: () => onTap(visible[index]),
               maxAmount: items.isEmpty ? 1 : items.first.amount,
+              currency: currency,
+              amountConverter: amountConverter,
             ),
         ],
       ),
@@ -303,31 +320,37 @@ class _GroupRow extends StatelessWidget {
     required this.item,
     required this.onTap,
     required this.maxAmount,
+    required this.currency,
+    required this.amountConverter,
   });
 
   final StatisticsGroupStat item;
   final VoidCallback onTap;
   final int maxAmount;
+  final String currency;
+  final int Function(int amount)? amountConverter;
 
   @override
   Widget build(BuildContext context) {
     final change = item.changePercent;
     final positive = (change ?? 0) >= 0;
     final color = change == null
-        ? QestoColors.secondaryText
+        ? context.qestoColors.secondaryText
         : positive
-        ? const Color(0xFF168C4A)
-        : QestoColors.danger;
+        ? context.qestoColors.positive
+        : context.qestoColors.danger;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: QestoGeometry.control,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 9),
         child: Row(
           children: [
             BudgetCategoryIcon(
               iconKey: item.iconKey ?? 'store',
-              color: Color(item.colorValue ?? QestoColors.primary.toARGB32()),
+              color: Color(
+                item.colorValue ?? context.qestoColors.primary.toARGB32(),
+              ),
               size: 42,
             ),
             const SizedBox(width: 11),
@@ -348,10 +371,11 @@ class _GroupRow extends StatelessWidget {
                     child: LinearProgressIndicator(
                       minHeight: 6,
                       value: maxAmount <= 0 ? 0 : item.amount / maxAmount,
-                      backgroundColor: QestoColors.border,
+                      backgroundColor: context.qestoColors.border,
                       valueColor: AlwaysStoppedAnimation(
                         Color(
-                          item.colorValue ?? QestoColors.primary.toARGB32(),
+                          item.colorValue ??
+                              context.qestoColors.primary.toARGB32(),
                         ),
                       ),
                     ),
@@ -364,7 +388,10 @@ class _GroupRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  formatMoney(item.amount, 'RUB'),
+                  formatMoney(
+                    amountConverter?.call(item.amount) ?? item.amount,
+                    currency,
+                  ),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
@@ -381,9 +408,9 @@ class _GroupRow extends StatelessWidget {
               ],
             ),
             const SizedBox(width: 2),
-            const Icon(
+            Icon(
               Icons.chevron_right_rounded,
-              color: QestoColors.secondaryText,
+              color: context.qestoColors.secondaryText,
             ),
           ],
         ),
@@ -412,7 +439,7 @@ class StatisticsInsightsCard extends StatelessWidget {
           for (final insight in insights.take(3))
             InkWell(
               onTap: () => onDetails(insight),
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: QestoGeometry.control,
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Row(
@@ -422,12 +449,12 @@ class StatisticsInsightsCard extends StatelessWidget {
                       width: 38,
                       height: 38,
                       decoration: BoxDecoration(
-                        color: QestoColors.primarySoft,
-                        borderRadius: BorderRadius.circular(12),
+                        color: context.qestoColors.primarySoft,
+                        borderRadius: QestoGeometry.control,
                       ),
                       child: Icon(
                         _insightIcon(insight.type),
-                        color: QestoColors.primary,
+                        color: context.qestoColors.primary,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -450,10 +477,10 @@ class StatisticsInsightsCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    const Icon(
+                    Icon(
                       Icons.info_outline_rounded,
                       size: 20,
-                      color: QestoColors.secondaryText,
+                      color: context.qestoColors.secondaryText,
                     ),
                   ],
                 ),
@@ -488,12 +515,12 @@ class StatisticsInfoBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: QestoColors.primarySoft,
-        borderRadius: BorderRadius.circular(16),
+        color: context.qestoColors.primarySoft,
+        borderRadius: QestoGeometry.control,
       ),
       child: Row(
         children: [
-          Icon(icon, color: QestoColors.primary),
+          Icon(icon, color: context.qestoColors.primary),
           const SizedBox(width: 10),
           Expanded(
             child: Text(

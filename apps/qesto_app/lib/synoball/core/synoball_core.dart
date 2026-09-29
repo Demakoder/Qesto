@@ -1,4 +1,5 @@
 import '../enrichment/enrichment.dart';
+import '../enrichment/category_policy.dart';
 import '../ingestion/adapter.dart';
 import '../reconciliation/deduplication.dart';
 import '../reconciliation/source_trust_policy.dart';
@@ -12,6 +13,9 @@ class IngestionOutcome {
     required this.pendingCandidateIds,
     this.importBatchId,
     this.warnings = const [],
+    this.failedCandidateIds = const [],
+    this.resolvedTransactionIds = const [],
+    this.suppressedTransactionIds = const [],
   });
 
   final String ingestionRecordId;
@@ -20,6 +24,15 @@ class IngestionOutcome {
   final List<String> pendingCandidateIds;
   final String? importBatchId;
   final List<String> warnings;
+  final List<String> failedCandidateIds;
+
+  /// One entry per adapted candidate, in source order. Null means review or
+  /// failure; a non-null ID is the actual reconciled canonical target.
+  /// This is a command result, not a change to the persisted data schema.
+  final List<String?> resolvedTransactionIds;
+
+  /// Recognised identities that remain in the user's trash; not active merges.
+  final List<String> suppressedTransactionIds;
 }
 
 class SynoballCore {
@@ -27,9 +40,10 @@ class SynoballCore {
     SynoballState initialState = const SynoballState(),
     this._deduplicator = const TransactionDeduplicator(),
     this._trustPolicy = const SourceTrustPolicy(),
-    this._enrichment = const EnrichmentEngine(),
+    CategoryPolicy categoryPolicy = const CategoryPolicy(),
     SynoballIdFactory? ids,
-  }) : _ids = ids ?? SynoballIdFactory(),
+  }) : _enrichment = EnrichmentEngine(categoryPolicy: categoryPolicy),
+       _ids = ids ?? SynoballIdFactory(),
        _entities = List.of(initialState.entities),
        _institutions = List.of(initialState.institutions),
        _connections = List.of(initialState.connections),
@@ -64,11 +78,45 @@ class SynoballCore {
     for (final item in _evidence) {
       _indexEvidence(item);
     }
+    // Recurring streams are derived data. Rebuild on restore as well as import
+    // so an algorithm upgrade does not leave an old empty/stale UI indefinitely.
+    setCategoryPolicy(categoryPolicy);
   }
 
   final TransactionDeduplicator _deduplicator;
   final SourceTrustPolicy _trustPolicy;
-  final EnrichmentEngine _enrichment;
+  EnrichmentEngine _enrichment;
+
+  /// Reapply user policy to existing canonical facts without changing financial
+  /// values/status or update timestamps. Includes trash for safe later restore.
+  void setCategoryPolicy(CategoryPolicy policy) {
+    _enrichment = EnrichmentEngine(categoryPolicy: policy);
+    for (var i = 0; i < _transactions.length; i++) {
+      _transactions[i] = policy.apply(
+        _transactions[i],
+        identity: _enrichment.merchantIdentity(_transactions[i]),
+      );
+    }
+    _refreshDerivedData();
+  }
+
+  void removeUserTag(String id, {required String actorId}) {
+    for (var i = 0; i < _transactions.length; i++) {
+      final t = _transactions[i];
+      if (!t.tags.contains('$userLabelPrefix$id')) continue;
+      _transactions[i] = t.copyWith(
+        tags: t.tags.where((s) => s != '$userLabelPrefix$id').toList(),
+      );
+    }
+    _audit(
+      actorId: actorId,
+      action: 'user-tag.deleted',
+      entityId: 'ent-$actorId',
+      purpose: 'Remove user tag without deleting transactions',
+      subjectId: id,
+    );
+  }
+
   final SynoballIdFactory _ids;
 
   final List<SynoballEntity> _entities;
@@ -131,6 +179,53 @@ class SynoballCore {
 
   IngestionOutcome ingest<T>(SynoballAdapter<T> adapter, T input) {
     final adapted = adapter.parse(input);
+    // A retry of an unresolved native delivery must not grow the review inbox.
+    // Never deduplicate new manual commands by their text/content.
+    if (adapted.candidates.length == 1 &&
+        (adapted.record.sourceType == SynoballSourceType.androidNotification ||
+            adapted.record.sourceType == SynoballSourceType.smsNotification)) {
+      final incoming = adapted.candidates.single;
+      for (final previous in _candidates) {
+        if (previous.status != CandidateStatus.pending ||
+            !previous.requiresConfirmation ||
+            incoming.providerTransactionId == null ||
+            previous.providerTransactionId != incoming.providerTransactionId ||
+            previous.entityId != incoming.entityId ||
+            previous.accountId != incoming.accountId ||
+            previous.amount.minorUnits != incoming.amount.minorUnits ||
+            previous.amount.currency != incoming.amount.currency ||
+            previous.direction != incoming.direction ||
+            previous.occurredAt != incoming.occurredAt ||
+            previous.categoryGuess != incoming.categoryGuess ||
+            previous.merchantGuess != incoming.merchantGuess) {
+          continue;
+        }
+        final recordIndex =
+            _ingestionRecordIndexById[previous.ingestionRecordId];
+        if (recordIndex == null) continue;
+        final record = _ingestionRecords[recordIndex];
+        if (record.sourceType != adapted.record.sourceType ||
+            record.adapterVersion != adapted.record.adapterVersion ||
+            record.connectionId != adapted.record.connectionId ||
+            record.institutionId != adapted.record.institutionId) {
+          continue;
+        }
+        if (!_rawPayloads.any(
+          (raw) =>
+              raw.id == record.rawPayloadId &&
+              raw.body == adapted.rawPayload.body,
+        )) {
+          continue;
+        }
+        return IngestionOutcome(
+          ingestionRecordId: record.id,
+          createdTransactionIds: const [],
+          matchedTransactionIds: const [],
+          pendingCandidateIds: [previous.id],
+          resolvedTransactionIds: const [null],
+        );
+      }
+    }
     _upsertMany(_institutions, adapted.institutions, (value) => value.id);
     _upsertMany(_connections, adapted.connections, (value) => value.id);
     _upsertMany(_consents, adapted.consents, (value) => value.id);
@@ -151,17 +246,48 @@ class SynoballCore {
     final created = <String>[];
     final matched = <String>[];
     final pending = <String>[];
+    final failed = <String>[];
+    final resolved = <String?>[];
+    final suppressed = <String>[];
+    final batchConflicts = _deduplicator.batchConflicts(
+      candidates: adapted.candidates,
+      sourceType: adapted.record.sourceType,
+      transactions: _transactions,
+      evidence: _evidence,
+      ingestionRecords: _ingestionRecords,
+      accounts: _accounts,
+      sourceCandidates: _candidates,
+    );
     var failures = 0;
     for (final candidate in adapted.candidates) {
       if (candidate.requiresConfirmation) {
         pending.add(candidate.id);
+        resolved.add(null);
         continue;
       }
       try {
+        final conflict = batchConflicts[candidate.id];
+        if (conflict != null) throw ReconciliationConflict(conflict);
         final result = _reconcile(candidate, adapted.record.sourceType);
-        (result.created ? created : matched).add(result.transactionId);
+        (result.created
+                ? created
+                : result.suppressed
+                ? suppressed
+                : matched)
+            .add(result.transactionId);
+        resolved.add(result.transactionId);
+      } on ReconciliationConflict catch (conflict) {
+        final index = _candidateIndexById[candidate.id]!;
+        _candidates[index] = candidate.copyWith(
+          requiresConfirmation: true,
+          tags: {...candidate.tags, 'review-${conflict.reason}'}.toList(),
+        );
+        pending.add(candidate.id);
+        resolved.add(null);
       } on Object {
         failures += 1;
+        failed.add(candidate.id);
+        resolved.add(null);
       }
     }
 
@@ -176,16 +302,20 @@ class SynoballCore {
       errorMessage: failures > 0 ? '$failures record(s) failed' : null,
     );
 
+    final warnings = [
+      ...adapted.warnings,
+      if (suppressed.isNotEmpty) 'user_deleted_suppressed:${suppressed.length}',
+    ];
     if (adapted.importBatch != null) {
       final index = _importBatchIndexById[adapted.importBatch!.id]!;
       _importBatches[index] = adapted.importBatch!.copyWith(
-        status: failures > 0
+        status: failures > 0 || pending.isNotEmpty
             ? ImportBatchStatus.partial
             : ImportBatchStatus.completed,
         createdTransactions: created.length,
         matchedTransactions: matched.length,
         failedRecords: failures,
-        warnings: adapted.warnings,
+        warnings: warnings,
       );
     }
     _refreshDerivedData();
@@ -214,8 +344,11 @@ class SynoballCore {
       createdTransactionIds: created,
       matchedTransactionIds: matched,
       pendingCandidateIds: pending,
+      failedCandidateIds: failed,
+      resolvedTransactionIds: resolved,
+      suppressedTransactionIds: suppressed,
       importBatchId: adapted.importBatch?.id,
-      warnings: adapted.warnings,
+      warnings: warnings,
     );
   }
 
@@ -240,7 +373,14 @@ class SynoballCore {
       requiresConfirmation: false,
     );
     _candidates[index] = confirmed;
-    final result = _reconcile(confirmed, record.sourceType);
+    final _ReconciliationResult result;
+    try {
+      result = _reconcile(confirmed, record.sourceType);
+    } on ReconciliationConflict {
+      // An unresolved identity must remain retryable in the review inbox.
+      _candidates[index] = candidate;
+      rethrow;
+    }
     _audit(
       actorId: actorId,
       action: 'candidate.confirmed',
@@ -258,6 +398,84 @@ class SynoballCore {
   void upsertAccount(SynoballAccount account) =>
       _upsertMany(_accounts, [account], (value) => value.id);
 
+  String? sourceAccountMapping(String entityId, String sourceKey) {
+    String resolveMerged(String id) {
+      final visited = <String>{};
+      while (visited.add(id)) {
+        final next = _events
+            .where(
+              (e) =>
+                  e.entityId == entityId &&
+                  e.type == 'account.merged' &&
+                  e.payload['duplicateAccountId'] == id,
+            )
+            .map((e) => e.subjectId)
+            .whereType<String>()
+            .toSet();
+        if (next.length != 1) break;
+        id = next.single;
+      }
+      return id;
+    }
+
+    final matches = _events
+        .where(
+          (e) =>
+              e.entityId == entityId &&
+              e.type == 'account.source-linked' &&
+              e.payload['sourceKey'] == sourceKey,
+        )
+        .map((e) => e.subjectId)
+        .whereType<String>()
+        .map(resolveMerged)
+        .toSet();
+    if (matches.length != 1 ||
+        !_accounts.any(
+          (a) => a.entityId == entityId && a.id == matches.single,
+        )) {
+      return null;
+    }
+    return matches.single;
+  }
+
+  /// Explicit user confirmation links two source representations. No guessing
+  /// by balance/name/suffix; the canonical account schema remains unchanged.
+  void linkSourceAccount({
+    required String entityId,
+    required String sourceKey,
+    required String accountId,
+    required String actorId,
+  }) {
+    if (sourceKey.isEmpty ||
+        !_accounts.any((a) => a.id == accountId && a.entityId == entityId)) {
+      throw StateError('Unknown source or account');
+    }
+    final existing = sourceAccountMapping(entityId, sourceKey);
+    if (existing == accountId) return;
+    if (existing != null ||
+        _events.any(
+          (e) =>
+              e.entityId == entityId &&
+              e.type == 'account.source-linked' &&
+              e.payload['sourceKey'] == sourceKey,
+        )) {
+      throw StateError('Source account is already linked; review required');
+    }
+    _emit(
+      type: 'account.source-linked',
+      entityId: entityId,
+      subjectId: accountId,
+      payload: {'sourceKey': sourceKey, 'confirmedBy': actorId},
+    );
+    _audit(
+      actorId: actorId,
+      action: 'account.source-linked',
+      entityId: entityId,
+      subjectId: accountId,
+      purpose: 'User confirmed the statement account mapping',
+    );
+  }
+
   void removeAccountIfUnused(String accountId) {
     final used = _transactions.any(
       (item) =>
@@ -265,6 +483,66 @@ class SynoballCore {
           item.accountId == accountId,
     );
     if (!used) _accounts.removeWhere((item) => item.id == accountId);
+  }
+
+  /// Repoints every canonical operation from a duplicate account to the
+  /// authoritative account and then removes the duplicate. This is used when
+  /// a provider exposes the same bank account through both an account route
+  /// and one of its linked cards, or changes an unstable DOM identifier.
+  int mergeAccountInto({
+    required String duplicateAccountId,
+    required String primaryAccountId,
+    required String actorId,
+    String purpose = 'Merge duplicate financial accounts',
+  }) {
+    if (duplicateAccountId == primaryAccountId) return 0;
+    if (!_accounts.any((item) => item.id == primaryAccountId)) {
+      throw StateError('Primary account not found: $primaryAccountId');
+    }
+    if (!_accounts.any((item) => item.id == duplicateAccountId)) return 0;
+    final primary = _accounts.firstWhere((a) => a.id == primaryAccountId);
+    final duplicate = _accounts.firstWhere((a) => a.id == duplicateAccountId);
+    if (primary.entityId != duplicate.entityId ||
+        primary.currency != duplicate.currency) {
+      throw StateError(
+        'Cannot merge accounts of different entities or currencies',
+      );
+    }
+
+    var migrated = 0;
+    final now = DateTime.now();
+    for (var index = 0; index < _transactions.length; index++) {
+      final transaction = _transactions[index];
+      if (transaction.accountId != duplicateAccountId) continue;
+      _transactions[index] = transaction.copyWith(
+        accountId: primaryAccountId,
+        updatedAt: now,
+      );
+      migrated += 1;
+    }
+    _accounts.removeWhere((item) => item.id == duplicateAccountId);
+    _audit(
+      actorId: actorId,
+      action: 'account.merged',
+      entityId: _accounts
+          .firstWhere((item) => item.id == primaryAccountId)
+          .entityId,
+      purpose: purpose,
+      subjectId: primaryAccountId,
+    );
+    _emit(
+      type: 'account.merged',
+      entityId: _accounts
+          .firstWhere((item) => item.id == primaryAccountId)
+          .entityId,
+      subjectId: primaryAccountId,
+      payload: {
+        'duplicateAccountId': duplicateAccountId,
+        'migratedTransactions': migrated,
+      },
+    );
+    _refreshDerivedData();
+    return migrated;
   }
 
   void updateTransaction(
@@ -276,6 +554,10 @@ class SynoballCore {
     if (index == null) {
       throw StateError('Transaction not found: ${transaction.id}');
     }
+    if (_transactions[index].status == CanonicalTransactionStatus.deleted) {
+      throw StateError('Restore the transaction from trash before editing');
+    }
+    final previous = _transactions[index];
     _transactions[index] = _enrichment.enrich(
       transaction.copyWith(
         updatedAt: DateTime.now(),
@@ -293,6 +575,15 @@ class SynoballCore {
       type: 'transaction.updated',
       entityId: transaction.entityId,
       subjectId: transaction.id,
+      payload: {
+        'actorId': actorId,
+        'previousCategory': previous.effectiveCategory,
+        'newCategory': _transactions[index].effectiveCategory,
+        'previousMerchant': previous.merchantName,
+        'newMerchant': _transactions[index].merchantName,
+        'previousStatus': previous.status.name,
+        'newStatus': _transactions[index].status.name,
+      },
     );
     _refreshDerivedData();
   }
@@ -301,9 +592,15 @@ class SynoballCore {
     final index = _transactionIndexById[id];
     if (index == null) return;
     final transaction = _transactions[index];
+    if (transaction.status == CanonicalTransactionStatus.deleted) return;
+    final deletedAt = DateTime.now();
     _transactions[index] = transaction.copyWith(
       status: CanonicalTransactionStatus.deleted,
-      updatedAt: DateTime.now(),
+      tags: [
+        ...transaction.tags.where((tag) => !tag.startsWith('trash:')),
+        'trash:previous-status:${transaction.status.name}',
+      ],
+      updatedAt: deletedAt,
     );
     _audit(
       actorId: actorId,
@@ -313,18 +610,31 @@ class SynoballCore {
       subjectId: id,
     );
     _emit(
-      type: 'transaction.updated',
+      type: 'transaction.deleted',
       entityId: transaction.entityId,
       subjectId: id,
+      payload: {
+        'actorId': actorId,
+        'status': 'deleted',
+        'previousStatus': transaction.status.name,
+        'changedAt': deletedAt.toIso8601String(),
+        if (_accounts.any((account) => account.id == transaction.accountId))
+          'accountSnapshot': _accounts
+              .firstWhere((account) => account.id == transaction.accountId)
+              .toJson(),
+      },
     );
     _refreshDerivedData();
   }
 
   void restoreTransaction(CanonicalTransaction transaction) {
     final index = _transactionIndexById[transaction.id];
-    final restored = transaction.copyWith(
-      status: CanonicalTransactionStatus.posted,
-      updatedAt: DateTime.now(),
+    if (index != null &&
+        _transactions[index].status == CanonicalTransactionStatus.deleted) {
+      throw StateError('Use the explicit restore-from-trash command');
+    }
+    final restored = _enrichment.enrich(
+      transaction.copyWith(updatedAt: DateTime.now()),
     );
     if (index == null) {
       _transactionIndexById[restored.id] = _transactions.length;
@@ -333,6 +643,80 @@ class SynoballCore {
       _transactions[index] = restored;
     }
     _refreshDerivedData();
+  }
+
+  bool restoreDeletedTransaction(String id, {required String actorId}) {
+    final index = _transactionIndexById[id];
+    if (index == null) return false;
+    final transaction = _transactions[index];
+    if (transaction.status != CanonicalTransactionStatus.deleted) return false;
+    var status = CanonicalTransactionStatus.posted;
+    final previous = transaction.tags
+        .where((tag) => tag.startsWith('trash:previous-status:'))
+        .firstOrNull;
+    if (previous != null) {
+      status = CanonicalTransactionStatus.values.firstWhere(
+        (value) =>
+            value.name == previous.split(':').last &&
+            value != CanonicalTransactionStatus.deleted,
+        orElse: () => CanonicalTransactionStatus.posted,
+      );
+    } else if (transaction.tags.any(
+      (tag) => tag == 'status-pending' || tag == 'sber-status-pending',
+    )) {
+      status = CanonicalTransactionStatus.pending;
+    } else if (transaction.tags.any(
+      (tag) => tag == 'status-cancelled' || tag == 'sber-status-cancelled',
+    )) {
+      status = CanonicalTransactionStatus.reversed;
+    }
+    if (!_accounts.any((account) => account.id == transaction.accountId)) {
+      final deletion = _events
+          .where(
+            (event) =>
+                event.subjectId == id && event.type == 'transaction.deleted',
+          )
+          .lastOrNull;
+      final snapshot = deletion?.payload['accountSnapshot'];
+      final name = snapshot is Map ? snapshot['name'] as String? : null;
+      // Restoring a purchase cannot reconstruct a bank's current balance.
+      _accounts.add(
+        SynoballAccount(
+          id: transaction.accountId,
+          entityId: transaction.entityId,
+          name: '${name ?? 'Восстановленный счёт'} · баланс не подтверждён',
+          type: SynoballAccountType.other,
+          currency: transaction.amount.currency,
+          balance: Money(minorUnits: 0, currency: transaction.amount.currency),
+          isVirtual: true,
+        ),
+      );
+    }
+    final restoredAt = DateTime.now();
+    _transactions[index] = transaction.copyWith(
+      status: status,
+      tags: transaction.tags.where((tag) => !tag.startsWith('trash:')).toList(),
+      updatedAt: restoredAt,
+    );
+    _audit(
+      actorId: actorId,
+      action: 'transaction.restored',
+      entityId: transaction.entityId,
+      purpose: 'User restored a transaction from trash',
+      subjectId: id,
+    );
+    _emit(
+      type: 'transaction.restored',
+      entityId: transaction.entityId,
+      subjectId: id,
+      payload: {
+        'actorId': actorId,
+        'status': status.name,
+        'changedAt': restoredAt.toIso8601String(),
+      },
+    );
+    _refreshDerivedData();
+    return true;
   }
 
   _ReconciliationResult _reconcile(
@@ -344,17 +728,29 @@ class SynoballCore {
       sourceType: sourceType,
       transactions: _transactions,
       evidence: _evidence,
+      ingestionRecords: _ingestionRecords,
+      accounts: _accounts,
+      sourceCandidates: _candidates,
     );
     final now = DateTime.now();
     late final String transactionId;
     late final bool created;
     if (match == null) {
+      if (candidate.canonicalId != null &&
+          _transactionIndexById.containsKey(candidate.canonicalId)) {
+        // A tombstone or conflicting identity must never produce two rows
+        // with the same canonical id. Restoration is a separate user command.
+        throw const ReconciliationConflict('existing_canonical_identity');
+      }
       transactionId = candidate.canonicalId ?? 'txn-${candidate.id}';
       final createdTransaction = CanonicalTransaction(
         id: transactionId,
         entityId: candidate.entityId,
         accountId: candidate.accountId,
-        status: CanonicalTransactionStatus.posted,
+        status: _statusFromCandidate(
+          candidate,
+          fallback: CanonicalTransactionStatus.posted,
+        ),
         amount: candidate.amount,
         direction: candidate.direction,
         occurredAt: candidate.occurredAt,
@@ -388,6 +784,11 @@ class SynoballCore {
         entityId: candidate.entityId,
         subjectId: transactionId,
       );
+    } else if (match.transaction.status == CanonicalTransactionStatus.deleted) {
+      // Record the delivery/evidence below but do not touch the deleted
+      // financial values, original lifecycle status, or deletion timestamp.
+      transactionId = match.transaction.id;
+      created = false;
     } else {
       transactionId = match.transaction.id;
       final index = _transactionIndexById[transactionId]!;
@@ -396,26 +797,116 @@ class SynoballCore {
           (_evidenceByTransactionId[transactionId] ?? const <SourceEvidence>[])
               .map((item) => item.sourceType)
               .toSet();
-      final replace =
-          (candidate.canonicalId == current.id &&
-              sourceType == SynoballSourceType.statement) ||
-          _trustPolicy.shouldReplace(
-            current: current.fieldTrust,
-            incoming: candidate.sourceTrust,
-          );
-      final tags = {...current.tags, ...candidate.tags}.toList();
-      final replaceTime = _shouldReplaceOccurredAt(
-        current: current,
-        candidate: candidate,
-        incomingSource: sourceType,
-        existingSources: existingSources,
+      final hasFieldLocks = current.tags.any(
+        (tag) => tag.startsWith('user-field:'),
       );
+      bool locked(String field) =>
+          current.tags.contains('user-field:$field') ||
+          (current.fieldTrust == SourceTrustLevel.userConfirmed &&
+              !hasFieldLocks);
+      var sourceRank = _trustPolicy.rank(current.fieldTrust);
+      if (hasFieldLocks &&
+          current.fieldTrust == SourceTrustLevel.userConfirmed) {
+        sourceRank = 0;
+        for (final item
+            in _evidenceByTransactionId[transactionId] ?? <SourceEvidence>[]) {
+          final rank = _trustPolicy.rank(item.trust);
+          if (rank > sourceRank) sourceRank = rank;
+        }
+      }
+      final incomingRecord =
+          _ingestionRecords[_ingestionRecordIndexById[candidate
+              .ingestionRecordId]!];
+      final stale =
+          (_evidenceByTransactionId[transactionId] ?? <SourceEvidence>[]).any((
+            item,
+          ) {
+            final index = _ingestionRecordIndexById[item.ingestionRecordId];
+            return item.sourceType == sourceType &&
+                index != null &&
+                item.observedAt.isAfter(incomingRecord.receivedAt);
+          });
+      final replace =
+          !stale && _trustPolicy.rank(candidate.sourceTrust) >= sourceRank;
+      final currentAccountIsVirtual = _accounts.any(
+        (account) =>
+            account.id == current.accountId &&
+            account.entityId == current.entityId &&
+            account.isVirtual,
+      );
+      final incomingAccountIsVirtual = _accounts.any(
+        (account) =>
+            account.id == candidate.accountId &&
+            account.entityId == candidate.entityId &&
+            account.isVirtual,
+      );
+      final replaceAccount =
+          !incomingAccountIsVirtual &&
+          ((replace && !locked('account')) ||
+              (currentAccountIsVirtual &&
+                  !current.tags.contains('user-field:account')));
+      var status = _statusFromCandidate(candidate, fallback: current.status);
+      if (stale || _trustPolicy.rank(candidate.sourceTrust) < sourceRank) {
+        status = current.status;
+      }
+      // A pending observation cannot downgrade a posted economic fact.
+      if (current.status == CanonicalTransactionStatus.posted &&
+          status == CanonicalTransactionStatus.pending) {
+        status = current.status;
+      }
+      final replaceType =
+          replace &&
+          !locked('type') &&
+          candidate.tags.any((tag) => tag.startsWith('legacy-type-'));
+      final tags = {
+        ...current.tags.where(
+          (tag) =>
+              !(replaceType && tag.startsWith('legacy-type-')) &&
+              !(replaceType &&
+                  candidate.tags.any(
+                    (value) =>
+                        value == 'qesto-internal-transfer' ||
+                        value == 'qesto-external-transfer',
+                  ) &&
+                  (tag == 'qesto-internal-transfer' ||
+                      tag == 'qesto-external-transfer')) &&
+              !tag.startsWith('sber-status-') &&
+              !tag.startsWith('status-'),
+        ),
+        ...candidate.tags.where(
+          (tag) =>
+              !tag.startsWith(userLabelPrefix) &&
+              (replaceType || !tag.startsWith('legacy-type-')) &&
+              !tag.startsWith('sber-status-') &&
+              !tag.startsWith('status-'),
+        ),
+        'status-${status == CanonicalTransactionStatus.reversed ? 'cancelled' : status.name}',
+      }.toList();
+      if ((replaceAccount
+              ? incomingAccountIsVirtual
+              : currentAccountIsVirtual) ==
+          false) {
+        tags.remove('sber-account-unresolved');
+      }
+      final replaceTime =
+          !stale &&
+          !locked('date') &&
+          _shouldReplaceOccurredAt(
+            current: current,
+            candidate: candidate,
+            incomingSource: sourceType,
+            existingSources: existingSources,
+          );
       final replaceMerchant =
+          !stale &&
+          !locked('merchant') &&
           candidate.merchantGuess?.trim().isNotEmpty == true &&
           (_sourceDetailRank(sourceType) >=
                   _bestSourceDetailRank(existingSources) ||
               current.merchantName == null);
       final replaceDescription =
+          !stale &&
+          !locked('description') &&
           candidate.rawDescription.trim().isNotEmpty &&
           (_sourceDetailRank(sourceType) >=
                   _bestSourceDetailRank(existingSources) ||
@@ -427,9 +918,11 @@ class SynoballCore {
       );
       _transactions[index] = _enrichment.enrich(
         current.copyWith(
-          accountId: replace ? candidate.accountId : current.accountId,
-          amount: replace ? candidate.amount : current.amount,
-          direction: replace ? candidate.direction : current.direction,
+          accountId: replaceAccount ? candidate.accountId : current.accountId,
+          amount: replace && !locked('amount')
+              ? candidate.amount
+              : current.amount,
+          direction: replaceType ? candidate.direction : current.direction,
           occurredAt: replaceTime ? candidate.occurredAt : current.occurredAt,
           rawDescription: replaceDescription
               ? candidate.rawDescription
@@ -449,24 +942,34 @@ class SynoballCore {
             replace: replace,
           ),
           synoballCategory: mergedSynoballCategory,
-          userCategoryOverride:
-              candidate.userCategoryOverride ?? current.userCategoryOverride,
+          userCategoryOverride: locked('category')
+              ? current.userCategoryOverride
+              : candidate.userCategoryOverride ?? current.userCategoryOverride,
           categoryConfidence:
               candidate.categoryGuess != null &&
                   mergedSynoballCategory == candidate.categoryGuess
               ? candidate.confidence
               : current.categoryConfidence,
           subcategoryId:
-              candidate.subcategoryId != null &&
+              !locked('subcategory') &&
+                  candidate.subcategoryId != null &&
                   (replace || current.subcategoryId == null)
               ? candidate.subcategoryId
               : current.subcategoryId,
-          transferDirection:
-              candidate.transferDirection ?? current.transferDirection,
+          transferDirection: replaceType
+              ? candidate.transferDirection ?? current.transferDirection
+              : current.transferDirection,
+          clearTransferDirection:
+              replaceType && candidate.transferDirection == null,
+          status: status,
           receiptId: candidate.receiptId ?? current.receiptId,
           tags: tags,
           updatedAt: now,
-          fieldTrust: replace ? candidate.sourceTrust : current.fieldTrust,
+          fieldTrust: hasFieldLocks
+              ? current.fieldTrust
+              : replace
+              ? candidate.sourceTrust
+              : current.fieldTrust,
         ),
       );
       created = false;
@@ -479,13 +982,29 @@ class SynoballCore {
     }
 
     final providerTransactionId = candidate.providerTransactionId;
-    final alreadyObserved =
-        providerTransactionId != null &&
-        _providerEvidenceKeys.contains((
-          transactionId: transactionId,
-          sourceType: sourceType,
-          providerTransactionId: providerTransactionId,
-        ));
+    SourceEvidence? repeated;
+    if (providerTransactionId != null) {
+      for (final item
+          in _evidenceByTransactionId[transactionId] ?? <SourceEvidence>[]) {
+        if (item.sourceType != sourceType ||
+            item.providerTransactionId != providerTransactionId) {
+          continue;
+        }
+        if (_candidates.any(
+          (prior) =>
+              prior.id != candidate.id &&
+              prior.ingestionRecordId == item.ingestionRecordId &&
+              _sameObservation(prior, candidate),
+        )) {
+          repeated = item;
+        }
+      }
+    }
+    final alreadyObserved = repeated != null;
+    final observedAt =
+        _ingestionRecords[_ingestionRecordIndexById[candidate
+                .ingestionRecordId]!]
+            .receivedAt;
     if (!alreadyObserved) {
       final item = SourceEvidence(
         id: _ids.next('evd'),
@@ -494,20 +1013,97 @@ class SynoballCore {
         ingestionRecordId: candidate.ingestionRecordId,
         confidence: candidate.confidence,
         trust: candidate.sourceTrust,
-        observedAt: candidate.occurredAt,
+        observedAt: observedAt,
         providerTransactionId: providerTransactionId,
       );
       _evidence.add(item);
       _indexEvidence(item);
+    } else if (observedAt.isAfter(repeated.observedAt)) {
+      // Coalesce an identical observation but retain the latest delivery link
+      // and observation time. Changed provider observations get new evidence.
+      final refreshed = SourceEvidence(
+        id: repeated.id,
+        transactionId: transactionId,
+        sourceType: sourceType,
+        ingestionRecordId: candidate.ingestionRecordId,
+        confidence: candidate.confidence,
+        trust: candidate.sourceTrust,
+        observedAt: observedAt,
+        providerTransactionId: providerTransactionId,
+      );
+      _evidence[_evidence.indexWhere((item) => item.id == repeated!.id)] =
+          refreshed;
+      final indexed = _evidenceByTransactionId[transactionId]!;
+      indexed[indexed.indexWhere((item) => item.id == repeated!.id)] =
+          refreshed;
     }
     final candidateIndex = _candidateIndexById[candidate.id]!;
     _candidates[candidateIndex] = candidate.copyWith(
       status: created ? CandidateStatus.confirmed : CandidateStatus.merged,
+      tags: [
+        ...candidate.tags,
+        if (match?.transaction.status == CanonicalTransactionStatus.deleted)
+          'user-deletion-suppressed',
+      ],
     );
     return _ReconciliationResult(
       transactionId: transactionId,
       created: created,
+      suppressed:
+          match?.transaction.status == CanonicalTransactionStatus.deleted,
     );
+  }
+
+  bool _sameObservation(
+    TransactionCandidate left,
+    TransactionCandidate right,
+  ) =>
+      left.providerTransactionId == right.providerTransactionId &&
+      left.accountId == right.accountId &&
+      left.entityId == right.entityId &&
+      left.amount.minorUnits == right.amount.minorUnits &&
+      left.amount.currency == right.amount.currency &&
+      left.direction == right.direction &&
+      left.occurredAt == right.occurredAt &&
+      left.rawDescription == right.rawDescription &&
+      left.merchantGuess == right.merchantGuess &&
+      left.categoryGuess == right.categoryGuess &&
+      left.providerCategory == right.providerCategory &&
+      left.userCategoryOverride == right.userCategoryOverride &&
+      left.subcategoryId == right.subcategoryId &&
+      left.transferDirection == right.transferDirection &&
+      left.receiptId == right.receiptId &&
+      _observationTags(left).length == _observationTags(right).length &&
+      _observationTags(left).containsAll(_observationTags(right));
+
+  Set<String> _observationTags(TransactionCandidate candidate) =>
+      candidate.tags.where((tag) => tag != 'user-deletion-suppressed').toSet();
+
+  /// Bank feeds may observe the same operation while it is processing and
+  /// later report it as posted (or cancelled).  Keep that lifecycle in the
+  /// canonical transaction instead of treating the status tag as UI-only.
+  /// The adapter remains the owner of provider-specific tags; Synoball only
+  /// understands the small, stable status vocabulary below.
+  CanonicalTransactionStatus _statusFromCandidate(
+    TransactionCandidate candidate, {
+    required CanonicalTransactionStatus fallback,
+  }) {
+    final tags = candidate.tags.map((value) => value.toLowerCase()).toSet();
+    if (tags.contains('sber-status-pending') ||
+        tags.contains('status-pending')) {
+      return CanonicalTransactionStatus.pending;
+    }
+    if (tags.contains('sber-status-cancelled') ||
+        tags.contains('status-cancelled')) {
+      return CanonicalTransactionStatus.reversed;
+    }
+    if (tags.contains('sber-status-posted') ||
+        tags.contains('status-posted') ||
+        tags.contains('sber-status-refund') ||
+        tags.contains('status-refund')) {
+      return CanonicalTransactionStatus.posted;
+    }
+    return fallback;
   }
 
   void _refreshDerivedData() {
@@ -612,7 +1208,8 @@ bool _shouldReplaceOccurredAt({
       current.occurredAt.hour != 0 ||
       current.occurredAt.minute != 0 ||
       current.occurredAt.second != 0;
-  if (incomingSource == SynoballSourceType.statement &&
+  if ((incomingSource == SynoballSourceType.statement ||
+          incomingSource == SynoballSourceType.bankScreenshot) &&
       incomingIsDateOnly &&
       currentHasTime) {
     return false;
@@ -623,8 +1220,12 @@ bool _shouldReplaceOccurredAt({
 int _timePrecisionRank(SynoballSourceType source) => switch (source) {
   SynoballSourceType.receipt => 6,
   SynoballSourceType.manual || SynoballSourceType.manualVoice => 5,
-  SynoballSourceType.androidNotification => 5,
-  SynoballSourceType.directApi || SynoballSourceType.regulatedApi => 4,
+  SynoballSourceType.androidNotification ||
+  SynoballSourceType.smsNotification => 5,
+  SynoballSourceType.bankWeb ||
+  SynoballSourceType.directApi ||
+  SynoballSourceType.regulatedApi => 4,
+  SynoballSourceType.bankScreenshot => 3,
   SynoballSourceType.statement => 2,
   SynoballSourceType.legacy || SynoballSourceType.modelInference => 1,
 };
@@ -632,9 +1233,13 @@ int _timePrecisionRank(SynoballSourceType source) => switch (source) {
 int _sourceDetailRank(SynoballSourceType source) => switch (source) {
   SynoballSourceType.receipt => 6,
   SynoballSourceType.manual || SynoballSourceType.manualVoice => 5,
-  SynoballSourceType.directApi || SynoballSourceType.regulatedApi => 5,
+  SynoballSourceType.bankWeb ||
+  SynoballSourceType.directApi ||
+  SynoballSourceType.regulatedApi => 5,
+  SynoballSourceType.bankScreenshot => 4,
   SynoballSourceType.statement => 4,
-  SynoballSourceType.androidNotification => 3,
+  SynoballSourceType.androidNotification ||
+  SynoballSourceType.smsNotification => 3,
   SynoballSourceType.legacy || SynoballSourceType.modelInference => 1,
 };
 
@@ -657,9 +1262,11 @@ class _ReconciliationResult {
   const _ReconciliationResult({
     required this.transactionId,
     required this.created,
+    this.suppressed = false,
   });
   final String transactionId;
   final bool created;
+  final bool suppressed;
 }
 
 typedef _ProviderEvidenceKey = ({

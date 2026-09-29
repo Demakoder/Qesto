@@ -40,7 +40,7 @@ class BudgetMetricsCard extends StatelessWidget {
                   label: 'Текущий расход',
                   value: formatMoney(currentExpense, period.currency),
                   emphasized: true,
-                  valueColor: exceeded ? QestoColors.danger : null,
+                  valueColor: exceeded ? context.qestoColors.danger : null,
                 ),
               ),
               SizedBox(
@@ -72,7 +72,7 @@ class BudgetMetricsCard extends StatelessWidget {
                       : allowedDailyExpense == 0
                       ? 'Период завершён'
                       : '${formatMoney(allowedDailyExpense, period.currency)}/день',
-                  valueColor: exceeded ? QestoColors.danger : null,
+                  valueColor: exceeded ? context.qestoColors.danger : null,
                 ),
               ),
             ],
@@ -107,7 +107,7 @@ class _Metric extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: Theme.of(context).textTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.w700,
-            color: QestoColors.secondaryText,
+            color: context.qestoColors.secondaryText,
           ),
         ),
         const SizedBox(height: 7),
@@ -121,7 +121,7 @@ class _Metric extends StatelessWidget {
               height: 1.05,
               letterSpacing: -0.6,
               fontWeight: FontWeight.w800,
-              color: valueColor ?? QestoColors.text,
+              color: valueColor ?? context.qestoColors.text,
             ),
           ),
         ),

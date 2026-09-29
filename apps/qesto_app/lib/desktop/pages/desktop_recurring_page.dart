@@ -16,59 +16,72 @@ class DesktopRecurringPage extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final streams = controller.synoballState.recurringStreams.toList()
-          ..sort((a, b) => a.nextExpectedAt.compareTo(b.nextExpectedAt));
+        final streams =
+            controller.synoballState.recurringStreams
+                .where((s) => s.entityId == 'ent-${controller.user.id}')
+                .toList()
+              ..sort((a, b) => a.nextExpectedAt.compareTo(b.nextExpectedAt));
         final upcoming =
             controller.upcomingExpenses
                 .where((item) => !item.isCancelled)
                 .toList()
               ..sort((a, b) => a.plannedDate.compareTo(b.plannedDate));
         return Padding(
-          padding: const EdgeInsets.fromLTRB(26, 20, 26, 28),
+          padding: QestoSpacing.workspace(context),
           child: Column(
             children: [
-              Row(
-                children:
-                    [
-                          DesktopKpiCard(
-                            label: 'Регулярные обязательства',
-                            value: formatMoney(
-                              controller
-                                      .financialState
-                                      .mandatoryExpenses
-                                      .minorUnits ~/
-                                  100,
-                              controller
-                                  .financialState
-                                  .mandatoryExpenses
-                                  .currency,
-                            ),
-                            detail: 'Оценка Synoball',
-                            icon: Icons.event_repeat_outlined,
-                            accent: QestoColors.purple,
-                          ),
-                          const SizedBox(width: 14),
-                          DesktopKpiCard(
-                            label: 'Следующее событие',
-                            value: _nextDate(streams, upcoming),
-                            detail: 'Ожидаемое, не факт',
-                            icon: Icons.calendar_month_outlined,
-                          ),
-                          const SizedBox(width: 14),
-                          DesktopKpiCard(
-                            label: 'Потоков найдено',
-                            value: '${streams.length}',
-                            detail: 'По повторениям операций',
-                            icon: Icons.auto_awesome_outlined,
-                            accent: QestoColors.positive,
-                          ),
-                        ]
-                        .map(
-                          (item) => Expanded(
-                            child: SizedBox(height: 138, child: item),
-                          ),
-                        )
-                        .toList(),
+              LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: constraints.maxWidth < 600
+                        ? 790
+                        : constraints.maxWidth,
+                    child: Row(
+                      children:
+                          [
+                                DesktopKpiCard(
+                                  label: 'Регулярные расходы',
+                                  value: formatMoney(
+                                    controller
+                                            .financialState
+                                            .mandatoryExpenses
+                                            .minorUnits ~/
+                                        100,
+                                    controller
+                                        .financialState
+                                        .mandatoryExpenses
+                                        .currency,
+                                  ),
+                                  detail: 'Оценка · без предварительных серий',
+                                  icon: Icons.event_repeat_outlined,
+                                  accent: context.qestoColors.purple,
+                                ),
+                                const SizedBox(width: 14),
+                                DesktopKpiCard(
+                                  label: 'Следующее событие',
+                                  value: _nextDate(streams, upcoming),
+                                  detail: 'Ожидаемое, не факт',
+                                  icon: Icons.calendar_month_outlined,
+                                ),
+                                const SizedBox(width: 14),
+                                DesktopKpiCard(
+                                  label: 'Потоков найдено',
+                                  value: '${streams.length}',
+                                  detail: 'По повторениям операций',
+                                  icon: Icons.auto_awesome_outlined,
+                                  accent: context.qestoColors.positive,
+                                ),
+                              ]
+                              .map(
+                                (item) => Expanded(
+                                  child: SizedBox(height: 138, child: item),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 16),
               Expanded(
@@ -90,7 +103,7 @@ class DesktopRecurringPage extends StatelessWidget {
                             ? const DesktopEmptyState(
                                 title: 'Регулярные платежи ещё не найдены',
                                 message:
-                                    'Synoball определит их по истории повторяющихся операций.',
+                                    'Для предварительного месячного прогноза нужны два списания у одного продавца, для устойчивой серии — три и больше.',
                                 icon: Icons.event_repeat_outlined,
                               )
                             : ListView(
@@ -141,8 +154,8 @@ class _UpcomingRow extends StatelessWidget {
         ? Icons.edit_calendar_outlined
         : Icons.schedule_rounded,
     color: item.source == UpcomingExpenseSource.manual
-        ? QestoColors.primary
-        : QestoColors.purple,
+        ? context.qestoColors.primary
+        : context.qestoColors.purple,
   );
 }
 
@@ -155,9 +168,10 @@ class _StreamRow extends StatelessWidget {
     title: stream.title,
     amount: stream.typicalAmount.minorUnits ~/ 100,
     currency: stream.typicalAmount.currency,
-    status: '≈ прогноз · ${(stream.confidence * 100).round()}%',
+    status:
+        '${stream.isTentative ? 'Возможный повтор' : '≈ прогноз'} · ${(stream.confidence * 100).round()}%',
     icon: Icons.auto_awesome_outlined,
-    color: QestoColors.warning,
+    color: context.qestoColors.warning,
   );
 }
 
@@ -179,52 +193,62 @@ class _RecurringRow extends StatelessWidget {
   final IconData icon;
   final Color color;
   @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      SizedBox(
-        height: 62,
-        child: Row(
+  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width < 600
+      ? ListTile(
+          leading: Icon(icon, color: color),
+          title: Text(title),
+          subtitle: Text('${formatDate(date)} · $status'),
+          trailing: Text(
+            formatMoney(-amount, currency),
+            style: const TextStyle(fontSize: 12),
+          ),
+        )
+      : Column(
           children: [
-            const SizedBox(width: 18),
             SizedBox(
-              width: 72,
-              child: Text(
-                formatDate(date),
-                style: const TextStyle(
-                  color: QestoColors.secondaryText,
-                  fontSize: 11,
-                ),
+              height: 62,
+              child: Row(
+                children: [
+                  const SizedBox(width: 18),
+                  SizedBox(
+                    width: 72,
+                    child: Text(
+                      formatDate(date),
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                  Icon(icon, size: 18, color: color),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  DesktopPill(label: status, color: color),
+                  const SizedBox(width: 18),
+                  SizedBox(
+                    width: 120,
+                    child: Text(
+                      formatMoney(-amount, currency),
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 20),
+                ],
               ),
             ),
-            Icon(icon, size: 18, color: color),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            DesktopPill(label: status, color: color),
-            const SizedBox(width: 18),
-            SizedBox(
-              width: 120,
-              child: Text(
-                formatMoney(-amount, currency),
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(width: 20),
+            const Divider(height: 1, indent: 18, endIndent: 18),
           ],
-        ),
-      ),
-      const Divider(height: 1, indent: 18, endIndent: 18),
-    ],
-  );
+        );
 }

@@ -49,8 +49,44 @@ void main() {
     expect(result?.hasWholeCurrencyAmount, isFalse);
   });
 
-  test('игнорирует другой пакет и неподдерживаемый тип операции', () {
+  test('игнорирует другой пакет и принимает зачисление', () {
     expect(parser.parse(notification(packageName: 'com.example.bank')), isNull);
-    expect(parser.parse(notification(title: 'Зачисление Burger King')), isNull);
+    expect(
+      parser.parse(notification(title: 'Зачисление Burger King'))?.kind.name,
+      'income',
+    );
+  });
+
+  test('читает банковское SMS из Android-уведомления', () {
+    final result = parser.parse(
+      notification(
+        packageName: 'com.google.android.apps.messaging',
+        title: '900',
+        text: 'Покупка 1 299,50 ₽ PYATEROCHKA. Карта *1234. Баланс 7000 ₽',
+      ),
+    );
+
+    expect(result, isNotNull);
+    expect(result!.isSmsNotification, isTrue);
+    expect(result.amountMinor, 129950);
+    expect(result.accountHint, '*1234');
+    expect(result.categoryId, 'groceries');
+  });
+
+  test('отсекает OTP, рекламу и одинокий баланс', () {
+    expect(
+      parser.parse(notification(title: 'Код подтверждения', text: '1234')),
+      isNull,
+    );
+    expect(
+      parser.parse(
+        notification(title: 'Предложение', text: 'Кредит до 50 000 ₽'),
+      ),
+      isNull,
+    );
+    expect(
+      parser.parse(notification(title: 'Баланс', text: '50 000 ₽')),
+      isNull,
+    );
   });
 }

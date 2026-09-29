@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ru" data-material="silver">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Qesto Design Lab — Silver Aero</title>
+<style>
+/* Qesto Design Lab: tokens → materials → components → responsive layout. */
+:root {
+  --canvas:#f1f1ed; --canvas-light:#fafbf9; --surface:#fafbfb; --surface-low:#eef1f3;
+  --metal-top:#f8fafb; --metal-bottom:#e0e5e9; --edge:#c4ccd2; --edge-soft:#e1e5e8;
+  --highlight:#ffffff; --ink:#222b30; --muted:#68747d; --faint:#8a939a;
+  --positive:#007c53; --negative:#8b2635; --positive-bg:#e9f4ee; --negative-bg:#f7edef;
+  --selected:#d4dce2; --plot:#f9fbfa; --grid:#e5e9e9; --focus:#456978;
+  --shadow:0 3px 5px #23344006,0 14px 32px -20px #25394738;
+  --raised:0 6px 10px #2334400b,0 22px 40px -22px #25394755;
+  --display:Georgia,'Times New Roman',serif; --ui:'Segoe UI',Arial,sans-serif;
+  --mono:Consolas,'Liberation Mono',monospace; --radius:5px; --relief:.75;
+}
+html[data-material="graphite"] {
+  color-scheme:dark; --canvas:#242b30; --canvas-light:#30393f; --surface:#303a40; --surface-low:#283238;
+  --metal-top:#465159; --metal-bottom:#333e46; --edge:#59666f; --edge-soft:#445159;
+  --highlight:#74838b; --ink:#f0f2ee; --muted:#b3c0c7; --faint:#9aaab3;
+  --positive:#81d4ad; --negative:#f4a5af; --positive-bg:#254238; --negative-bg:#49343d;
+  --selected:#54646e; --plot:#2c363c; --grid:#414d54; --focus:#a4ccd7;
+  --shadow:0 5px 16px #0002; --raised:0 10px 26px #0004;
+}
+html[data-material="paper"] {
+  color-scheme:light; --canvas:#eae6da; --canvas-light:#f6f2e8; --surface:#fffdf6; --surface-low:#f2efe5;
+  --metal-top:#fcfaf2; --metal-bottom:#eee9dc; --edge:#c9c2af; --edge-soft:#e2ddcf;
+  --highlight:#fffef9; --ink:#35372e; --muted:#747264; --faint:#898676;
+  --positive:#46714e; --negative:#963f44; --positive-bg:#eff2e5; --negative-bg:#f6eae5;
+  --selected:#e4decd; --plot:#fffdf6; --grid:#e8e3d5; --focus:#716b45;
+  --shadow:0 3px 0 -1px #cdc5b452; --raised:0 7px 15px #675c3620;
+}
+*{box-sizing:border-box} html{color-scheme:light;scroll-behavior:smooth}
+body{margin:0;background:radial-gradient(ellipse at 45% -15%,var(--canvas-light),var(--canvas) 72%);color:var(--ink);font:14px/1.5 var(--ui);min-height:100vh}
+button,input,select{font:inherit} button,select{color:inherit} button{cursor:pointer} button:disabled{cursor:default}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--focus);outline-offset:4px}
+button{touch-action:manipulation} a{color:inherit} [hidden]{display:none!important}
+.mono{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+.muted{color:var(--muted)} .positive{color:var(--positive)} .negative{color:var(--negative)}
+.system-bar{display:flex;align-items:center;gap:26px;min-height:65px;padding:12px max(28px,calc((100vw - 1440px)/2));border-bottom:1px solid var(--edge);background:linear-gradient(var(--metal-top),var(--metal-bottom));box-shadow:inset 0 1px var(--highlight),0 2px 8px #24344405}
+.brand{display:flex;gap:12px;align-items:center;font-size:22px;font-weight:650;letter-spacing:-1px;white-space:nowrap}
+.brand-mark{font:26px var(--display);letter-spacing:-2px;border-right:1px solid var(--edge);padding-right:15px}
+.system-label{border-left:1px solid var(--edge);padding-left:26px;color:var(--muted)}
+.system-actions{margin-left:auto;display:flex;gap:10px;align-items:center}
+.button,.select{background:linear-gradient(var(--metal-top),var(--metal-bottom));border:1px solid var(--edge);border-radius:3px;box-shadow:inset 0 1px var(--highlight),0 1px 1px #00000005;padding:7px 12px;font-size:12px;font-weight:550;min-height:34px}
+.button:hover{filter:brightness(.98);border-color:var(--muted)} .button:active,.button[aria-pressed="true"]{background:var(--selected);box-shadow:inset 0 1px 3px #00000012}
+.button.quiet{background:transparent;box-shadow:none} .button.dark{background:var(--ink);color:var(--surface);border-color:var(--ink)}
+.workspace{max-width:1496px;padding:32px 28px 18px;margin:auto}
+.intro{display:flex;justify-content:space-between;gap:24px;align-items:center;margin-bottom:28px}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
+h1{font:44px/1.1 var(--display);letter-spacing:-1.8px;margin:8px 0 9px}
+.intro p{margin:0;color:var(--muted);font-size:13px}.intro-status{text-align:right;align-self:end;padding-bottom:3px}
+.intro-status strong{display:block;font-weight:500;font-size:12px;margin-top:6px}
+.demo-tag{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--edge);background:var(--surface-low);padding:4px 8px;border-radius:3px;font-family:var(--mono);font-size:10px;color:var(--muted)}
+.desktop-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px;align-items:start}
+.window{position:relative;background:var(--surface);border:1px solid var(--edge);border-radius:var(--radius);box-shadow:var(--shadow),inset 0 1px var(--highlight);min-width:0;transition:transform .2s ease,box-shadow .2s ease,border-color .2s ease}
+@media(hover:hover){.window:not(.expanded):hover{transform:translateY(-2px);box-shadow:var(--raised);border-color:var(--faint)}}
+.window-titlebar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 12px;min-height:40px;background:linear-gradient(180deg,var(--metal-top),var(--metal-bottom));border-bottom:1px solid var(--edge);border-radius:4px 4px 0 0;box-shadow:inset 0 1px var(--highlight);position:relative}
+.window-titlebar:after{content:'';pointer-events:none;position:absolute;inset:1px;border-top:1px solid var(--highlight);opacity:var(--relief)}
+.window-titlebar h2{font:10px/1.4 var(--mono);letter-spacing:.08em;margin:0;font-weight:500;display:flex;align-items:center;gap:10px;min-width:0}
+.window-number{color:var(--muted);font-size:9px;letter-spacing:0;border-right:1px solid var(--edge);padding-right:9px}
+.window-tools{display:flex;gap:5px;flex-shrink:0}.window-tools .button{font-size:10px;min-height:24px;padding:2px 7px}
+.window-body{padding:22px 24px}.window-footer{border-top:1px solid var(--edge-soft);padding:8px 12px;display:flex;justify-content:space-between;gap:10px;color:var(--muted);font:9px/1.4 var(--mono);letter-spacing:.03em}
+.metric{grid-column:span 4}.metric .window-body{min-height:136px;display:flex;flex-direction:column;justify-content:center}
+.metric-kicker{font-size:11px;color:var(--muted);margin-bottom:5px}.metric-value{font:46px/1.12 var(--display);letter-spacing:-1.8px;font-variant-numeric:lining-nums tabular-nums;white-space:nowrap}
+.metric-description{margin:12px 0 0;display:flex;align-items:center;justify-content:space-between;font-size:11px;color:var(--muted)}
+.metric-note{border-left:2px solid var(--edge);padding:0 0 0 12px;color:var(--muted);margin-top:22px;max-width:520px}
+.chart-window{grid-column:span 8}.material-window{grid-column:span 4}.chart-window .window-body{padding:20px 24px 12px}
+.chart-top{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:4px}.chart-top h3{font:23px var(--display);letter-spacing:-.5px;margin:0 0 5px}.chart-top p{font-size:11px;color:var(--muted);margin:0}
+.segmented{display:inline-flex;gap:0;border:1px solid var(--edge);border-radius:3px;overflow:hidden;flex-shrink:0}.segmented button{border:0;border-right:1px solid var(--edge);background:var(--surface);padding:5px 9px;min-height:30px;font-size:11px}.segmented button:last-child{border-right:0}.segmented button[aria-pressed="true"]{background:var(--selected);box-shadow:inset 0 1px 3px #0001}
+.chart-stage{position:relative;background:var(--plot);margin:14px -5px 0;border-radius:3px;min-height:226px}
+.chart-stage svg{display:block;width:100%;height:238px;overflow:visible;touch-action:pan-y;cursor:crosshair}
+.chart-tip{position:absolute;z-index:3;pointer-events:none;min-width:135px;padding:10px 12px;background:var(--surface);border:1px solid var(--edge);box-shadow:var(--raised);border-radius:3px;top:10px;font-size:11px}
+.chart-tip b{display:block;font-family:var(--display);font-size:21px;font-weight:400;margin-top:2px}.chart-caption{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:10px;margin-top:4px}.legend-line{display:inline-block;width:14px;border-top:2px solid var(--negative);vertical-align:middle;margin-right:6px}
+.material-window .window-body{padding:20px}.material-title{font:22px/1.2 var(--display);margin:0 0 5px}.material-intro{font-size:11px;color:var(--muted);margin:0 0 16px}
+.material-options{display:grid;gap:7px}.material-option{display:flex;align-items:center;gap:12px;text-align:left;border:1px solid var(--edge-soft);border-radius:3px;padding:9px 10px;background:var(--surface);width:100%;position:relative;min-height:48px}
+.material-option[aria-pressed="true"]{border-color:var(--muted);background:var(--surface-low);box-shadow:inset 0 1px var(--highlight)}
+.swatch{display:block;width:27px;height:27px;border:1px solid #85939c66;border-radius:2px;flex-shrink:0;box-shadow:inset 0 1px #fff9}.swatch.silver{background:linear-gradient(#f6f9fc,#ccd5dc)}.swatch.graphite{background:linear-gradient(#64717a,#333d44)}.swatch.paper{background:#eee7d7}
+.material-option strong{display:block;font-size:12px;font-weight:550}.material-option small{display:block;font-size:10px;color:var(--muted)}.selection-label{margin-left:auto;color:var(--muted);font:9px var(--mono)}
+.control-line{border-top:1px solid var(--edge-soft);margin-top:17px;padding-top:13px;display:flex;justify-content:space-between;gap:12px;align-items:center;font-size:11px}
+.control-line input{width:100px;accent-color:var(--muted)}.select{font-size:11px;max-width:145px;padding:4px 7px;min-height:29px}
+.ai-window{grid-column:span 4}.ai-window .window-body{padding:23px}.report-id{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;color:var(--muted)}
+.report-copy{font:25px/1.25 var(--display);letter-spacing:-.5px;margin:0 0 18px;max-width:290px}.report-copy em{font-style:normal;color:var(--negative)}
+.recommendation{border-left:2px solid var(--edge);padding-left:13px;margin:0 0 18px;font-size:12px}.recommendation strong{display:block;color:var(--muted);font:9px var(--mono);letter-spacing:.06em;margin-bottom:6px}.ai-footnote{font-size:10px;color:var(--muted);line-height:1.55}
+.log-window{grid-column:span 8}.log-window .window-body{padding:0}.log-toolbar{padding:14px 17px;display:flex;align-items:center;justify-content:space-between;gap:12px;border-bottom:1px solid var(--edge-soft)}
+.search{min-width:0;width:215px;border:1px solid var(--edge);background:var(--plot);color:var(--ink);border-radius:3px;padding:6px 9px;font-size:11px;height:31px}
+.table-scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;white-space:nowrap;font-size:11px;text-align:left}thead{background:var(--surface-low);color:var(--muted);font:9px var(--mono);letter-spacing:.05em}th{font-weight:400}th,td{padding:10px 17px;border-bottom:1px solid var(--edge-soft)}tr:last-child td{border-bottom:0}tbody tr:hover{background:var(--surface-low)}
+td.amount,th.amount{text-align:right;font-variant-numeric:tabular-nums}td.amount{font-family:var(--mono);font-size:11px}td.description{font-weight:550}td.date{color:var(--muted);font-family:var(--mono);font-size:10px}.sort-button{font:inherit;border:0;background:none;padding:0;color:inherit;min-height:22px}.category{color:var(--muted)}
+.empty-row{text-align:center;color:var(--muted);padding:28px}.detail-only{display:none}.expanded .detail-only{display:block}.expanded.metric .window-body{min-height:300px}.expanded.metric .metric-value{font-size:clamp(45px,8vw,88px)}.expanded .chart-stage svg{height:clamp(260px,48vh,520px)}
+.expanded{position:fixed;inset:6vh max(22px,calc((100vw - 1120px)/2));z-index:101;display:flex;flex-direction:column;box-shadow:0 24px 90px #11182740;animation:open-window .28s ease;transform:none!important}
+.expanded .window-titlebar{flex-shrink:0;padding:12px 16px}.expanded .window-titlebar h2{font-size:12px}.expanded>.window-body{overflow:auto;flex:1}.expanded>.window-footer{flex-shrink:0}.expanded .report-copy{font-size:40px;max-width:650px}.expanded .ai-footnote{max-width:650px}.expanded .metric-description{max-width:520px}
+.window-placeholder{border:1px dashed var(--edge);border-radius:var(--radius);background:var(--surface-low)}
+.backdrop{position:fixed;inset:0;z-index:100;background:#1c283b50}.page-footer{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:20px;padding:12px 0;color:var(--muted);font:9px/1.6 var(--mono);letter-spacing:.03em}.footer-links{display:flex;gap:18px}.text-button{border:0;border-bottom:1px solid var(--edge);padding:0;background:none;color:inherit;font:inherit}
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:200;background:var(--ink);color:var(--surface);border-radius:4px;padding:12px 20px;font-size:12px;box-shadow:var(--raised);max-width:90vw}
+#copy-dialog{color:var(--ink);background:var(--surface);border:1px solid var(--edge);border-radius:5px;width:min(700px,94vw);padding:25px}#copy-dialog::backdrop{background:#1c283b60}#copy-dialog h2{font:26px var(--display);margin:0 0 10px}#copy-source{width:100%;height:240px;resize:vertical;font:11px var(--mono);background:var(--plot);color:var(--ink);border:1px solid var(--edge);padding:10px}.dialog-footer{display:flex;justify-content:space-between;gap:12px;margin-top:15px}
+@keyframes open-window{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@media(min-width:1500px){.chart-stage svg{height:266px}.metric .window-body{min-height:146px}}
+@media(max-width:1050px){.system-label{display:none}.workspace{padding:26px 20px}.metric-value{font-size:38px}.window-body{padding:18px}.chart-window{grid-column:span 8}.material-window{grid-column:span 4}.chart-top{flex-direction:column}.control-line{flex-wrap:wrap}.window-titlebar{padding:8px}.window-titlebar h2{font-size:9px;gap:6px}.window-tools .button{font-size:9px}.window-number{display:none}}
+@media(max-width:760px){.system-bar{padding:12px 16px;gap:10px}.brand{font-size:19px}.system-actions{gap:7px}.system-actions .demo-tag{display:none}.workspace{padding:22px 14px}.intro{align-items:start;gap:14px;margin-bottom:20px}h1{font-size:33px}.intro-status{display:none}.desktop-grid{gap:13px;grid-template-columns:repeat(2,minmax(0,1fr))}.metric{grid-column:span 1}.metric:nth-child(3){grid-column:span 2}.metric:nth-child(3) .window-body{min-height:105px}.metric-value{font-size:34px}.metric .window-body{padding:18px 14px;min-height:135px}.metric-description{align-items:start;gap:6px;flex-direction:column}.chart-window,.material-window,.ai-window,.log-window{grid-column:span 2}.chart-top{flex-direction:row}.chart-top h3{font-size:22px}.chart-window .window-body{padding:18px 15px 12px}.material-options{grid-template-columns:repeat(3,minmax(0,1fr))}.material-option{padding:10px;display:block}.material-option strong{margin-top:8px;font-size:11px}.selection-label,.material-option small{display:none}.control-line{flex-wrap:nowrap}.ai-window .window-body{padding:20px}.report-copy{max-width:none}.expanded{inset:10px;max-height:calc(100dvh - 20px)}.log-toolbar{flex-wrap:wrap}.search{width:100%}.window-footer{font-size:8px}.window-titlebar{min-height:39px}.window-tools .button{min-height:28px;padding:3px 7px}.page-footer{font-size:8px}.table-scroll th,.table-scroll td{padding:10px 12px}}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*:before,*:after{animation:none!important;transition:none!important}.window:hover{transform:none!important}}
+</style>
+</head>
+<body>
+<div id="desktop">
+<header class="system-bar">
+  <div class="brand"><span class="brand-mark" aria-hidden="true">Q</span> Qesto <span class="mono muted" style="margin-left:4px;letter-spacing:.07em">Desktop</span></div>
+  <div class="system-label mono">Financial workstation / Design lab</div>
+  <div class="system-actions"><span class="demo-tag">LOCAL · DEMO</span><button class="button" id="copy-html">Копировать HTML</button></div>
+</header>
+<main class="workspace">
+  <section class="intro" aria-label="О прототипе">
+    <div><div class="eyebrow">Your personal financial workspace</div><h1>Деньги. В ясном свете.</h1><p>Один рабочий стол. Вся финансовая картина.</p></div>
+    <div class="intro-status"><span class="demo-tag">СЕНТЯБРЬ 2026</span><strong>Демонстрационные данные · без подключения к банкам</strong></div>
+  </section>
+  <div class="desktop-grid" id="window-grid">
+    <section class="window metric" id="capital" aria-labelledby="capital-title">
+      <header class="window-titlebar"><h2 id="capital-title"><span class="window-number">01</span>CAPITAL</h2><div class="window-tools"><button class="button expand-button" aria-label="Развернуть Капитал" aria-expanded="false">Развернуть</button></div></header>
+      <div class="window-body"><div class="metric-kicker">Общий капитал</div><div class="metric-value">84 320 ₽</div><div class="metric-description"><span>September status</span><span class="mono">RUB / DEMO</span></div><div class="detail-only metric-note">Это демонстрационный показатель капитала. Он не рассчитывается из журнала ниже и не является остатком доходов за месяц. В приложении здесь будут активы за вычетом обязательств.</div></div>
+      <footer class="window-footer"><span>POSITION / 14 SEP</span><span>Снимок состояния</span></footer>
+    </section>
+    <section class="window metric" id="expenses" aria-labelledby="expenses-title">
+      <header class="window-titlebar"><h2 id="expenses-title"><span class="window-number">02</span>EXPENSES</h2><div class="window-tools"><button class="button expand-button" aria-label="Развернуть Расходы" aria-expanded="false">Развернуть</button></div></header>
+      <div class="window-body"><div class="metric-kicker">Расходы за сентябрь</div><div class="metric-value negative">11 984 ₽</div><div class="metric-description"><span>6 операций</span><span>01–14 сентября</span></div><div class="detail-only metric-note">Сумма всех шести демонстрационных расходов в журнале. График использует эти же операции — изменения режима графика не меняют итог.</div></div>
+      <footer class="window-footer"><span>OUTFLOW / MONTH TO DATE</span><span>Без прогнозов</span></footer>
+    </section>
+    <section class="window metric" id="cashflow" aria-labelledby="cashflow-title">
+      <header class="window-titlebar"><h2 id="cashflow-title"><span class="window-number">03</span>CASHFLOW</h2><div class="window-tools"><button class="button expand-button" aria-label="Развернуть Денежный поток" aria-expanded="false">Развернуть</button></div></header>
+      <div class="window-body"><div class="metric-kicker">Доходы минус расходы</div><div class="metric-value positive">+8 406 ₽</div><div class="metric-description"><span>20 390 ₽ поступило</span><span class="positive">Положительный поток</span></div><div class="detail-only metric-note">20 390 − 11 984 = 8 406 ₽. Это изменение за период, а не баланс карты. Доходы и расходы в журнале демонстрационные.</div></div>
+      <footer class="window-footer"><span>NET FLOW / SEPTEMBER</span><span>Не баланс счёта</span></footer>
+    </section>
+    <section class="window chart-window" id="analysis" aria-labelledby="analysis-title">
+      <header class="window-titlebar"><h2 id="analysis-title"><span class="window-number">04</span>EXPENSE ANALYSIS</h2><div class="window-tools"><button class="button expand-button" aria-label="Развернуть Анализ расходов" aria-expanded="false">Развернуть</button></div></header>
+      <div class="window-body"><div class="chart-top"><div><h3>Как складывается месяц</h3><p>Сентябрь · с 1 по 14 число</p></div><div class="segmented" role="group" aria-label="Режим графика"><button data-chart="cumulative" aria-pressed="true">Накопительно</button><button data-chart="daily" aria-pressed="false">По дням</button></div></div>
+        <div class="chart-stage"><svg id="expense-chart" viewBox="0 0 760 238" role="img" tabindex="0" aria-label="Демонстрационный график расходов. Используйте стрелки влево и вправо для просмотра дней."></svg><div class="chart-tip" id="chart-tip" hidden></div></div>
+        <div class="chart-caption"><span><i class="legend-line"></i><span id="chart-mode-label">Накопленные расходы</span></span><span>Наведите или коснитесь · клавиши ← →</span></div>
+        <div class="detail-only metric-note">Тонкая линия, прозрачная заливка и локальное свечение. Расходы обозначаются бордовым, а само окно остаётся нейтральным.</div>
+      </div><footer class="window-footer"><span>6 TRANSACTIONS · RUB</span><span>Один набор данных для графика и журнала</span></footer>
+    </section>
+    <section class="window material-window" id="material" aria-labelledby="material-title">
+      <header class="window-titlebar"><h2 id="material-title"><span class="window-number">05</span>MATERIAL LAB</h2><span class="mono muted">LIVE</span></header>
+      <div class="window-body"><h3 class="material-title">Свет. Фактура. Характер.</h3><p class="material-intro">Меняется материал. Данные остаются прежними.</p>
+        <div class="material-options" role="group" aria-label="Материал интерфейса">
+          <button class="material-option" data-material="silver" aria-pressed="true"><span class="swatch silver" aria-hidden="true"></span><span><strong>Silver Aero</strong><small>Светлый металл, воздух</small></span><span class="selection-label">ON</span></button>
+          <button class="material-option" data-material="graphite" aria-pressed="false"><span class="swatch graphite" aria-hidden="true"></span><span><strong>Graphite Aero</strong><small>Тёмная рабочая среда</small></span><span class="selection-label"></span></button>
+          <button class="material-option" data-material="paper" aria-pressed="false"><span class="swatch paper" aria-hidden="true"></span><span><strong>Paper Editorial</strong><small>Тёплая матовая бумага</small></span><span class="selection-label"></span></button>
+        </div>
+        <label class="control-line">Свечение графика <input id="glow-control" type="range" min="0" max="100" value="35" aria-label="Интенсивность свечения графика"></label>
+        <label class="control-line" style="margin-top:10px;padding-top:10px">Крупные цифры <select class="select" id="display-font"><option value="editorial">Editorial serif</option><option value="sans">System sans</option><option value="mono">Technical mono</option></select></label>
+      </div><footer class="window-footer"><span id="material-status">MATERIAL / SILVER AERO</span><span>3 эксперимента</span></footer>
+    </section>
+    <section class="window ai-window" id="ai" aria-labelledby="ai-title">
+      <header class="window-titlebar"><h2 id="ai-title"><span class="window-number">06</span>QESTO AI REPORT</h2><div class="window-tools"><button class="button expand-button" aria-label="Развернуть AI-отчёт" aria-expanded="false">Развернуть</button></div></header>
+      <div class="window-body"><div class="report-id mono"><span>REPORT / 014</span><span>Пример отчёта</span></div><p class="report-copy">Расходы выросли<br>на <em>12%</em> за месяц.</p><p class="recommendation"><strong>RECOMMENDATION</strong>Пересмотрите подписки.<br>Небольшие платежи тоже имеют вес.</p><p class="ai-footnote">Макет AI-наблюдения. Текст и 12% заданы для проверки дизайна, не рассчитаны по журналу.</p><div class="detail-only metric-note"><strong>В развёрнутом модуле</strong><p>Здесь могут быть объяснение наблюдения, сравнение периодов и связанные операции. В этом автономном стенде нет нейросети, запросов к API или доступа к личным данным.</p></div></div>
+      <footer class="window-footer"><span>INSIGHT / DEMONSTRATION</span><span>Не финансовый совет</span></footer>
+    </section>
+    <section class="window log-window" id="log" aria-labelledby="log-title">
+      <header class="window-titlebar"><h2 id="log-title"><span class="window-number">07</span>TRANSACTION LOG</h2><div class="window-tools"><button class="button expand-button" aria-label="Развернуть Журнал операций" aria-expanded="false">Развернуть</button></div></header>
+      <div class="window-body"><div class="log-toolbar"><span class="mono muted">September / 2026</span><input class="search" id="transaction-search" type="search" placeholder="Поиск по журналу…" aria-label="Поиск по описанию и категории"></div>
+        <div class="table-scroll"><table><thead><tr><th id="date-header" aria-sort="descending"><button class="sort-button" data-sort="date">DATE ↓</button></th><th>DESCRIPTION</th><th>CATEGORY</th><th class="amount" id="amount-header" aria-sort="none"><button class="sort-button" data-sort="amount">AMOUNT ↕</button></th></tr></thead><tbody id="transactions"></tbody></table></div>
+      </div><footer class="window-footer"><span id="row-count">7 RECORDS</span><span>Данные только для демонстрации</span></footer>
+    </section>
+  </div>
+  <footer class="page-footer"><span>QESTO DESIGN LAB / V1.0 · АВТОНОМНЫЙ ПРОТОТИП</span><span class="footer-links"><span>Никаких данных из приложения</span><button class="text-button" id="reset-lab">Сбросить оформление</button></span></footer>
+</main>
+</div>
+<div class="backdrop" id="backdrop" hidden></div>
+<div class="toast" role="status" id="toast" hidden></div>
+<dialog id="copy-dialog" aria-labelledby="copy-title"><h2 id="copy-title">Весь прототип одним фрагментом</h2><p>Браузер ограничил доступ к буферу. Код уже выделен: нажмите Ctrl+C (⌘C на Mac).</p><textarea id="copy-source" readonly aria-label="Полный HTML-код"></textarea><div class="dialog-footer"><button class="button" id="select-code">Выделить всё</button><button class="button dark" id="close-copy">Готово</button></div></dialog>
+<script>
+'use strict';
+// An immutable, small fixture. Nothing is fetched, imported or stored.
+const transactions = Object.freeze([
+  {day:14,description:'Аренда студии',category:'Жильё',amount:-5400},
+  {day:12,description:'Кофейня «Ритм»',category:'Кафе',amount:-860},
+  {day:9,description:'Книжный магазин',category:'Покупки',amount:-2480},
+  {day:7,description:'Продуктовая лавка',category:'Продукты',amount:-1704},
+  {day:4,description:'Городской транспорт',category:'Транспорт',amount:-300},
+  {day:2,description:'Продуктовая лавка',category:'Продукты',amount:-1240},
+  {day:1,description:'Поступление',category:'Доход',amount:20390}
+]);
+const originalSource = '<!DOCTYPE html>\n' + document.documentElement.outerHTML + '\n<!--\nQesto Design Lab Prototype\nVersion 1.0\n-->\n';
+const money = n => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
+const root = document.documentElement, chart = document.getElementById('expense-chart');
+let chartMode='cumulative', selectedDay=null, sortKey='date', sortDirection=-1, expanded=null, toastTimer;
+const daily=Array.from({length:14},(_,i)=>transactions.filter(t=>t.day===i+1&&t.amount<0).reduce((sum,t)=>sum-t.amount,0));
+const cumulative=daily.map((_,i)=>daily.slice(0,i+1).reduce((sum,n)=>sum+n,0));
+function toast(message){const el=document.getElementById('toast');el.textContent=message;el.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{el.hidden=true},2800)}
+function setMaterial(material){root.dataset.material=material;document.querySelectorAll('.material-option').forEach(button=>{const active=button.dataset.material===material;button.setAttribute('aria-pressed',String(active));button.querySelector('.selection-label').textContent=active?'ON':''});document.getElementById('material-status').textContent='MATERIAL / '+({silver:'SILVER AERO',graphite:'GRAPHITE AERO',paper:'PAPER EDITORIAL'}[material]);renderChart()}
+document.querySelectorAll('.material-option').forEach(button=>button.addEventListener('click',()=>setMaterial(button.dataset.material)));
+document.getElementById('display-font').addEventListener('change',event=>{root.style.setProperty('--display',({editorial:"Georgia,'Times New Roman',serif",sans:"'Segoe UI',Arial,sans-serif",mono:"Consolas,'Liberation Mono',monospace"})[event.target.value])});
+document.getElementById('glow-control').addEventListener('input',renderChart);
+document.querySelectorAll('[data-chart]').forEach(button=>button.addEventListener('click',()=>{chartMode=button.dataset.chart;document.querySelectorAll('[data-chart]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));document.getElementById('chart-mode-label').textContent=chartMode==='daily'?'Расходы по дням':'Накопленные расходы';renderChart()}));
+function renderChart(){
+  const data=chartMode==='daily'?daily:cumulative, max=chartMode==='daily'?6000:12000;
+  const styles=getComputedStyle(root), color=styles.getPropertyValue('--negative').trim(), muted=styles.getPropertyValue('--muted').trim(), grid=styles.getPropertyValue('--grid').trim();
+  const x=i=>52+i*53, y=n=>191-(n/max)*168, points=data.map((v,i)=>`${x(i)},${y(v)}`).join(' '), opacity=Number(document.getElementById('glow-control').value)/180;
+  let output=`<defs><linearGradient id="area" x1="0" y1="0" x2="0" y2="1"><stop stop-color="${color}" stop-opacity=".14"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient><filter id="glow" x="-20%" y="-100%" width="140%" height="300%"><feGaussianBlur stdDeviation="3"/></filter></defs>`;
+  [0,1,2,3].forEach(i=>{const value=max*i/3,yy=y(value);output+=`<line x1="52" y1="${yy}" x2="741" y2="${yy}" stroke="${grid}"/><text x="42" y="${yy+3}" text-anchor="end" fill="${muted}" font-size="9" font-family="Segoe UI,Arial,sans-serif">${i===0?'0':(value/1000)+' тыс.'}</text>`});
+  output+=`<polygon points="52,191 ${points} 741,191" fill="url(#area)"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="5" opacity="${opacity}" filter="url(#glow)"/><polyline points="${points}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  [0,3,6,9,13].forEach(i=>{output+=`<text x="${x(i)}" y="217" text-anchor="${i===0?'start':i===13?'end':'middle'}" fill="${muted}" font-size="9" font-family="Segoe UI,Arial,sans-serif">${i+1} сен</text>`});
+  if(selectedDay!==null){const i=selectedDay;output+=`<line x1="${x(i)}" y1="19" x2="${x(i)}" y2="192" stroke="${muted}" opacity=".4" stroke-dasharray="3 4"/><circle cx="${x(i)}" cy="${y(data[i])}" r="4" fill="${styles.getPropertyValue('--surface')}" stroke="${color}" stroke-width="2"/>`}
+  chart.innerHTML=output;chart.setAttribute('aria-label',`Демонстрационные расходы, ${chartMode==='daily'?'по дням':'накопительно'}. Итог 11 984 рубля. Стрелки влево и вправо — выбор дня.${selectedDay!==null?' '+(selectedDay+1)+' сентября: '+money(data[selectedDay]):''}`);
+  const tip=document.getElementById('chart-tip');tip.hidden=selectedDay===null;
+  if(selectedDay!==null){tip.replaceChildren();const label=document.createElement('span');label.textContent=`${selectedDay+1} сентября · ${chartMode==='daily'?'за день':'всего'}`;const value=document.createElement('b');value.className='negative';value.textContent=money(data[selectedDay]);tip.append(label,value);const width=chart.parentElement.clientWidth;tip.style.left=Math.max(0,Math.min(width-155,(x(selectedDay)/760)*width-65))+'px'}
+}
+function chooseChartPoint(event){const r=chart.getBoundingClientRect();selectedDay=Math.max(0,Math.min(13,Math.round((((event.clientX-r.left)/r.width)*760-52)/53)));renderChart()}
+chart.addEventListener('pointermove',chooseChartPoint);chart.addEventListener('pointerdown',chooseChartPoint);chart.addEventListener('pointerleave',()=>{if(document.activeElement!==chart){selectedDay=null;renderChart()}});chart.addEventListener('blur',()=>{selectedDay=null;renderChart()});chart.addEventListener('keydown',event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();selectedDay=event.key==='Home'?0:event.key==='End'?13:Math.max(0,Math.min(13,(selectedDay??0)+(event.key==='ArrowRight'?1:-1)));renderChart()}});
+function renderTransactions(){
+  const query=document.getElementById('transaction-search').value.toLocaleLowerCase('ru');
+  const rows=transactions.filter(t=>(t.description+' '+t.category).toLocaleLowerCase('ru').includes(query)).slice().sort((a,b)=>sortDirection*(sortKey==='date'?a.day-b.day:a.amount-b.amount));
+  const tbody=document.getElementById('transactions');tbody.replaceChildren();
+  rows.forEach(t=>{const row=document.createElement('tr');const fields=[['date',String(t.day).padStart(2,'0')+' SEP'],['description',t.description],['category',t.category],['amount '+(t.amount<0?'negative':'positive'),(t.amount>0?'+':'−')+money(Math.abs(t.amount))]];fields.forEach(([name,value])=>{const cell=document.createElement('td');cell.className=name;cell.textContent=value;row.append(cell)});tbody.append(row)});
+  if(!rows.length){const row=tbody.insertRow(),cell=row.insertCell();cell.colSpan=4;cell.className='empty-row';cell.textContent='Операций по этому запросу нет'}
+  document.getElementById('row-count').textContent=`${rows.length} / ${transactions.length} RECORDS`;
+  ['date','amount'].forEach(key=>{document.getElementById(key+'-header').setAttribute('aria-sort',sortKey===key?(sortDirection===1?'ascending':'descending'):'none');document.querySelector('[data-sort="'+key+'"]').textContent=key.toUpperCase()+' '+(sortKey===key?(sortDirection===1?'↑':'↓'):'↕')});
+}
+document.getElementById('transaction-search').addEventListener('input',renderTransactions);
+document.querySelectorAll('[data-sort]').forEach(button=>button.addEventListener('click',()=>{sortDirection=sortKey===button.dataset.sort?-sortDirection:-1;sortKey=button.dataset.sort;renderTransactions()}));
+function expandWindow(panel,trigger){
+  if(expanded){collapseWindow();return}
+  const placeholder=document.createElement('div');placeholder.className='window-placeholder';const style=getComputedStyle(panel);placeholder.style.gridColumn=style.gridColumn;placeholder.style.height=panel.getBoundingClientRect().height+'px';panel.before(placeholder);
+  expanded={panel,trigger,placeholder,scroll:window.scrollY};document.body.append(panel);panel.classList.add('expanded');panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');trigger.textContent='Свернуть';trigger.setAttribute('aria-expanded','true');trigger.setAttribute('aria-label','Свернуть окно и вернуться');document.getElementById('backdrop').hidden=false;document.getElementById('desktop').inert=true;document.body.style.overflow='hidden';trigger.focus();selectedDay=null;renderChart();
+}
+function collapseWindow(){if(!expanded)return;const {panel,placeholder,trigger,scroll}=expanded;panel.classList.remove('expanded');panel.removeAttribute('role');panel.removeAttribute('aria-modal');placeholder.replaceWith(panel);trigger.textContent='Развернуть';trigger.setAttribute('aria-expanded','false');trigger.setAttribute('aria-label','Развернуть '+panel.querySelector('h2').textContent.trim());document.getElementById('backdrop').hidden=true;document.getElementById('desktop').inert=false;document.body.style.overflow='';expanded=null;trigger.focus({preventScroll:true});window.scrollTo(0,scroll);selectedDay=null;renderChart()}
+document.querySelectorAll('.expand-button').forEach(button=>button.addEventListener('click',()=>expandWindow(button.closest('.window'),button)));
+document.querySelectorAll('.window-titlebar').forEach(header=>header.addEventListener('dblclick',event=>{if(!event.target.closest('button')){const b=header.querySelector('.expand-button');if(b)expandWindow(header.closest('.window'),b)}}));
+document.getElementById('backdrop').addEventListener('click',collapseWindow);
+document.addEventListener('keydown',event=>{if(!expanded)return;if(event.key==='Escape'){event.preventDefault();collapseWindow()}else if(event.key==='Tab'){const focusable=[...expanded.panel.querySelectorAll('button,input,select,[tabindex="0"]')].filter(el=>!el.disabled&&el.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last.focus()}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus()}}});
+document.getElementById('reset-lab').addEventListener('click',()=>{root.style.removeProperty('--display');document.getElementById('display-font').value='editorial';document.getElementById('glow-control').value='35';setMaterial('silver');toast('Silver Aero · исходное оформление восстановлено')});
+document.getElementById('copy-html').addEventListener('click',async()=>{try{if(!navigator.clipboard)throw new Error('Clipboard unavailable');await navigator.clipboard.writeText(originalSource);toast('Полный HTML скопирован')}catch{const dialog=document.getElementById('copy-dialog'),field=document.getElementById('copy-source');field.value=originalSource;dialog.showModal();field.focus();field.select()}});
+document.getElementById('select-code').addEventListener('click',()=>{const field=document.getElementById('copy-source');field.focus();field.select()});document.getElementById('close-copy').addEventListener('click',()=>document.getElementById('copy-dialog').close());
+renderChart();renderTransactions();
+</script>
+</body>
+</html>
+<!--
+Qesto Design Lab Prototype
+Version 1.0
+-->

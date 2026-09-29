@@ -149,7 +149,10 @@ class SynoballAnalyticsReadService {
     var expenses = 0;
     for (final transaction in _posted(state, entityId, currency)) {
       if (transaction.occurredAt.isBefore(from) ||
-          !transaction.occurredAt.isBefore(to)) {
+          !transaction.occurredAt.isBefore(to) ||
+          transaction.tags.contains('qesto-internal-transfer') ||
+          transaction.tags.contains('qesto-non-cash') ||
+          transaction.tags.contains('sber-loyalty-only')) {
         continue;
       }
       if (transaction.direction == FinancialDirection.inflow) {

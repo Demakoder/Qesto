@@ -573,6 +573,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.1.1"
+  webview_cef:
+    dependency: "direct main"
+    description:
+      path: "packages/webview_cef"
+      relative: true
+    source: path
+    version: "0.6.2-qesto.1"
   win32:
     dependency: transitive
     description:

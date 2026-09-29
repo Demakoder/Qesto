@@ -16,7 +16,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.16+17
+version: 1.0.61+62
 
 environment:
   sdk: ^3.12.2
@@ -38,6 +38,11 @@ dependencies:
   cryptography: ^2.9.0
   excel_community: ^2.2.1
   flutter_secure_storage: ^10.3.1
+  # Qesto-maintained CEF fork. The upstream wrapper is intentionally vendored:
+  # bank profiles, navigation policy and production hardening live below the
+  # Flutter API and must not be bypassable by page JavaScript.
+  webview_cef:
+    path: packages/webview_cef
   html: ^0.15.6
   http: ^1.6.0
   pdf_document: ^3.5.0
@@ -67,12 +72,25 @@ flutter:
   uses-material-design: true
 
   assets:
+    - licenses/fonts/Onest-OFL.txt
+    - licenses/fonts/Prata-OFL.txt
+    - licenses/fonts/NotoSerifDisplay-OFL.txt
     - licenses/fonts/README.md
     - licenses/fonts/Manrope-OFL.txt
     - licenses/fonts/IBMPlexSans-OFL.txt
     - licenses/fonts/IBMPlexMono-OFL.txt
 
   fonts:
+    - family: Onest
+      fonts:
+        - asset: assets/fonts/white_silver/Onest-Variable.ttf
+    - family: Prata
+      fonts:
+        - asset: assets/fonts/white_silver/Prata-Regular.ttf
+    - family: Noto Serif Display
+      fonts:
+        - asset: assets/fonts/white_silver/NotoSerifDisplay-Italic.ttf
+          style: italic
     - family: Manrope
       fonts:
         - asset: assets/fonts/manrope/Manrope-Variable.ttf

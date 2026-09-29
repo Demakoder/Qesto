@@ -32,6 +32,7 @@ migrate_working_dir/
 .pub/
 /build/
 /coverage/
+/test/failures/
 
 # Downloaded offline speech runtime. Recreate it with
 # windows/whisper/setup_runtime.ps1 before a Windows build.
@@ -66,3 +67,11 @@ app.*.map.json
 /licenses/fonts/MonaSans-OFL.txt
 /licenses/fonts/RedHatDisplay-OFL.txt
 /licenses/fonts/Unbounded-OFL.txt
+
+# Qesto Bank Browser DEV runtime artifacts (never commit live session data).
+*.sber-debug.html
+bank-dev-dumps/
+dev-browser-session.json
+tools/qesto-browser/*.json
+tools/qesto-browser/*.png
+tools/qesto-browser/*.har

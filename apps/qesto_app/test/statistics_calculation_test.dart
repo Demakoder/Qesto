@@ -71,6 +71,8 @@ void main() {
     bool isDuplicate = false,
     bool isConfirmed = true,
     double confidence = 1,
+    TransferDirection? transferDirection,
+    List<String> tags = const [],
   }) => BudgetTransaction(
     id: id,
     userId: 'user',
@@ -87,6 +89,8 @@ void main() {
     isPotentialDuplicate: isDuplicate,
     isConfirmed: isConfirmed,
     classificationConfidence: confidence,
+    transferDirection: transferDirection,
+    tags: tags,
   );
 
   late List<BudgetTransaction> transactions;
@@ -207,6 +211,19 @@ void main() {
       ),
     ];
     expect(service.expenses(values), 0);
+  });
+
+  test('внешний исходящий перевод считается расходом', () {
+    final value = transaction(
+      id: 'person-transfer',
+      date: DateTime(2026, 7, 1),
+      amount: 1000,
+      type: TransactionType.transfer,
+      transferDirection: TransferDirection.outgoing,
+    );
+
+    expect(service.expenses([value]), 1000);
+    expect(service.purchaseAmounts([value]), [1000]);
   });
 
   test('возврат уменьшает исходную категорию', () {

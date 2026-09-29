@@ -6,6 +6,7 @@ import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/budget/services/cash_flow_calculation_service.dart';
 import '../desktop_financial_helpers.dart';
 import '../widgets/desktop_charts.dart';
 import '../widgets/desktop_components.dart';
@@ -31,10 +32,17 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
         final periods = _selectedPeriods();
         final transactions = _transactionsFor(periods);
         final points = _points(periods);
-        final totalIncome = _income(transactions);
-        final totalExpenses = _ordinaryExpenses(transactions);
-        final totalOutflow = _outflow(transactions);
-        final net = totalIncome - totalOutflow;
+        final summary = periods.isEmpty
+            ? null
+            : widget.controller.cashFlowForRange(
+                from: periods.first.startDate,
+                toExclusive: periods.last.endDate.add(const Duration(days: 1)),
+                currency: periods.first.currency,
+              );
+        final totalIncome = summary?.externalInflows ?? 0;
+        final totalOutflow = summary?.externalOutflows ?? 0;
+        final totalExpenses = totalOutflow;
+        final net = summary?.netCashFlow ?? 0;
         final savingsRate = totalIncome <= 0 ? 0.0 : net / totalIncome;
         final currency =
             periods.firstOrNull?.currency ??
@@ -66,7 +74,11 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
               const SizedBox(height: 14),
               LayoutBuilder(
                 builder: (context, constraints) {
-                  final columns = constraints.maxWidth >= 940 ? 4 : 2;
+                  final columns = constraints.maxWidth >= 940
+                      ? 4
+                      : constraints.maxWidth >= 500
+                      ? 2
+                      : 1;
                   const gap = 14.0;
                   final width =
                       (constraints.maxWidth - gap * (columns - 1)) / columns;
@@ -78,19 +90,19 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                           ? 'Деньги остались в системе'
                           : 'Расходы потребовали резерв',
                       detailColor: net >= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                       icon: Icons.waterfall_chart_rounded,
                       accent: net >= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                     ),
                     DesktopKpiCard(
                       label: 'Доходы',
                       value: _money(totalIncome, currency),
                       detail: '${periods.length} мес. наблюдения',
                       icon: Icons.south_west_rounded,
-                      accent: QestoColors.positive,
+                      accent: context.qestoColors.positive,
                     ),
                     DesktopKpiCard(
                       label: 'Расходы',
@@ -101,10 +113,10 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                       detailColor: expenseChange == null
                           ? null
                           : expenseChange <= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                       icon: Icons.north_east_rounded,
-                      accent: QestoColors.orange,
+                      accent: context.qestoColors.orange,
                     ),
                     DesktopKpiCard(
                       label: 'Норма накопления',
@@ -119,10 +131,10 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                           ? 'Есть положительный остаток'
                           : 'Поток отрицательный',
                       detailColor: savingsRate >= 0
-                          ? QestoColors.positive
-                          : QestoColors.negative,
+                          ? context.qestoColors.positive
+                          : context.qestoColors.negative,
                       icon: Icons.savings_outlined,
-                      accent: QestoColors.purple,
+                      accent: context.qestoColors.purple,
                     ),
                   ];
                   return Wrap(
@@ -141,14 +153,14 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const DesktopSectionHeader(
+                    DesktopSectionHeader(
                       title: 'Река денег',
                       subtitle:
                           'Доход → категории → крупнейшие операции. Наведите курсор на любой поток.',
                       trailing: DesktopPill(
                         label: 'Тестовый режим',
                         icon: Icons.science_outlined,
-                        color: QestoColors.purple,
+                        color: context.qestoColors.purple,
                         background: Color(0xFFF1EDFF),
                       ),
                     ),
@@ -183,14 +195,14 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                   final stacked = constraints.maxWidth < 760;
                   final income = _FlowBreakdownCard(
                     title: 'Источники дохода',
-                    color: QestoColors.positive,
+                    color: context.qestoColors.positive,
                     values: _groupedIncome(transactions),
                     currency: currency,
                     hideAmounts: _hideAmounts,
                   );
                   final expenses = _FlowBreakdownCard(
                     title: 'Категории расходов',
-                    color: QestoColors.primary,
+                    color: context.qestoColors.primary,
                     values: _groupedExpenses(transactions),
                     currency: currency,
                     hideAmounts: _hideAmounts,
@@ -251,22 +263,16 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
   int _income(Iterable<BudgetTransaction> transactions) => transactions
       .where(
         (item) =>
-            item.type == TransactionType.income ||
-            item.type == TransactionType.refund,
+            widget.controller.cashFlowTreatment(item) ==
+            CashFlowTreatment.externalInflow,
       )
       .fold<int>(0, (sum, item) => sum + item.amount);
-
-  int _ordinaryExpenses(Iterable<BudgetTransaction> transactions) =>
-      transactions
-          .where((item) => item.type == TransactionType.expense)
-          .fold<int>(0, (sum, item) => sum + item.amount);
 
   int _outflow(Iterable<BudgetTransaction> transactions) => transactions
       .where(
         (item) =>
-            item.type == TransactionType.expense ||
-            item.type == TransactionType.savingsTransfer ||
-            item.type == TransactionType.investment,
+            widget.controller.cashFlowTreatment(item) ==
+            CashFlowTreatment.externalOutflow,
       )
       .fold<int>(0, (sum, item) => sum + item.amount);
 
@@ -278,15 +284,15 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
     if (firstIndex <= 0) return 0;
     final start = math.max(0, firstIndex - selected.length);
     final previous = widget.controller.periods.sublist(start, firstIndex);
-    return _ordinaryExpenses(_transactionsFor(previous));
+    return _outflow(_transactionsFor(previous));
   }
 
   Map<String, int> _groupedIncome(Iterable<BudgetTransaction> transactions) {
     final result = <String, int>{};
     for (final transaction in transactions.where(
       (item) =>
-          item.type == TransactionType.income ||
-          item.type == TransactionType.refund,
+          widget.controller.cashFlowTreatment(item) ==
+          CashFlowTreatment.externalInflow,
     )) {
       final title = desktopTransactionTitle(transaction);
       result.update(
@@ -301,7 +307,9 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
   Map<String, int> _groupedExpenses(Iterable<BudgetTransaction> transactions) {
     final result = <String, int>{};
     for (final transaction in transactions.where(
-      (item) => item.type == TransactionType.expense,
+      (item) =>
+          widget.controller.cashFlowTreatment(item) ==
+          CashFlowTreatment.externalOutflow,
     )) {
       final title = desktopCategoryName(widget.controller, transaction);
       result.update(
@@ -321,9 +329,8 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
     final groups = <String, List<BudgetTransaction>>{};
     for (final transaction in transactions.where(
       (item) =>
-          item.type == TransactionType.expense ||
-          item.type == TransactionType.savingsTransfer ||
-          item.type == TransactionType.investment,
+          widget.controller.cashFlowTreatment(item) ==
+          CashFlowTreatment.externalOutflow,
     )) {
       final id = switch (transaction.type) {
         TransactionType.savingsTransfer => '__savings',
@@ -351,11 +358,11 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
           .where((item) => item.id == entry.key)
           .firstOrNull;
       final (label, color, icon) = switch (entry.key) {
-        '__savings' => ('Накопления', QestoColors.purple, 'savings'),
+        '__savings' => ('Накопления', context.qestoColors.purple, 'savings'),
         '__investment' => ('Инвестиции', const Color(0xFF2EC4B6), 'investment'),
         '__other_categories' => (
           'Остальные категории',
-          QestoColors.secondaryText,
+          context.qestoColors.secondaryText,
           'other',
         ),
         _ => (
@@ -383,7 +390,7 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
           id: '__remainder',
           label: 'Свободный остаток',
           amount: remainder,
-          color: QestoColors.positive,
+          color: context.qestoColors.positive,
           iconKey: 'savings',
           isRemainder: true,
           purchases: [
@@ -443,7 +450,7 @@ class _CashFlowToolbar extends StatelessWidget {
   final VoidCallback onPrivacyChanged;
 
   @override
-  Widget build(BuildContext context) => Row(
+  Widget build(BuildContext context) => DesktopAdaptiveRow(
     children: [
       SegmentedButton<int>(
         key: const Key('cash-flow-period-selector'),
@@ -459,11 +466,11 @@ class _CashFlowToolbar extends StatelessWidget {
         style: const ButtonStyle(visualDensity: VisualDensity.compact),
       ),
       const Spacer(),
-      const DesktopPill(
+      DesktopPill(
         label: 'Сравнение: предыдущий период',
         icon: Icons.compare_arrows_rounded,
-        color: QestoColors.secondaryText,
-        background: QestoColors.surfaceSecondary,
+        color: context.qestoColors.secondaryText,
+        background: context.qestoColors.surfaceSecondary,
       ),
       const SizedBox(width: 8),
       IconButton.outlined(
@@ -477,8 +484,8 @@ class _CashFlowToolbar extends StatelessWidget {
           size: 19,
         ),
         style: IconButton.styleFrom(
-          foregroundColor: QestoColors.secondaryText,
-          side: const BorderSide(color: QestoColors.border),
+          foregroundColor: context.qestoColors.secondaryText,
+          side: BorderSide(color: context.qestoColors.border),
         ),
       ),
     ],
@@ -514,12 +521,12 @@ class _FlowBreakdownCard extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           if (sorted.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 20),
               child: Center(
                 child: Text(
                   'Нет данных',
-                  style: TextStyle(color: QestoColors.secondaryText),
+                  style: TextStyle(color: context.qestoColors.secondaryText),
                 ),
               ),
             ),

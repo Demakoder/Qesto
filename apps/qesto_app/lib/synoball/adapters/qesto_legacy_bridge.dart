@@ -93,9 +93,41 @@ class QestoLegacyBridge {
   CanonicalTransaction canonicalFromQesto(
     BudgetTransaction value, {
     required CanonicalTransaction previous,
+    bool? categoryWasEdited,
   }) {
     final seed = _transaction(value, previous.entityId);
+    final categoryChanged =
+        categoryWasEdited ?? value.categoryId != previous.effectiveCategory;
+    final noteChanged =
+        value.comment != (previous.userNote ?? previous.rawDescription);
+    final fieldLocks = <String>{
+      ...previous.tags.where((tag) => tag.startsWith('user-field:')),
+      if (seed.accountId != previous.accountId) 'user-field:account',
+      if (seed.amount.minorUnits != previous.amount.minorUnits ||
+          seed.amount.currency != previous.amount.currency)
+        'user-field:amount',
+      if (seed.occurredAt != previous.occurredAt) 'user-field:date',
+      if (seed.merchant != previous.merchantName) 'user-field:merchant',
+      if (seed.description != previous.rawDescription) 'user-field:description',
+      if (noteChanged) 'user-field:note',
+      if (categoryChanged) 'user-field:category',
+      if (seed.subcategoryId != previous.subcategoryId)
+        'user-field:subcategory',
+      if (seed.direction != previous.direction ||
+          seed.transferDirection != previous.transferDirection ||
+          !previous.tags.contains('legacy-type-${value.type.name}'))
+        'user-field:type',
+    };
     return previous.copyWith(
+      // A user's explicit confirmation can finish a locally pending review.
+      // Bank-pending operations remain pending until the bank posts them.
+      status:
+          value.isConfirmed &&
+              previous.status == CanonicalTransactionStatus.pending &&
+              !previous.tags.contains('sber-status-pending') &&
+              !previous.tags.contains('status-pending')
+          ? CanonicalTransactionStatus.posted
+          : previous.status,
       accountId: seed.accountId,
       amount: seed.amount,
       direction: seed.direction,
@@ -103,14 +135,24 @@ class QestoLegacyBridge {
       rawDescription: seed.description,
       normalizedDescription: _normalize(seed.description),
       merchantName: seed.merchant,
+      userNote: noteChanged ? value.comment : previous.userNote,
       providerCategory: seed.providerCategory,
-      synoballCategory: seed.category,
-      userCategoryOverride: value.categoryId,
+      synoballCategory: categoryChanged
+          ? seed.category
+          : previous.synoballCategory,
+      userCategoryOverride: categoryChanged
+          ? value.categoryId
+          : previous.userCategoryOverride,
+      clearUserCategoryOverride: value.categoryId == null && categoryChanged,
       categoryConfidence: value.classificationConfidence,
       subcategoryId: seed.subcategoryId,
+      clearSubcategoryId:
+          categoryChanged &&
+          value.categoryId != previous.effectiveCategory &&
+          seed.subcategoryId == previous.subcategoryId,
       transferDirection: seed.transferDirection,
       receiptId: seed.receiptId,
-      tags: seed.tags,
+      tags: {...seed.tags, ...fieldLocks}.toList(),
       updatedAt: DateTime.now(),
       fieldTrust: SourceTrustLevel.userConfirmed,
     );
@@ -132,10 +174,12 @@ class QestoLegacyBridge {
         },
         currency: value.currency,
         balance: Money(
-          minorUnits: value.balance * 100,
+          minorUnits: value.balanceMinor,
           currency: value.currency,
         ),
-        isVirtual: value.id == 'local-default-account',
+        isVirtual:
+            value.id == 'local-default-account' ||
+            value.id.startsWith('sber-unassigned-'),
       );
 
   TransactionSeed _transaction(BudgetTransaction value, String entityId) {
@@ -155,7 +199,7 @@ class QestoLegacyBridge {
       canonicalId: value.id,
       accountId: value.accountId,
       amount: Money(
-        minorUnits: value.amount.abs() * 100,
+        minorUnits: value.amountMinor.abs(),
         currency: value.currency,
       ),
       direction: direction,
@@ -166,7 +210,7 @@ class QestoLegacyBridge {
           value.title ??
           value.merchant ??
           '',
-      merchant: value.normalizedMerchant ?? value.merchant ?? value.title,
+      merchant: value.merchant ?? value.normalizedMerchant ?? value.title,
       providerCategory: value.originalCategoryId,
       category: value.categoryId,
       subcategoryId: value.subcategoryId,

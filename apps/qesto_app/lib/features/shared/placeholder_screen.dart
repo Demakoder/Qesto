@@ -46,18 +46,22 @@ class PlaceholderScreen extends StatelessWidget {
                       Container(
                         width: 62,
                         height: 62,
-                        decoration: const BoxDecoration(
-                          color: QestoColors.primarySoft,
+                        decoration: BoxDecoration(
+                          color: context.qestoColors.primarySoft,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(icon, color: QestoColors.primary, size: 31),
+                        child: Icon(
+                          icon,
+                          color: context.qestoColors.primary,
+                          size: 31,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       Text(
                         description!,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: QestoColors.secondaryText,
+                          color: context.qestoColors.secondaryText,
                         ),
                       ),
                     ],

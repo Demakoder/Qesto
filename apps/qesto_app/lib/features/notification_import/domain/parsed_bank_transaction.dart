@@ -5,6 +5,8 @@ class CategorySuggestion {
   final String? subcategoryId;
 }
 
+enum ParsedBankTransactionKind { expense, income, transfer, refund }
+
 class ParsedBankTransaction {
   const ParsedBankTransaction({
     required this.notificationKey,
@@ -15,6 +17,9 @@ class ParsedBankTransaction {
     required this.merchant,
     required this.categoryId,
     required this.confidence,
+    this.kind = ParsedBankTransactionKind.expense,
+    this.isSmsNotification = false,
+    this.bankHint,
     this.subcategoryId,
     this.accountHint,
   });
@@ -29,6 +34,9 @@ class ParsedBankTransaction {
   final String? subcategoryId;
   final String? accountHint;
   final double confidence;
+  final ParsedBankTransactionKind kind;
+  final bool isSmsNotification;
+  final String? bankHint;
 
   bool get hasWholeCurrencyAmount => amountMinor % 100 == 0;
   int get wholeCurrencyAmount => amountMinor ~/ 100;

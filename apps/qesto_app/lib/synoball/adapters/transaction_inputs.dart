@@ -84,6 +84,41 @@ class AndroidNotificationInput extends AdapterInputBase {
   final TransactionSeed transaction;
 }
 
+class SmsNotificationInput extends AdapterInputBase {
+  const SmsNotificationInput({
+    required super.entityId,
+    required super.receivedAt,
+    required super.rawPayload,
+    required this.notificationKey,
+    required this.packageName,
+    required this.sender,
+    required this.transaction,
+  });
+
+  final String notificationKey;
+  final String packageName;
+  final String sender;
+  final TransactionSeed transaction;
+}
+
+class BankScreenshotInput extends AdapterInputBase {
+  const BankScreenshotInput({
+    required super.entityId,
+    required super.receivedAt,
+    required super.rawPayload,
+    required this.batchName,
+    required this.transactions,
+    required this.imageHashes,
+    required this.parserIds,
+    super.institutionId,
+  });
+
+  final String batchName;
+  final List<TransactionSeed> transactions;
+  final List<String> imageHashes;
+  final List<String> parserIds;
+}
+
 class ReceiptInput extends AdapterInputBase {
   const ReceiptInput({
     required super.entityId,
@@ -116,6 +151,7 @@ class StatementInput extends AdapterInputBase {
     required this.transactions,
     required this.account,
     super.institutionId,
+    super.connectionId,
   });
 
   final String batchName;

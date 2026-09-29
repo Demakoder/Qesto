@@ -35,17 +35,21 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.security.MessageDigest
 
 class MainActivity : FlutterActivity() {
+    private var aiExportFileBridge: AiExportFileBridge? = null
     private val notificationChannelName = "ru.qesto.qesto/notifications"
     private val notificationEventsChannelName =
         "ru.qesto.qesto/notification_events"
     private val statementChannelName = "ru.qesto.qesto/statements"
     private val receiptChannelName = "ru.qesto.qesto/receipts"
+    private val bankScreenshotChannelName = "ru.qesto.qesto/bank_screenshots"
     private val voiceChannelName = "ru.qesto.qesto/voice"
     private var pendingStatementResult: MethodChannel.Result? = null
     private var pendingReceiptResult: MethodChannel.Result? = null
     private var pendingReceiptDocumentResult: MethodChannel.Result? = null
+    private var pendingBankScreenshotResult: MethodChannel.Result? = null
     private var pendingVoiceResult: MethodChannel.Result? = null
     private var speechRecognizer: SpeechRecognizer? = null
     private var voiceRecognitionOnDevice = false
@@ -63,6 +67,21 @@ class MainActivity : FlutterActivity() {
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        aiExportFileBridge = AiExportFileBridge(this, flutterEngine.dartExecutor.binaryMessenger)
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            "ru.qesto.qesto/storage",
+        ).setMethodCallHandler { call, result ->
+            if (call.method == "privatePaths") {
+                result.success(mapOf(
+                    "filesDir" to applicationContext.filesDir.absolutePath,
+                    "dataDir" to applicationContext.applicationInfo.dataDir,
+                ))
+            } else {
+                result.notImplemented()
+            }
+        }
 
         EventChannel(
             flutterEngine.dartExecutor.binaryMessenger,
@@ -88,45 +107,54 @@ class MainActivity : FlutterActivity() {
             flutterEngine.dartExecutor.binaryMessenger,
             notificationChannelName,
         ).setMethodCallHandler { call, result ->
-            when (call.method) {
-                "hasAccess" -> result.success(hasNotificationAccess())
+            try {
+                when (call.method) {
+                    "hasAccess" -> result.success(hasNotificationAccess())
 
-                "openSettings" -> {
-                    startActivity(
-                        Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
-                    )
-                    result.success(null)
-                }
-
-                "readNotifications" -> {
-                    result.success(
-                        NotificationInbox.readAll(applicationContext),
-                    )
-                }
-
-                "clearNotifications" -> {
-                    NotificationInbox.clear(applicationContext)
-                    result.success(null)
-                }
-
-                "removeNotification" -> {
-                    val notificationKey = call.argument<String>("notificationKey")
-                    if (notificationKey.isNullOrBlank()) {
-                        result.error(
-                            "invalid_notification_key",
-                            "notificationKey is required",
-                            null,
-                        )
-                    } else {
-                        NotificationInbox.remove(
-                            applicationContext,
-                            notificationKey,
+                    "openSettings" -> {
+                        startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS),
                         )
                         result.success(null)
                     }
-                }
 
-                else -> result.notImplemented()
+                    "readNotifications" -> {
+                        result.success(NotificationInbox.readAll(applicationContext))
+                    }
+
+                    "clearNotifications" -> {
+                        NotificationInbox.clear(applicationContext)
+                        result.success(null)
+                    }
+
+                    "removeNotification" -> {
+                        val notificationKey = call.argument<String>("notificationKey")
+                        val expectedVersion = call.argument<String>("expectedVersion")
+                        if (notificationKey.isNullOrBlank() || expectedVersion == null) {
+                            result.error(
+                                "invalid_notification_acknowledgement",
+                                "notificationKey and expectedVersion are required",
+                                null,
+                            )
+                        } else {
+                            NotificationInbox.remove(
+                                applicationContext,
+                                notificationKey,
+                                expectedVersion,
+                            )
+                            result.success(null)
+                        }
+                    }
+
+                    else -> result.notImplemented()
+                }
+            } catch (_: Exception) {
+                // Failure is not an empty inbox or a successful acknowledgement.
+                result.error(
+                    "notification_storage_unavailable",
+                    "Notification storage requires recovery; no reset was performed",
+                    null,
+                )
             }
         }
 
@@ -183,6 +211,16 @@ class MainActivity : FlutterActivity() {
             when (call.method) {
                 "scanReceiptQr" -> scanReceiptQr(result)
                 "scanReceiptDocument" -> scanReceiptDocument(result)
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(
+            flutterEngine.dartExecutor.binaryMessenger,
+            bankScreenshotChannelName,
+        ).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "pickAndRecognize" -> pickAndRecognizeBankScreenshots(result)
                 else -> result.notImplemented()
             }
         }
@@ -362,6 +400,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        aiExportFileBridge?.dispose()
+        aiExportFileBridge = null
         notificationEventSink = null
         unregisterNotificationEventReceiver()
         super.cleanUpFlutterEngine(flutterEngine)
@@ -436,6 +476,26 @@ class MainActivity : FlutterActivity() {
             }
     }
 
+    private fun pickAndRecognizeBankScreenshots(result: MethodChannel.Result) {
+        if (pendingBankScreenshotResult != null) {
+            result.error(
+                "bank_screenshot_picker_busy",
+                "Скриншоты уже обрабатываются",
+                null,
+            )
+            return
+        }
+        pendingBankScreenshotResult = result
+        startActivityForResult(
+            Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "image/*"
+                putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+            },
+            REQUEST_BANK_SCREENSHOTS,
+        )
+    }
+
     private fun scanReceiptDocument(result: MethodChannel.Result) {
         if (pendingReceiptDocumentResult != null) {
             result.error(
@@ -485,6 +545,7 @@ class MainActivity : FlutterActivity() {
         data: Intent?,
     ) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (aiExportFileBridge?.onActivityResult(requestCode, resultCode, data) == true) return
         when (requestCode) {
             REQUEST_STATEMENT_PDF -> {
                 val result = pendingStatementResult ?: return
@@ -518,7 +579,118 @@ class MainActivity : FlutterActivity() {
                 }
                 recognizeReceiptDocument(uri, result)
             }
+
+            REQUEST_BANK_SCREENSHOTS -> {
+                val result = pendingBankScreenshotResult ?: return
+                if (resultCode != Activity.RESULT_OK) {
+                    pendingBankScreenshotResult = null
+                    result.success(emptyList<Map<String, Any>>())
+                    return
+                }
+                val uris = buildList {
+                    data?.clipData?.let { clip ->
+                        for (index in 0 until clip.itemCount) {
+                            add(clip.getItemAt(index).uri)
+                        }
+                    }
+                    data?.data?.let(::add)
+                }.distinct()
+                if (uris.isEmpty()) {
+                    pendingBankScreenshotResult = null
+                    result.success(emptyList<Map<String, Any>>())
+                } else if (uris.size > MAX_BANK_SCREENSHOTS) {
+                    pendingBankScreenshotResult = null
+                    result.error(
+                        "too_many_bank_screenshots",
+                        "Можно выбрать не более 10 скриншотов",
+                        null,
+                    )
+                } else {
+                    recognizeBankScreenshots(uris, result)
+                }
+            }
         }
+    }
+
+    private fun recognizeBankScreenshots(
+        uris: List<Uri>,
+        result: MethodChannel.Result,
+    ) {
+        Thread {
+            val documents = mutableListOf<Map<String, Any>>()
+            try {
+                val dataPath = ensureRussianOcrData()
+                uris.forEach { uri ->
+                    var tess: TessBaseAPI? = null
+                    var imageFile: File? = null
+                    try {
+                        imageFile = copyBankScreenshotToCache(uri)
+                        tess = TessBaseAPI()
+                        if (!tess.init(dataPath, "rus", TessBaseAPI.OEM_LSTM_ONLY)) {
+                            throw IllegalStateException("Unable to initialize Russian OCR")
+                        }
+                        tess.setPageSegMode(TessBaseAPI.PageSegMode.PSM_AUTO)
+                        tess.setVariable("preserve_interword_spaces", "1")
+                        tess.setImage(imageFile)
+                        val text = tess.getUTF8Text().orEmpty().trim()
+                        if (text.isEmpty()) return@forEach
+                        val lines = text.lineSequence()
+                            .map(String::trim)
+                            .filter(String::isNotEmpty)
+                            .map { line -> mapOf("text" to line) }
+                            .toList()
+                        val hash = MessageDigest.getInstance("SHA-256")
+                            .digest(imageFile.readBytes())
+                            .joinToString("") { byte -> "%02x".format(byte) }
+                        documents += mapOf(
+                            "imageHash" to hash,
+                            "capturedAt" to java.text.SimpleDateFormat(
+                                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+                                java.util.Locale.US,
+                            ).apply {
+                                timeZone = java.util.TimeZone.getTimeZone("UTC")
+                            }.format(java.util.Date()),
+                            "lines" to lines,
+                        )
+                    } finally {
+                        tess?.recycle()
+                        imageFile?.delete()
+                    }
+                }
+                runOnUiThread {
+                    val pending = pendingBankScreenshotResult
+                        ?: return@runOnUiThread
+                    pendingBankScreenshotResult = null
+                    pending.success(documents)
+                }
+            } catch (error: Exception) {
+                runOnUiThread {
+                    val pending = pendingBankScreenshotResult
+                        ?: return@runOnUiThread
+                    pendingBankScreenshotResult = null
+                    pending.error(
+                        "bank_screenshot_ocr_failed",
+                        "Не удалось распознать скриншоты банка",
+                        error.javaClass.simpleName,
+                    )
+                }
+            }
+        }.start()
+    }
+
+    private fun copyBankScreenshotToCache(uri: Uri): File {
+        val target = File(cacheDir, "bank-shot-${System.nanoTime()}.img")
+        contentResolver.openInputStream(uri)?.use { input ->
+            target.outputStream().use { output ->
+                copyLimited(
+                    input,
+                    output,
+                    MAX_RECEIPT_IMAGE_BYTES,
+                    "Bank screenshot is larger than 20 MB",
+                )
+            }
+        } ?: throw IllegalArgumentException("Unable to open bank screenshot")
+        return target
     }
 
     private fun recognizeReceiptDocument(
@@ -786,6 +958,8 @@ class MainActivity : FlutterActivity() {
         const val REQUEST_STATEMENT_PDF = 4102
         const val REQUEST_RECEIPT_DOCUMENT = 4103
         const val REQUEST_RECORD_AUDIO = 4104
+        const val REQUEST_BANK_SCREENSHOTS = 4105
+        const val MAX_BANK_SCREENSHOTS = 10
         const val RUSSIAN_OCR_MODEL = "rus.traineddata"
         const val RUSSIAN_OCR_MODEL_BYTES = 3_861_738L
     }
