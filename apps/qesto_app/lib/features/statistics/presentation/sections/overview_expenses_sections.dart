@@ -754,6 +754,11 @@ class _LargestTransactionsCard extends StatelessWidget {
                   transactions: controller.snapshot.transactions
                       .where((item) => item.type == TransactionType.expense)
                       .toList(),
+                  transactionSelector: (statistics) => statistics
+                      .snapshot
+                      .transactions
+                      .where((item) => item.type == TransactionType.expense)
+                      .toList(),
                 ),
               ),
             ),

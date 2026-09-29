@@ -18,20 +18,36 @@ class StatisticsOperationsScreen extends StatelessWidget {
     required this.controller,
     required this.title,
     required this.transactions,
+    this.transactionSelector,
     super.key,
   });
 
   final StatisticsController controller;
   final String title;
   final List<BudgetTransaction> transactions;
+  final List<BudgetTransaction> Function(StatisticsController)?
+  transactionSelector;
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) => _buildCurrent(context),
+    );
+  }
+
+  Widget _buildCurrent(BuildContext context) {
+    final ids = transactions.map((transaction) => transaction.id).toSet();
+    final currentTransactions =
+        transactionSelector?.call(controller) ??
+        controller.snapshot.transactions
+            .where((transaction) => ids.contains(transaction.id))
+            .toList();
     return Scaffold(
       appBar: NestedScreenHeader(
         title: Text(title, style: Theme.of(context).textTheme.titleLarge),
       ),
-      body: transactions.isEmpty
+      body: currentTransactions.isEmpty
           ? const Padding(
               padding: EdgeInsets.all(18),
               child: EmptyState(
@@ -40,10 +56,10 @@ class StatisticsOperationsScreen extends StatelessWidget {
             )
           : ListView.separated(
               padding: const EdgeInsets.fromLTRB(18, 10, 18, 30),
-              itemCount: transactions.length,
+              itemCount: currentTransactions.length,
               separatorBuilder: (_, _) => const SizedBox(height: 9),
               itemBuilder: (context, index) {
-                final transaction = transactions[index];
+                final transaction = currentTransactions[index];
                 final category = transaction.categoryId == null
                     ? null
                     : controller.budgetController.categories
@@ -267,6 +283,8 @@ class StatisticsCategoryScreen extends StatelessWidget {
           controller: controller,
           title: title,
           transactions: transactions,
+          transactionSelector: (statistics) =>
+              statistics.transactionsForCategory(categoryId),
         ),
       ),
     );
@@ -373,6 +391,8 @@ class StatisticsMerchantScreen extends StatelessWidget {
                             controller: controller,
                             title: merchant,
                             transactions: transactions,
+                            transactionSelector: (statistics) =>
+                                statistics.transactionsForMerchant(merchant),
                           ),
                         ),
                       ),

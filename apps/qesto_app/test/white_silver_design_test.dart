@@ -191,6 +191,7 @@ void main() {
       );
       addTearDown(controller.dispose);
       final page = DesktopDashboardPage(
+        onOpenFilteredTransactions: (_) {},
         controller: controller,
         period: controller.periods.firstWhere(
           (p) => p.year == 2026 && p.month == 7,
@@ -376,7 +377,10 @@ void main() {
         'budget' => DesktopBudgetPage(controller: controller),
         'liquidity' => DesktopAccountsPage(controller: controller),
         'debts' => DesktopDebtsPage(controller: controller),
-        'investments' => DesktopInvestmentsPage(controller: controller),
+        'investments' => DesktopInvestmentsPage(
+          controller: controller,
+          freshnessDate: DateTime(2026, 9, 28, 12),
+        ),
         'goals' => DesktopGoalsPage(controller: controller),
         'insights' => DesktopInsightsPage(controller: controller),
         _ => const DesktopBenefitsPage(

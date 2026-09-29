@@ -26,6 +26,14 @@ void main() {
     expect(find.text('Добрый день'), findsOneWidget);
     expect(find.byKey(const Key('overview-expense-trend')), findsOneWidget);
     expect(find.byKey(const Key('overview-expense-map')), findsOneWidget);
+    expect(find.byKey(const Key('overview-refresh')), findsOneWidget);
+    expect(
+      find.byKey(const Key('overview-flow-category-mode')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const Key('overview-refresh')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('overview-expense-map')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -282,6 +290,126 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('overview day drilldown opens scoped journal and keeps month', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      QestoApp(
+        repository: MockQestoRepository(
+          delay: Duration.zero,
+          financialData: sampleUserFinancialData,
+        ),
+        preferenceStore: MemoryKeyValueStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desktop-overview-period')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Июль 2026').last);
+    await tester.pumpAndSettle();
+
+    final chart = find.byKey(const Key('overview-trend-hit-area'));
+    await tester.ensureVisible(chart);
+    await tester.pumpAndSettle();
+    final rect = tester.getRect(chart);
+    await tester.tapAt(Offset(rect.right - 15, rect.center.dy));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('overview-drilldown-panel')), findsOneWidget);
+    expect(find.text('19 июля 2026'), findsWidgets);
+    expect(
+      find.byKey(const Key('overview-drilldown-transaction-jul-c7')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('overview-drilldown-open-all')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('transactions-overview-filter')),
+      findsOneWidget,
+    );
+    expect(find.text('Из обзора: 1'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('overview lower cards open merchant and category details', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1440, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      QestoApp(
+        repository: MockQestoRepository(
+          delay: Duration.zero,
+          financialData: sampleUserFinancialData,
+        ),
+        preferenceStore: MemoryKeyValueStore(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('desktop-overview-period')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Июль 2026').last);
+    await tester.pumpAndSettle();
+
+    final expense = find.byKey(const Key('overview-top-expense-jul-g3'));
+    await tester.ensureVisible(expense);
+    await tester.tap(expense);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('overview-drilldown-panel')), findsOneWidget);
+    expect(find.text('Продавец за выбранный период'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('overview-merchant-timeline')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.byKey(const Key('overview-merchant-timeline')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('overview-drilldown-transaction-jul-g3')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('overview-drilldown-transaction-jul-g3')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byTooltip('Закрыть'));
+    await tester.pumpAndSettle();
+
+    final category = find.byKey(
+      const Key('overview-category-budget-groceries'),
+    );
+    await tester.ensureVisible(category);
+    await tester.tap(category);
+    await tester.pumpAndSettle();
+    expect(find.text('Категория за выбранный период'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('overview-merchant-donut')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('overview-merchant-donut')), findsOneWidget);
+    expect(find.byKey(const Key('overview-merchant-bars')), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('overview-drilldown-transaction-jul-g3')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('overview-drilldown-transaction-jul-g3')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('desktop is organised into Budget, Benefits and Capital', (
     tester,

@@ -7,9 +7,10 @@ import '../../core/theme/qesto_theme.dart';
 import 'desktop_overview_data.dart';
 
 class OverviewExpenseMap extends StatefulWidget {
-  const OverviewExpenseMap({required this.data, super.key});
+  const OverviewExpenseMap({required this.data, this.onSelection, super.key});
 
   final OverviewFlowData data;
+  final ValueChanged<OverviewFlowSelection>? onSelection;
 
   @override
   State<OverviewExpenseMap> createState() => _OverviewExpenseMapState();
@@ -17,6 +18,16 @@ class OverviewExpenseMap extends StatefulWidget {
 
 class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
   String? _hoveredId;
+  String? _selectedId;
+
+  @override
+  void didUpdateWidget(covariant OverviewExpenseMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data) {
+      _hoveredId = null;
+      _selectedId = null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,18 +51,21 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
               .where((item) => item.id == _hoveredId)
               .firstOrNull;
           return GestureDetector(
+            key: const Key('overview-flow-hit-area'),
+            behavior: HitTestBehavior.opaque,
             onTapUp: (event) {
-              final hit = geometry.hits
-                  .where((item) => item.contains(event.localPosition))
-                  .lastOrNull;
-              setState(() => _hoveredId = hit?.id);
+              final hit = geometry.hitAt(event.localPosition);
+              if (hit == null) return;
+              setState(() => _selectedId = hit.id);
+              widget.onSelection?.call(hit.selection);
             },
             child: MouseRegion(
+              cursor: _hoveredId == null
+                  ? MouseCursor.defer
+                  : SystemMouseCursors.click,
               onExit: (_) => setState(() => _hoveredId = null),
               onHover: (event) {
-                final hit = geometry.hits
-                    .where((item) => item.contains(event.localPosition))
-                    .lastOrNull;
+                final hit = geometry.hitAt(event.localPosition);
                 if (hit?.id != _hoveredId) {
                   setState(() => _hoveredId = hit?.id);
                 }
@@ -66,7 +80,7 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
                           c: context.qestoColors,
                           data: widget.data,
                           geometry: geometry,
-                          hoveredId: _hoveredId,
+                          hoveredId: _hoveredId ?? _selectedId,
                           compact: compact,
                         ),
                       ),
@@ -92,6 +106,24 @@ class _OverviewExpenseMapState extends State<OverviewExpenseMap> {
       ),
     );
   }
+}
+
+enum OverviewFlowSelectionKind { source, total, category, destination }
+
+class OverviewFlowSelection {
+  const OverviewFlowSelection({
+    required this.kind,
+    required this.id,
+    required this.label,
+    required this.amount,
+    required this.transactionIds,
+  });
+
+  final OverviewFlowSelectionKind kind;
+  final String id;
+  final String label;
+  final int amount;
+  final List<String> transactionIds;
 }
 
 class _FlowTooltip extends StatelessWidget {
@@ -170,6 +202,7 @@ class _FlowTooltip extends StatelessWidget {
 
 class _FlowGeometry {
   const _FlowGeometry({
+    required this.size,
     required this.sourceRects,
     required this.rootRect,
     required this.branchRects,
@@ -180,6 +213,7 @@ class _FlowGeometry {
     required this.hits,
   });
 
+  final Size size;
   final List<Rect> sourceRects;
   final Rect rootRect;
   final List<Rect> branchRects;
@@ -188,6 +222,22 @@ class _FlowGeometry {
   final List<Path> branchPaths;
   final List<List<Path>> destinationPaths;
   final List<_FlowHit> hits;
+
+  _FlowHit? hitAt(Offset point) {
+    // The destination ribbons overlap category labels geometrically. Give
+    // the visible category-label column precedence, so its text is clickable.
+    if (point.dx >= size.width * .61 && point.dx < size.width * .825) {
+      final category = hits
+          .where(
+            (hit) =>
+                hit.selection.kind == OverviewFlowSelectionKind.category &&
+                hit.rect.contains(point),
+          )
+          .lastOrNull;
+      if (category != null) return category;
+    }
+    return hits.where((hit) => hit.contains(point)).lastOrNull;
+  }
 
   static _FlowGeometry compute(Size size, OverviewFlowData data) {
     const top = 40.0;
@@ -235,6 +285,13 @@ class _FlowGeometry {
           label: source.label,
           amount: source.amount,
           transactionCount: source.transactionCount,
+          selection: OverviewFlowSelection(
+            kind: OverviewFlowSelectionKind.source,
+            id: source.id,
+            label: source.label,
+            amount: source.amount,
+            transactionIds: source.transactionIds,
+          ),
           rect: Rect.fromLTRB(
             0,
             sourceRect.top - 2,
@@ -271,6 +328,13 @@ class _FlowGeometry {
           transactionCount: branch.destinations.fold<int>(
             0,
             (sum, item) => sum + item.transactionCount,
+          ),
+          selection: OverviewFlowSelection(
+            kind: OverviewFlowSelectionKind.category,
+            id: branch.id,
+            label: branch.label,
+            amount: branch.amount,
+            transactionIds: branch.transactionIds,
           ),
           rect: Rect.fromLTRB(
             root.right,
@@ -311,6 +375,13 @@ class _FlowGeometry {
             label: destination.label,
             amount: destination.amount,
             transactionCount: destination.transactionCount,
+            selection: OverviewFlowSelection(
+              kind: OverviewFlowSelectionKind.destination,
+              id: destination.id,
+              label: destination.label,
+              amount: destination.amount,
+              transactionIds: destination.transactionIds,
+            ),
             rect: Rect.fromLTRB(
               branchRect.right,
               destinationRect.top - 2,
@@ -338,10 +409,21 @@ class _FlowGeometry {
           0,
           (sum, item) => sum + item.transactionCount,
         ),
+        selection: OverviewFlowSelection(
+          kind: OverviewFlowSelectionKind.total,
+          id: 'root',
+          label: data.total == data.income ? 'Доходы' : 'Деньги периода',
+          amount: data.total,
+          transactionIds: {
+            for (final source in data.sources) ...source.transactionIds,
+            for (final branch in data.branches) ...branch.transactionIds,
+          }.toList(growable: false),
+        ),
         rect: root.inflate(12),
       ),
     );
     return _FlowGeometry(
+      size: size,
       sourceRects: sourceRects,
       rootRect: root,
       branchRects: branchRects,
@@ -385,6 +467,7 @@ class _FlowHit {
     required this.amount,
     required this.transactionCount,
     required this.rect,
+    required this.selection,
     this.path,
   });
 
@@ -393,6 +476,7 @@ class _FlowHit {
   final int amount;
   final int transactionCount;
   final Rect rect;
+  final OverviewFlowSelection selection;
   final Path? path;
 
   bool contains(Offset point) =>

@@ -73,6 +73,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   var _sidebarCollapsed = false;
   String? _dashboardPeriodId;
   String? _requestedTransactionId;
+  List<String>? _requestedTransactionIds;
   var _transactionRequestSerial = 0;
 
   @override
@@ -403,6 +404,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       onOpenBudget: () => _select(DesktopDestination.budget),
       onOpenRecurring: () => _select(DesktopDestination.recurring),
       onOpenTransaction: _openTransaction,
+      onOpenFilteredTransactions: _openFilteredTransactions,
     ),
     DesktopDestination.expenses => DesktopBudgetAnalysisPage(
       controller: widget.controller,
@@ -413,6 +415,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       controller: widget.controller,
       requestedTransactionId: _requestedTransactionId,
       requestSerial: _transactionRequestSerial,
+      initialTransactionIds: _requestedTransactionIds,
     ),
     DesktopDestination.budget => DesktopBudgetPage(
       controller: widget.controller,
@@ -476,6 +479,11 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
       _destination = destination;
       if (destination != DesktopDestination.transactions) {
         _requestedTransactionId = null;
+        _requestedTransactionIds = null;
+      } else {
+        _requestedTransactionId = null;
+        _requestedTransactionIds = null;
+        _transactionRequestSerial++;
       }
     });
   }
@@ -484,6 +492,16 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     setState(() {
       _destination = DesktopDestination.transactions;
       _requestedTransactionId = id;
+      _requestedTransactionIds = null;
+      _transactionRequestSerial++;
+    });
+  }
+
+  void _openFilteredTransactions(List<String> ids) {
+    setState(() {
+      _destination = DesktopDestination.transactions;
+      _requestedTransactionId = null;
+      _requestedTransactionIds = List.unmodifiable(ids);
       _transactionRequestSerial++;
     });
   }

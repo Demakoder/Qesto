@@ -54,6 +54,11 @@ class RhythmStatisticsSection extends StatelessWidget {
                         controller: controller,
                         title: formatDate(point.date, includeYear: true),
                         transactions: transactions,
+                        transactionSelector: (statistics) => statistics
+                            .snapshot
+                            .transactions
+                            .where((item) => _sameDay(item.date, point.date))
+                            .toList(),
                       ),
                     ),
                   );

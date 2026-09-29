@@ -495,12 +495,23 @@ class BudgetController extends ChangeNotifier {
 
   void _syncFromSynoball() {
     final readModel = _readModels.build(_synoball.state);
+    final projectedTransactions = _applySberAdapterCompatibility(
+      readModel.transactions,
+    );
     accounts
       ..clear()
       ..addAll(readModel.accounts);
     _transactions
       ..clear()
-      ..addAll(_applySberAdapterCompatibility(readModel.transactions));
+      ..addAll(projectedTransactions);
+  }
+
+  /// Rebuilds the local UI projection from canonical Synoball data. This does
+  /// not persist changes, contact a bank, or alter category overrides.
+  void refreshLocalReadModel() {
+    if (_disposed) throw StateError('BudgetController is disposed');
+    _syncFromSynoball();
+    notifyListeners();
   }
 
   void _addAction(FinancialAction action) {

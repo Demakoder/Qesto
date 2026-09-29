@@ -84,6 +84,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
                   onBack: () => Navigator.of(context).pop(),
                   onNotifications: _openNotifications,
                   onProfile: _openProfile,
+                  onRefresh: _refreshAnalytics,
+                  isRefreshing: _controller.isRefreshing,
                 ),
                 _QuickControls(
                   controller: _controller,
@@ -256,6 +258,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
       builder: (context) => _StatisticsFilterSheet(controller: _controller),
     );
   }
+
+  Future<void> _refreshAnalytics() async {
+    try {
+      await _controller.refreshFromLocalData();
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось обновить аналитику')),
+      );
+    }
+  }
 }
 
 class _StatisticsHeader extends StatelessWidget {
@@ -263,10 +276,14 @@ class _StatisticsHeader extends StatelessWidget {
     required this.onBack,
     required this.onNotifications,
     required this.onProfile,
+    required this.onRefresh,
+    required this.isRefreshing,
   });
   final VoidCallback onBack;
   final VoidCallback onNotifications;
   final VoidCallback onProfile;
+  final VoidCallback onRefresh;
+  final bool isRefreshing;
 
   @override
   Widget build(BuildContext context) {
@@ -289,6 +306,17 @@ class _StatisticsHeader extends StatelessWidget {
                 letterSpacing: -0.8,
               ),
             ),
+          ),
+          IconButton(
+            tooltip: 'Обновить аналитику',
+            onPressed: isRefreshing ? null : onRefresh,
+            icon: isRefreshing
+                ? const SizedBox(
+                    width: 19,
+                    height: 19,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.refresh_rounded, size: 22),
           ),
           IconButton(
             onPressed: onNotifications,

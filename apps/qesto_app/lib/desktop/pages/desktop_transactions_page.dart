@@ -20,6 +20,7 @@ class DesktopTransactionsPage extends StatefulWidget {
     this.requestSerial = 0,
     this.initialCategoryId,
     this.initialTagId,
+    this.initialTransactionIds,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class DesktopTransactionsPage extends StatefulWidget {
   final int requestSerial;
   final String? initialCategoryId;
   final String? initialTagId;
+  final List<String>? initialTransactionIds;
 
   @override
   State<DesktopTransactionsPage> createState() =>
@@ -44,6 +46,7 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
   SynoballSourceType? _source;
   bool _reviewOnly = false;
   String? _openedId;
+  Set<String>? _drilldownIds;
 
   @override
   void initState() {
@@ -51,13 +54,17 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
     _openedId = widget.requestedTransactionId;
     _categoryId = widget.initialCategoryId;
     _tagId = widget.initialTagId;
+    _drilldownIds = widget.initialTransactionIds?.toSet();
   }
 
   @override
   void didUpdateWidget(covariant DesktopTransactionsPage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.requestSerial != widget.requestSerial) {
-      setState(() => _openedId = widget.requestedTransactionId);
+      setState(() {
+        _openedId = widget.requestedTransactionId;
+        _drilldownIds = widget.initialTransactionIds?.toSet();
+      });
     }
   }
 
@@ -112,6 +119,13 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                       spacing: 10,
                       runSpacing: 8,
                       children: [
+                        if (_drilldownIds != null)
+                          InputChip(
+                            key: const Key('transactions-overview-filter'),
+                            label: Text('Из обзора: ${_drilldownIds!.length}'),
+                            onDeleted: () =>
+                                setState(() => _drilldownIds = null),
+                          ),
                         OutlinedButton.icon(
                           onPressed: () =>
                               openCategoryManager(context, widget.controller),
@@ -341,6 +355,9 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
   List<BudgetTransaction> _filteredTransactions() {
     final query = _searchController.text.trim().toLowerCase();
     final values = widget.controller.transactions.where((transaction) {
+      if (_drilldownIds != null && !_drilldownIds!.contains(transaction.id)) {
+        return false;
+      }
       if (_tagId != null &&
           !widget.controller
               .tagsForTransaction(transaction)
@@ -382,6 +399,7 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
     _accountId = null;
     _source = null;
     _reviewOnly = false;
+    _drilldownIds = null;
   });
 }
 

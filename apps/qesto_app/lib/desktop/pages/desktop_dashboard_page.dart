@@ -11,6 +11,7 @@ import '../../features/budget/state/budget_controller.dart';
 import '../../features/budget/widgets/budget_category_icon.dart';
 import '../desktop_financial_helpers.dart';
 import '../overview/desktop_overview_data.dart';
+import '../overview/overview_drilldown_panel.dart';
 import '../overview/overview_expense_map.dart';
 import '../overview/overview_expense_trend_chart.dart';
 import '../widgets/desktop_components.dart';
@@ -23,6 +24,7 @@ class DesktopDashboardPage extends StatefulWidget {
     required this.onOpenBudget,
     required this.onOpenRecurring,
     required this.onOpenTransaction,
+    required this.onOpenFilteredTransactions,
     super.key,
   });
 
@@ -32,6 +34,7 @@ class DesktopDashboardPage extends StatefulWidget {
   final VoidCallback onOpenBudget;
   final VoidCallback onOpenRecurring;
   final ValueChanged<String> onOpenTransaction;
+  final ValueChanged<List<String>> onOpenFilteredTransactions;
 
   @override
   State<DesktopDashboardPage> createState() => _DesktopDashboardPageState();
@@ -43,11 +46,19 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
   var _capitalMetric = OverviewCapitalMetric.capital;
   var _granularity = OverviewTrendGranularity.days;
   var _transactionSort = OverviewTransactionSort.dateDescending;
+  var _compactFlow = true;
+  var _refreshing = false;
+
+  DesktopOverviewData _buildOverviewData() => DesktopOverviewData.build(
+    widget.controller,
+    widget.period,
+    flowCategoryLimit: _compactFlow ? 4 : null,
+  );
 
   @override
   void initState() {
     super.initState();
-    _data = DesktopOverviewData.build(widget.controller, widget.period);
+    _data = _buildOverviewData();
     widget.controller.addListener(_handleControllerChanged);
   }
 
@@ -60,7 +71,7 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
     }
     if (oldWidget.controller != widget.controller ||
         oldWidget.period.id != widget.period.id) {
-      _data = DesktopOverviewData.build(widget.controller, widget.period);
+      _data = _buildOverviewData();
     }
   }
 
@@ -73,8 +84,81 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
   void _handleControllerChanged() {
     if (!mounted) return;
     setState(() {
-      _data = DesktopOverviewData.build(widget.controller, widget.period);
+      _data = _buildOverviewData();
     });
+  }
+
+  Future<void> _refreshLocalData() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      widget.controller.refreshLocalReadModel();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось обновить данные обзора')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
+  void _openTrendSelection(OverviewTrendSelection selection) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forTrend(
+        controller: widget.controller,
+        period: widget.period,
+        selection: selection,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openFlowSelection(OverviewFlowSelection selection) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forFlow(
+        controller: widget.controller,
+        period: widget.period,
+        selection: selection,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openMerchant(BudgetTransaction transaction) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forMerchant(
+        controller: widget.controller,
+        period: widget.period,
+        selected: transaction,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openCategory(OverviewCategoryBudgetRow category) {
+    showOverviewDrilldownPanel(
+      context,
+      controller: widget.controller,
+      data: OverviewDrilldownData.forCategory(
+        controller: widget.controller,
+        period: widget.period,
+        category: category,
+      ),
+      onOpenTransaction: widget.onOpenTransaction,
+      onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
   }
 
   @override
@@ -85,14 +169,33 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Добрый день',
-            style: TextStyle(
-              color: context.qestoColors.text,
-              fontSize: 23,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.4,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Добрый день',
+                  style: TextStyle(
+                    color: context.qestoColors.text,
+                    fontSize: 23,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
+                  ),
+                ),
+              ),
+              OutlinedButton.icon(
+                key: const Key('overview-refresh'),
+                onPressed: _refreshing ? null : _refreshLocalData,
+                icon: _refreshing
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.refresh_rounded, size: 18),
+                label: Text(_refreshing ? 'Обновляется…' : 'Обновить'),
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Text(
@@ -119,9 +222,16 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
           _OverviewVisuals(
             data: _data,
             granularity: _granularity,
+            compactFlow: _compactFlow,
             onGranularityChanged: (value) => setState(() {
               _granularity = value;
             }),
+            onCompactFlowChanged: (value) => setState(() {
+              _compactFlow = value;
+              _data = _buildOverviewData();
+            }),
+            onTrendSelection: _openTrendSelection,
+            onFlowSelection: _openFlowSelection,
           ),
           const SizedBox(height: 20),
           _OverviewPlanningRow(
@@ -130,6 +240,8 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
             onOpenTransactions: widget.onOpenTransactions,
             onOpenBudget: widget.onOpenBudget,
             onOpenRecurring: widget.onOpenRecurring,
+            onOpenMerchant: _openMerchant,
+            onOpenCategory: _openCategory,
           ),
           const SizedBox(height: 20),
           _RecentTransactionsCard(
@@ -462,12 +574,20 @@ class _OverviewVisuals extends StatelessWidget {
   const _OverviewVisuals({
     required this.data,
     required this.granularity,
+    required this.compactFlow,
     required this.onGranularityChanged,
+    required this.onCompactFlowChanged,
+    required this.onTrendSelection,
+    required this.onFlowSelection,
   });
 
   final DesktopOverviewData data;
   final OverviewTrendGranularity granularity;
+  final bool compactFlow;
   final ValueChanged<OverviewTrendGranularity> onGranularityChanged;
+  final ValueChanged<bool> onCompactFlowChanged;
+  final ValueChanged<OverviewTrendSelection> onTrendSelection;
+  final ValueChanged<OverviewFlowSelection> onFlowSelection;
 
   @override
   Widget build(BuildContext context) {
@@ -494,6 +614,7 @@ class _OverviewVisuals extends StatelessWidget {
                 points: data.trend,
                 currency: data.currency,
                 granularity: granularity,
+                onSelection: onTrendSelection,
               );
               return Column(
                 mainAxisSize: MainAxisSize.min,
@@ -515,6 +636,11 @@ class _OverviewVisuals extends StatelessWidget {
         final map = QestoExpandableTool(
           key: const Key('overview-expense-map'),
           title: 'Карта расходов',
+          actions: TextButton(
+            key: const Key('overview-flow-category-mode'),
+            onPressed: () => onCompactFlowChanged(!compactFlow),
+            child: Text(compactFlow ? 'Все категории' : 'Топ-4'),
+          ),
           builder: (context, expanded) => SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -530,7 +656,7 @@ class _OverviewVisuals extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (data.flow case final flow?)
-                  OverviewExpenseMap(data: flow)
+                  OverviewExpenseMap(data: flow, onSelection: onFlowSelection)
                 else
                   SizedBox(
                     height: stacked ? 285 : flowHeight,
@@ -615,6 +741,8 @@ class _OverviewPlanningRow extends StatelessWidget {
     required this.onOpenTransactions,
     required this.onOpenBudget,
     required this.onOpenRecurring,
+    required this.onOpenMerchant,
+    required this.onOpenCategory,
   });
 
   final BudgetController controller;
@@ -622,12 +750,22 @@ class _OverviewPlanningRow extends StatelessWidget {
   final VoidCallback onOpenTransactions;
   final VoidCallback onOpenBudget;
   final VoidCallback onOpenRecurring;
+  final ValueChanged<BudgetTransaction> onOpenMerchant;
+  final ValueChanged<OverviewCategoryBudgetRow> onOpenCategory;
 
   @override
   Widget build(BuildContext context) {
     final cards = <Widget>[
-      _TopExpensesCard(data: data, onOpenAll: onOpenTransactions),
-      _CategoryBudgetsCard(data: data, onOpenAll: onOpenBudget),
+      _TopExpensesCard(
+        data: data,
+        onOpenAll: onOpenTransactions,
+        onOpenMerchant: onOpenMerchant,
+      ),
+      _CategoryBudgetsCard(
+        data: data,
+        onOpenAll: onOpenBudget,
+        onOpenCategory: onOpenCategory,
+      ),
       _PlannedExpensesCard(
         controller: controller,
         data: data,
@@ -657,10 +795,15 @@ class _OverviewPlanningRow extends StatelessWidget {
 }
 
 class _TopExpensesCard extends StatelessWidget {
-  const _TopExpensesCard({required this.data, required this.onOpenAll});
+  const _TopExpensesCard({
+    required this.data,
+    required this.onOpenAll,
+    required this.onOpenMerchant,
+  });
 
   final DesktopOverviewData data;
   final VoidCallback onOpenAll;
+  final ValueChanged<BudgetTransaction> onOpenMerchant;
 
   @override
   Widget build(BuildContext context) {
@@ -694,6 +837,7 @@ class _TopExpensesCard extends StatelessWidget {
                         transaction: data.topExpenses[index],
                         total: data.expenses,
                         currency: data.currency,
+                        onTap: () => onOpenMerchant(data.topExpenses[index]),
                       ),
                     ),
                 ],
@@ -712,60 +856,87 @@ class _TopExpenseRow extends StatelessWidget {
     required this.transaction,
     required this.total,
     required this.currency,
+    required this.onTap,
   });
 
   final int rank;
   final BudgetTransaction transaction;
   final int total;
   final String currency;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final title = desktopTransactionTitle(transaction);
     final percent = total <= 0 ? 0.0 : transaction.amount / total;
-    return Container(
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: context.qestoColors.border)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: context.qestoColors.primarySoft,
-              borderRadius: BorderRadius.circular(7),
-            ),
-            child: Text(
-              '$rank',
-              style: TextStyle(
-                color: context.qestoColors.primary,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
+    return InkWell(
+      key: Key('overview-top-expense-${transaction.id}'),
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(bottom: BorderSide(color: context.qestoColors.border)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: context.qestoColors.primarySoft,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Text(
+                '$rank',
+                style: TextStyle(
+                  color: context.qestoColors.primary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 9),
-          _MerchantMark(title: title),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
+            const SizedBox(width: 9),
+            _MerchantMark(title: title),
+            const SizedBox(width: 9),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    formatDate(transaction.date, includeYear: true),
+                    style: TextStyle(
+                      color: context.qestoColors.secondaryText,
+                      fontSize: 9.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Column(
               mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  formatMoney(transaction.amount, currency),
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
-                const SizedBox(height: 2),
                 Text(
-                  formatDate(transaction.date, includeYear: true),
+                  formatPercent(percent, decimals: 1),
                   style: TextStyle(
                     color: context.qestoColors.secondaryText,
                     fontSize: 9.5,
@@ -773,39 +944,23 @@ class _TopExpenseRow extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                formatMoney(transaction.amount, currency),
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              Text(
-                formatPercent(percent, decimals: 1),
-                style: TextStyle(
-                  color: context.qestoColors.secondaryText,
-                  fontSize: 9.5,
-                ),
-              ),
-            ],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _CategoryBudgetsCard extends StatelessWidget {
-  const _CategoryBudgetsCard({required this.data, required this.onOpenAll});
+  const _CategoryBudgetsCard({
+    required this.data,
+    required this.onOpenAll,
+    required this.onOpenCategory,
+  });
 
   final DesktopOverviewData data;
   final VoidCallback onOpenAll;
+  final ValueChanged<OverviewCategoryBudgetRow> onOpenCategory;
 
   @override
   Widget build(BuildContext context) {
@@ -851,7 +1006,11 @@ class _CategoryBudgetsCard extends StatelessWidget {
                 children: [
                   for (final row in data.categoryBudgets)
                     Expanded(
-                      child: _CategoryBudgetRow(row: row, data: data),
+                      child: _CategoryBudgetRow(
+                        row: row,
+                        data: data,
+                        onTap: () => onOpenCategory(row),
+                      ),
                     ),
                 ],
               ),
@@ -864,10 +1023,15 @@ class _CategoryBudgetsCard extends StatelessWidget {
 }
 
 class _CategoryBudgetRow extends StatelessWidget {
-  const _CategoryBudgetRow({required this.row, required this.data});
+  const _CategoryBudgetRow({
+    required this.row,
+    required this.data,
+    required this.onTap,
+  });
 
   final OverviewCategoryBudgetRow row;
   final DesktopOverviewData data;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -878,59 +1042,66 @@ class _CategoryBudgetRow extends StatelessWidget {
         : row.progress >= 0.85
         ? context.qestoColors.warning
         : row.color;
-    return Row(
-      children: [
-        BudgetCategoryIcon(iconKey: row.iconKey, color: row.color, size: 32),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      row.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
+    return InkWell(
+      key: Key('overview-category-budget-${row.id}'),
+      onTap: onTap,
+      child: Row(
+        children: [
+          BudgetCategoryIcon(iconKey: row.iconKey, color: row.color, size: 32),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        row.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                  ),
-                  Text(
-                    '${(row.progress * 100).round()}%',
-                    style: TextStyle(
-                      color: context.qestoColors.secondaryText,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w700,
+                    Text(
+                      '${(row.progress * 100).round()}%',
+                      style: TextStyle(
+                        color: context.qestoColors.secondaryText,
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 7),
-              DesktopProgressBar(
-                value: row.progress,
-                color: progressColor,
-                height: 6,
-              ),
-            ],
+                  ],
+                ),
+                const SizedBox(height: 7),
+                DesktopProgressBar(
+                  value: row.progress,
+                  color: progressColor,
+                  height: 6,
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        SizedBox(
-          width: 70,
-          child: Text(
-            formatMoney(row.spent, data.currency),
-            textAlign: TextAlign.right,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 70,
+            child: Text(
+              formatMoney(row.spent, data.currency),
+              textAlign: TextAlign.right,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

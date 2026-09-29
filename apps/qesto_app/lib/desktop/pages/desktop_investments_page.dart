@@ -11,9 +11,16 @@ import '../../features/capital/domain/investment_analytics_service.dart';
 import '../widgets/desktop_components.dart';
 
 class DesktopInvestmentsPage extends StatefulWidget {
-  const DesktopInvestmentsPage({required this.controller, super.key});
+  const DesktopInvestmentsPage({
+    required this.controller,
+    this.freshnessDate,
+    super.key,
+  });
 
   final BudgetController controller;
+
+  /// Fixed only by screenshot tests; the installed app uses the current date.
+  final DateTime? freshnessDate;
 
   @override
   State<DesktopInvestmentsPage> createState() => _DesktopInvestmentsPageState();
@@ -120,6 +127,7 @@ class _DesktopInvestmentsPageState extends State<DesktopInvestmentsPage> {
                   width: 350,
                   child: _InvestmentAccountCard(
                     insight: insight,
+                    freshnessDate: widget.freshnessDate,
                     onTap: () =>
                         setState(() => _selectedAccountId = insight.account.id),
                   ),
@@ -1069,14 +1077,23 @@ class _InvestmentFlowCard extends StatelessWidget {
 }
 
 class _InvestmentAccountCard extends StatelessWidget {
-  const _InvestmentAccountCard({required this.insight, required this.onTap});
+  const _InvestmentAccountCard({
+    required this.insight,
+    required this.onTap,
+    this.freshnessDate,
+  });
   final InvestmentAccountInsight insight;
   final VoidCallback onTap;
+  final DateTime? freshnessDate;
 
   @override
   Widget build(BuildContext context) {
     final account = insight.account;
-    final freshness = _freshnessLabel(account, insight.freshness);
+    final freshness = _freshnessLabel(
+      account,
+      insight.freshness,
+      now: freshnessDate,
+    );
     return DesktopCard(
       onTap: onTap,
       child: Column(
@@ -1483,9 +1500,10 @@ String _investmentSourceLabel(InvestmentDataSource source) => switch (source) {
 
 String _freshnessLabel(
   InvestmentAccount account,
-  InvestmentFreshness freshness,
-) {
-  final days = DateTime.now()
+  InvestmentFreshness freshness, {
+  DateTime? now,
+}) {
+  final days = (now ?? DateTime.now())
       .difference(
         DateTime(
           account.lastBalanceUpdateAt.year,

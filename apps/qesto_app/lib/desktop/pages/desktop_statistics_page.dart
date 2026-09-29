@@ -78,6 +78,7 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
               onSelectPeriod: _selectPeriod,
               onOpenFilters: _openFilters,
               onOpenAttention: _openAttention,
+              onRefresh: _refreshAnalytics,
             ),
             if (hasTransactions) ...[
               if (_statistics.snapshot.dataQuality.issues.isNotEmpty)
@@ -194,6 +195,17 @@ class _DesktopBudgetAnalysisPageState extends State<DesktopBudgetAnalysisPage> {
   }
 
   void _openAttention() => showTransactionAttentionPanel(context, _statistics);
+
+  Future<void> _refreshAnalytics() async {
+    try {
+      await _statistics.refreshFromLocalData();
+    } on Object {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Не удалось обновить аналитику')),
+      );
+    }
+  }
 }
 
 class _StatisticsToolbar extends StatelessWidget {
@@ -202,12 +214,14 @@ class _StatisticsToolbar extends StatelessWidget {
     required this.onSelectPeriod,
     required this.onOpenFilters,
     required this.onOpenAttention,
+    required this.onRefresh,
   });
 
   final StatisticsController controller;
   final ValueChanged<StatisticsPeriodPreset> onSelectPeriod;
   final VoidCallback onOpenFilters;
   final VoidCallback onOpenAttention;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -263,6 +277,18 @@ class _StatisticsToolbar extends StatelessWidget {
                 : 'Фильтры · ${controller.query.activeFilterCount}',
           ),
           style: _toolbarButtonStyle(context),
+        ),
+        IconButton.outlined(
+          key: const Key('desktop-statistics-refresh'),
+          tooltip: 'Обновить аналитику',
+          onPressed: controller.isRefreshing ? null : onRefresh,
+          icon: controller.isRefreshing
+              ? const SizedBox(
+                  width: 17,
+                  height: 17,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.refresh_rounded, size: 19),
         ),
         if (controller.query.activeFilterCount > 0)
           TextButton(

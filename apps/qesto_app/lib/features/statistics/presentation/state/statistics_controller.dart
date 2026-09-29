@@ -77,15 +77,40 @@ class StatisticsController extends ChangeNotifier {
   StatisticsSection _section = StatisticsSection.overview;
   final List<TrackedStatisticsItem> _tracked = [];
   final Set<String> _ignoredQualityIssueIds = {};
+  bool _isRefreshing = false;
+  bool _disposed = false;
 
   StatisticsQuery get query => _query;
   StatisticsSnapshot get snapshot => _snapshot;
   StatisticsSection get section => _section;
   List<TrackedStatisticsItem> get tracked => List.unmodifiable(_tracked);
+  bool get isRefreshing => _isRefreshing;
 
   void _handleBudgetChanged() {
+    // A manual refresh already reads the latest ledger after its await. Avoid
+    // calculating the same snapshot twice when a mutation lands meanwhile.
+    if (_isRefreshing) return;
     _recalculate();
     notifyListeners();
+  }
+
+  /// Rebuilds the current query from the local Synoball read model only.
+  /// This neither persists data nor invokes any bank/import integration.
+  Future<bool> refreshFromLocalData() async {
+    if (_isRefreshing) return false;
+    _isRefreshing = true;
+    notifyListeners();
+    try {
+      // Give the compact progress indicator one frame to become visible.
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      if (_disposed) return false;
+      _recalculate(); // Assignment is atomic; a failed build keeps the last snapshot.
+      notifyListeners();
+      return true;
+    } finally {
+      _isRefreshing = false;
+      if (!_disposed) notifyListeners();
+    }
   }
 
   void _recalculate() {
@@ -238,6 +263,7 @@ class StatisticsController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     budgetController.removeListener(_handleBudgetChanged);
     super.dispose();
   }

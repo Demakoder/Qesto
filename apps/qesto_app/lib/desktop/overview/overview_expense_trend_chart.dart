@@ -10,12 +10,14 @@ class OverviewExpenseTrendChart extends StatefulWidget {
     required this.points,
     required this.currency,
     required this.granularity,
+    this.onSelection,
     this.height = 285,
     super.key,
   });
   final List<OverviewTrendPoint> points;
   final String currency;
   final OverviewTrendGranularity granularity;
+  final ValueChanged<OverviewTrendSelection>? onSelection;
   final double height;
   @override
   State<OverviewExpenseTrendChart> createState() =>
@@ -24,9 +26,20 @@ class OverviewExpenseTrendChart extends StatefulWidget {
 
 class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
   int? _hoveredIndex;
+  int? _selectedIndex;
+
+  @override
+  void didUpdateWidget(covariant OverviewExpenseTrendChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.points != widget.points ||
+        oldWidget.granularity != widget.granularity) {
+      _hoveredIndex = null;
+      _selectedIndex = null;
+    }
+  }
+
   List<OverviewTrendPoint> get _visiblePoints {
-    if (widget.granularity == OverviewTrendGranularity.days ||
-        widget.points.length <= 8) {
+    if (widget.granularity == OverviewTrendGranularity.days) {
       return widget.points;
     }
     final values = <OverviewTrendPoint>[];
@@ -69,7 +82,10 @@ class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
                       widget.currency,
                       scaler,
                     );
-                    final selected = _hoveredIndex?.clamp(0, points.length - 1);
+                    final selected = (_hoveredIndex ?? _selectedIndex)?.clamp(
+                      0,
+                      points.length - 1,
+                    );
                     void select(Offset position) {
                       final index = geometry.indexAt(
                         position.dx,
@@ -95,9 +111,28 @@ class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
                                   constraints.maxWidth - tooltipWidth - 8,
                                 ),
                               );
-                    return Listener(
-                      onPointerDown: (event) => select(event.localPosition),
+                    return GestureDetector(
+                      key: const Key('overview-trend-hit-area'),
+                      behavior: HitTestBehavior.opaque,
+                      onTapUp: (event) {
+                        final index = geometry.indexAt(
+                          event.localPosition.dx,
+                          points.length,
+                        );
+                        setState(() => _selectedIndex = index);
+                        widget.onSelection?.call(
+                          overviewTrendSelection(
+                            points,
+                            widget.granularity,
+                            index,
+                            widget.points.first.date,
+                          ),
+                        );
+                      },
                       child: MouseRegion(
+                        cursor: widget.onSelection == null
+                            ? MouseCursor.defer
+                            : SystemMouseCursors.click,
                         onExit: (_) => setState(() => _hoveredIndex = null),
                         onHover: (event) => select(event.localPosition),
                         child: Stack(
@@ -136,6 +171,39 @@ class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
       ),
     );
   }
+}
+
+class OverviewTrendSelection {
+  const OverviewTrendSelection({
+    required this.from,
+    required this.through,
+    required this.cumulativeAmount,
+  });
+
+  final DateTime from;
+  final DateTime through;
+  final int cumulativeAmount;
+}
+
+/// Weekly points are cumulative samples; the selected interval begins after
+/// the preceding sample, not at the selected point alone.
+OverviewTrendSelection overviewTrendSelection(
+  List<OverviewTrendPoint> visiblePoints,
+  OverviewTrendGranularity granularity,
+  int index,
+  DateTime periodStart,
+) {
+  final point = visiblePoints[index];
+  final from = granularity == OverviewTrendGranularity.days || index == 0
+      ? (granularity == OverviewTrendGranularity.days
+            ? point.date
+            : periodStart)
+      : visiblePoints[index - 1].date.add(const Duration(days: 1));
+  return OverviewTrendSelection(
+    from: from,
+    through: point.date,
+    cumulativeAmount: point.amount,
+  );
 }
 
 /// Canvas margins and hit testing share exactly the same local geometry.
@@ -254,6 +322,11 @@ class _TrendTooltip extends StatelessWidget {
           style: QestoTypography.table.copyWith(
             color: context.qestoColors.negative,
           ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Нажмите, чтобы увидеть операции',
+          style: QestoTypography.metadata,
         ),
       ],
     ),

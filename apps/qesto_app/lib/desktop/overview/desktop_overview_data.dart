@@ -60,8 +60,9 @@ class DesktopOverviewData {
 
   factory DesktopOverviewData.build(
     BudgetController controller,
-    BudgetPeriod period,
-  ) {
+    BudgetPeriod period, {
+    int? flowCategoryLimit = 4,
+  }) {
     final transactions = controller.transactionsFor(period);
     final summary = controller.summaryFor(period);
     final expenses = math.max(0, summary.currentExpense);
@@ -127,6 +128,7 @@ class DesktopOverviewData {
         expenses: expenses,
         currency: period.currency,
         categorySpending: categorySpending,
+        categoryLimit: flowCategoryLimit,
       ),
       topExpenses: topExpenses.take(5).toList(growable: false),
       categoryBudgets: _categoryBudgets(controller, period, categorySpending),
@@ -269,6 +271,7 @@ class DesktopOverviewData {
     required int expenses,
     required String currency,
     required List<OverviewCategorySpend> categorySpending,
+    required int? categoryLimit,
   }) {
     if (income <= 0) return null;
 
@@ -287,26 +290,36 @@ class DesktopOverviewData {
     }
     final sortedSources = incomeGroups.entries.toList(growable: false)
       ..sort((left, right) => right.value.compareTo(left.value));
+    final incomeTransactions = transactions
+        .where(
+          (item) =>
+              controller.cashFlowTreatment(item) ==
+              CashFlowTreatment.externalInflow,
+        )
+        .toList(growable: false);
     final sources = <OverviewFlowNode>[];
     for (final entry in sortedSources.take(3)) {
+      final members = incomeTransactions
+          .where((item) => desktopTransactionTitle(item) == entry.key)
+          .toList(growable: false);
       sources.add(
         OverviewFlowNode(
           id: 'source-${entry.key}',
           label: entry.key,
           amount: entry.value,
           color: QestoColors.primary,
-          transactionCount: transactions
-              .where(
-                (item) =>
-                    controller.cashFlowTreatment(item) ==
-                        CashFlowTreatment.externalInflow &&
-                    desktopTransactionTitle(item) == entry.key,
-              )
-              .length,
+          transactionCount: members.length,
+          transactionIds: members
+              .map((item) => item.id)
+              .toList(growable: false),
         ),
       );
     }
     if (sortedSources.length > 3) {
+      final otherTitles = sortedSources.skip(3).map((item) => item.key).toSet();
+      final members = incomeTransactions
+          .where((item) => otherTitles.contains(desktopTransactionTitle(item)))
+          .toList(growable: false);
       sources.add(
         OverviewFlowNode(
           id: 'source-other',
@@ -315,7 +328,10 @@ class DesktopOverviewData {
               .skip(3)
               .fold<int>(0, (sum, item) => sum + item.value),
           color: QestoColors.purple,
-          transactionCount: sortedSources.length - 3,
+          transactionCount: members.length,
+          transactionIds: members
+              .map((item) => item.id)
+              .toList(growable: false),
         ),
       );
     }
@@ -342,7 +358,9 @@ class DesktopOverviewData {
     }
 
     final categories = <OverviewFlowBranch>[];
-    final visibleSpending = categorySpending.take(4).toList(growable: false);
+    final visibleSpending = categoryLimit == null
+        ? categorySpending
+        : categorySpending.take(categoryLimit).toList(growable: false);
     for (final category in visibleSpending) {
       categories.add(
         OverviewFlowBranch(
@@ -351,12 +369,17 @@ class DesktopOverviewData {
           amount: category.amount,
           color: category.color,
           iconKey: category.iconKey,
+          transactionIds: category.transactions
+              .map((item) => item.id)
+              .toList(growable: false),
           destinations: _destinations(category.transactions, category.amount),
         ),
       );
     }
-    if (categorySpending.length > 4) {
-      final hidden = categorySpending.skip(4).toList(growable: false);
+    if (categoryLimit != null && categorySpending.length > categoryLimit) {
+      final hidden = categorySpending
+          .skip(categoryLimit)
+          .toList(growable: false);
       final hiddenTransactions = hidden
           .expand((item) => item.transactions)
           .toList(growable: false);
@@ -366,11 +389,14 @@ class DesktopOverviewData {
       );
       categories.add(
         OverviewFlowBranch(
-          id: 'other',
-          label: 'Прочее',
+          id: '__other_expenses_aggregate',
+          label: 'Другие расходы',
           amount: hiddenAmount,
           color: const Color(0xFF59C3B5),
           iconKey: 'category',
+          transactionIds: hiddenTransactions
+              .map((item) => item.id)
+              .toList(growable: false),
           destinations: _destinations(hiddenTransactions, hiddenAmount),
         ),
       );
@@ -390,6 +416,9 @@ class DesktopOverviewData {
           amount: allocations,
           color: QestoColors.positive,
           iconKey: 'savings',
+          transactionIds: allocationTransactions
+              .map((item) => item.id)
+              .toList(growable: false),
           destinations: _destinations(allocationTransactions, allocations),
         ),
       );
@@ -454,6 +483,7 @@ class DesktopOverviewData {
           amount: visibleAmount,
           color: QestoColors.secondaryText,
           transactionCount: 1,
+          transactionIds: [transaction.id],
         ),
       );
       shown += visibleAmount;
@@ -467,6 +497,10 @@ class DesktopOverviewData {
           amount: remainder,
           color: QestoColors.secondaryText,
           transactionCount: math.max(0, transactions.length - 3),
+          transactionIds: sorted
+              .skip(3)
+              .map((item) => item.id)
+              .toList(growable: false),
         ),
       );
     }
@@ -550,6 +584,7 @@ class OverviewFlowNode {
     required this.amount,
     required this.color,
     required this.transactionCount,
+    this.transactionIds = const [],
   });
 
   final String id;
@@ -557,6 +592,7 @@ class OverviewFlowNode {
   final int amount;
   final Color color;
   final int transactionCount;
+  final List<String> transactionIds;
 }
 
 class OverviewFlowBranch {
@@ -567,6 +603,7 @@ class OverviewFlowBranch {
     required this.color,
     required this.iconKey,
     required this.destinations,
+    this.transactionIds = const [],
   });
 
   final String id;
@@ -575,6 +612,7 @@ class OverviewFlowBranch {
   final Color color;
   final String iconKey;
   final List<OverviewFlowNode> destinations;
+  final List<String> transactionIds;
 }
 
 extension<T> on Iterable<T> {
