@@ -43,7 +43,7 @@ dependencies:
   # Flutter API and must not be bypassable by page JavaScript.
   webview_cef:
     path: packages/webview_cef
-  html: ^0.15.6
+  html: ^0.15.7
   http: ^1.6.0
   pdf_document: ^3.5.0
   pdf_graphics: ^3.5.0
