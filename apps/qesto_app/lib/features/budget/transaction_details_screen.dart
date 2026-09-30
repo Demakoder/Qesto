@@ -121,7 +121,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             child: Column(
               children: [
                 Text(
-                  transaction.type == TransactionType.refund
+                  transaction.type == TransactionType.income
+                      ? 'Доход'
+                      : transaction.type == TransactionType.refund
                       ? 'Возврат'
                       : 'Расход',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -131,7 +133,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                 const SizedBox(height: 8),
                 AmountText(
                   formatMoney(transaction.amount, transaction.currency),
-                  color: transaction.type == TransactionType.refund
+                  color:
+                      transaction.type == TransactionType.refund ||
+                          transaction.type == TransactionType.income
                       ? context.qestoColors.green
                       : context.qestoColors.text,
                 ),
@@ -149,7 +153,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                   value: transaction.subcategoryId ?? 'Не указана',
                 ),
                 _DetailRow(
-                  label: 'Продавец',
+                  label: transaction.type == TransactionType.income
+                      ? 'Источник'
+                      : 'Продавец',
                   value:
                       transaction.merchant ?? transaction.title ?? 'Не указан',
                 ),

@@ -87,6 +87,7 @@ class DesktopKpiCard extends StatelessWidget {
     this.detail,
     this.detailColor,
     this.accent,
+    this.onTap,
     super.key,
   });
 
@@ -96,11 +97,13 @@ class DesktopKpiCard extends StatelessWidget {
   final Color? detailColor;
   final IconData icon;
   final Color? accent;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final accent = this.accent ?? context.qestoColors.primary;
     return DesktopCard(
+      onTap: onTap,
       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -389,25 +389,21 @@ void main() {
     await tester.ensureVisible(category);
     await tester.tap(category);
     await tester.pumpAndSettle();
-    expect(find.text('Категория за выбранный период'), findsOneWidget);
+    expect(find.byKey(const Key('category-chart')), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.byKey(const Key('overview-merchant-donut')),
+      find.text('Продавцы категории'),
       180,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('overview-merchant-donut')), findsOneWidget);
-    expect(find.byKey(const Key('overview-merchant-bars')), findsOneWidget);
+    expect(find.text('Продавцы категории'), findsOneWidget);
     await tester.scrollUntilVisible(
-      find.byKey(const Key('overview-drilldown-transaction-jul-g3')),
+      find.byKey(const Key('category-operation-jul-g3')),
       180,
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
-    expect(
-      find.byKey(const Key('overview-drilldown-transaction-jul-g3')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('category-operation-jul-g3')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

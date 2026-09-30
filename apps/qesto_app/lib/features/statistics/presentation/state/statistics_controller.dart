@@ -246,7 +246,8 @@ class StatisticsController extends ChangeNotifier {
           .where(
             (item) =>
                 item.categoryId == categoryId &&
-                calculationService.isConsumerExpense(item),
+                (calculationService.isConsumerExpense(item) ||
+                    item.type == TransactionType.income),
           )
           .toList()
         ..sort((a, b) => b.date.compareTo(a.date));
