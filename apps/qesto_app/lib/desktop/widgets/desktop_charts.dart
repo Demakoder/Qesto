@@ -370,11 +370,13 @@ class CashFlowBarChart extends StatefulWidget {
   const CashFlowBarChart({
     required this.points,
     required this.currency,
+    this.onPointTap,
     super.key,
   });
 
   final List<DesktopCashFlowPoint> points;
   final String currency;
+  final ValueChanged<int>? onPointTap;
 
   @override
   State<CashFlowBarChart> createState() => _CashFlowBarChartState();
@@ -387,6 +389,9 @@ class _CashFlowBarChartState extends State<CashFlowBarChart> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) => MouseRegion(
+        cursor: widget.onPointTap == null
+            ? SystemMouseCursors.basic
+            : SystemMouseCursors.click,
         onExit: (_) => setState(() => _hoveredIndex = null),
         onHover: (event) {
           if (widget.points.isEmpty) return;
@@ -402,60 +407,78 @@ class _CashFlowBarChartState extends State<CashFlowBarChart> {
                   .clamp(0, widget.points.length - 1);
           if (_hoveredIndex != index) setState(() => _hoveredIndex = index);
         },
-        child: SizedBox(
-          height: 230,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _CashFlowPainter(
-                    c: context.qestoColors,
-                    points: widget.points,
-                    hoveredIndex: _hoveredIndex,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapUp: widget.onPointTap == null || widget.points.isEmpty
+              ? null
+              : (details) {
+                  final x = (details.localPosition.dx - 44).clamp(
+                    0,
+                    math.max(1, constraints.maxWidth - 56),
+                  );
+                  final index =
+                      (x /
+                              math.max(1, constraints.maxWidth - 56) *
+                              widget.points.length)
+                          .floor()
+                          .clamp(0, widget.points.length - 1);
+                  widget.onPointTap!(index);
+                },
+          child: SizedBox(
+            height: 230,
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: _CashFlowPainter(
+                      c: context.qestoColors,
+                      points: widget.points,
+                      hoveredIndex: _hoveredIndex,
+                    ),
                   ),
                 ),
-              ),
-              if (_hoveredIndex case final index?)
-                Positioned(
-                  top: 7,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(9),
-                    decoration: BoxDecoration(
-                      color: context.qestoColors.chartTooltip,
-                      borderRadius: QestoGeometry.control,
-                    ),
-                    child: DefaultTextStyle(
-                      style: TextStyle(
-                        fontFamily: QestoTypography.uiFamily,
-                        color: context.qestoColors.text,
-                        fontSize: 10,
+                if (_hoveredIndex case final index?)
+                  Positioned(
+                    top: 7,
+                    right: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: context.qestoColors.chartTooltip,
+                        borderRadius: QestoGeometry.control,
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.points[index].label,
-                            style: const TextStyle(
-                              fontFamily: QestoTypography.uiFamily,
-                              fontWeight: FontWeight.w800,
+                      child: DefaultTextStyle(
+                        style: TextStyle(
+                          fontFamily: QestoTypography.uiFamily,
+                          color: context.qestoColors.text,
+                          fontSize: 10,
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              widget.points[index].label,
+                              style: const TextStyle(
+                                fontFamily: QestoTypography.uiFamily,
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Доходы: ${formatMoney(widget.points[index].income, widget.currency)}',
-                          ),
-                          Text(
-                            'Расходы: ${formatMoney(widget.points[index].expenses, widget.currency)}',
-                          ),
-                          Text(
-                            'Итого: ${formatMoney(widget.points[index].net, widget.currency, showSign: true)}',
-                          ),
-                        ],
+                            Text(
+                              'Доходы: ${formatMoney(widget.points[index].income, widget.currency)}',
+                            ),
+                            Text(
+                              'Расходы: ${formatMoney(widget.points[index].expenses, widget.currency)}',
+                            ),
+                            Text(
+                              'Итого: ${formatMoney(widget.points[index].net, widget.currency, showSign: true)}',
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ),

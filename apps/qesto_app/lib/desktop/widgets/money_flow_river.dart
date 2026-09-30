@@ -43,6 +43,7 @@ class MoneyFlowRiver extends StatefulWidget {
     required this.categories,
     required this.currency,
     this.hideAmounts = false,
+    this.onNodeTap,
     super.key,
   });
 
@@ -51,6 +52,7 @@ class MoneyFlowRiver extends StatefulWidget {
   final List<MoneyFlowCategory> categories;
   final String currency;
   final bool hideAmounts;
+  final ValueChanged<String>? onNodeTap;
 
   @override
   State<MoneyFlowRiver> createState() => _MoneyFlowRiverState();
@@ -97,7 +99,16 @@ class _MoneyFlowRiverState extends State<MoneyFlowRiver> {
                   .lastOrNull;
               setState(() => _hoveredId = hit?.id);
             },
+            onPointerUp: (event) {
+              final hit = layout.hits
+                  .where((item) => item.hitRect.contains(event.localPosition))
+                  .lastOrNull;
+              if (hit != null) widget.onNodeTap?.call(hit.id);
+            },
             child: MouseRegion(
+              cursor: widget.onNodeTap == null
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.click,
               onExit: (_) => setState(() => _hoveredId = null),
               onHover: (event) {
                 final hit = layout.hits

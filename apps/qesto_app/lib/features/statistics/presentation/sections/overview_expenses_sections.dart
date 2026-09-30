@@ -7,6 +7,7 @@ import '../../../../core/theme/qesto_theme.dart';
 import '../../../../core/widgets/qesto_card.dart';
 import '../../../../core/widgets/states.dart';
 import '../../../../data/models/qesto_models.dart';
+import '../../../budget/transaction_details_screen.dart';
 import '../../../../desktop/widgets/desktop_components.dart';
 import '../../../profile/services/cbr_currency_service.dart';
 import '../../domain/models/statistics_models.dart';
@@ -275,7 +276,7 @@ class _ExpensesStatisticsSectionState extends State<ExpensesStatisticsSection> {
         ),
         const SizedBox(height: 16),
         _AmountBucketsCard(
-          snapshot: snapshot,
+          controller: controller,
           currency: _currency,
           amountConverter: _convert,
         ),
@@ -599,21 +600,25 @@ class _LargePurchasesCard extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _LegendAmount(
+            key: const Key('ordinary-purchases-legend'),
             color: context.qestoColors.primary,
             label: 'Обычные',
             amount: ordinary,
             share: ordinary / total,
             currency: currency,
             amountConverter: amountConverter,
+            onTap: () => _openPurchases(context, large: false),
           ),
           const SizedBox(height: 8),
           _LegendAmount(
+            key: const Key('large-purchases-legend'),
             color: context.qestoColors.orange,
             label: 'Крупные',
             amount: largeAmount,
             share: largeAmount / total,
             currency: currency,
             amountConverter: amountConverter,
+            onTap: () => _openPurchases(context, large: true),
           ),
           const SizedBox(height: 12),
           Text(
@@ -621,6 +626,36 @@ class _LargePurchasesCard extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
+      ),
+    );
+  }
+
+  void _openPurchases(BuildContext context, {required bool large}) {
+    List<BudgetTransaction> select(StatisticsController statistics) {
+      final all = statistics.snapshot.transactions;
+      return all
+          .where(
+            (item) =>
+                statistics.calculationService.isConsumerExpense(item) &&
+                statistics.calculationService.signedExpense(item) > 0 &&
+                (item.type == TransactionType.expense &&
+                        statistics.calculationService.isLargePurchase(
+                          item,
+                          all,
+                        )) ==
+                    large,
+          )
+          .toList();
+    }
+
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StatisticsOperationsScreen(
+          controller: controller,
+          title: large ? 'Крупные покупки' : 'Обычные покупки',
+          transactions: select(controller),
+          transactionSelector: select,
+        ),
       ),
     );
   }
@@ -634,6 +669,8 @@ class _LegendAmount extends StatelessWidget {
     required this.share,
     this.currency = 'RUB',
     this.amountConverter,
+    this.onTap,
+    super.key,
   });
   final Color color;
   final String label;
@@ -641,37 +678,43 @@ class _LegendAmount extends StatelessWidget {
   final double share;
   final String currency;
   final int Function(int amount)? amountConverter;
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      Container(
-        width: 10,
-        height: 10,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      ),
-      const SizedBox(width: 8),
-      Expanded(child: Text(label)),
-      Text(
-        '${formatMoney(amountConverter?.call(amount) ?? amount, currency)} · ${(share * 100).round()}%',
-        style: const TextStyle(fontWeight: FontWeight.w700),
-      ),
-    ],
+  Widget build(BuildContext context) => InkWell(
+    onTap: onTap,
+    borderRadius: QestoGeometry.control,
+    child: Row(
+      children: [
+        Container(
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label)),
+        Text(
+          '${formatMoney(amountConverter?.call(amount) ?? amount, currency)} · ${(share * 100).round()}%',
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ],
+    ),
   );
 }
 
 class _AmountBucketsCard extends StatelessWidget {
   const _AmountBucketsCard({
-    required this.snapshot,
+    required this.controller,
     this.currency = 'RUB',
     this.amountConverter,
   });
-  final StatisticsSnapshot snapshot;
+  final StatisticsController controller;
   final String currency;
   final int Function(int amount)? amountConverter;
 
   @override
   Widget build(BuildContext context) {
+    final snapshot = controller.snapshot;
     final maxCount = snapshot.buckets.fold<int>(
       1,
       (value, item) => math.max(value, item.count),
@@ -681,38 +724,43 @@ class _AmountBucketsCard extends StatelessWidget {
         children: [
           const StatisticsSectionHeader(title: 'Покупки по сумме'),
           const SizedBox(height: 10),
-          for (final bucket in snapshot.buckets)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 7),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 108,
-                    child: Text(
-                      bucket.label,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
-                      child: LinearProgressIndicator(
-                        value: bucket.count / maxCount,
-                        minHeight: 8,
-                        backgroundColor: context.qestoColors.border,
+          for (var index = 0; index < snapshot.buckets.length; index++)
+            InkWell(
+              key: Key('amount-bucket-$index'),
+              onTap: () => _openBucket(context, index),
+              borderRadius: QestoGeometry.control,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 7),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 108,
+                      child: Text(
+                        snapshot.buckets[index].label,
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 32,
-                    child: Text(
-                      '${bucket.count}',
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(5),
+                        child: LinearProgressIndicator(
+                          value: snapshot.buckets[index].count / maxCount,
+                          minHeight: 8,
+                          backgroundColor: context.qestoColors.border,
+                        ),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 32,
+                      child: Text(
+                        '${snapshot.buckets[index].count}',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           const SizedBox(height: 8),
@@ -722,6 +770,30 @@ class _AmountBucketsCard extends StatelessWidget {
                 : '${snapshot.buckets.first.count} покупок дешевле ${formatMoney(amountConverter?.call(300) ?? 300, currency)} составили ${formatMoney(amountConverter?.call(snapshot.buckets.first.amount) ?? snapshot.buckets.first.amount, currency)}',
           ),
         ],
+      ),
+    );
+  }
+
+  void _openBucket(BuildContext context, int index) {
+    const bounds = [0, 300, 1000, 3000, 10000];
+    final lower = bounds[index];
+    final upper = index + 1 < bounds.length ? bounds[index + 1] : null;
+    List<BudgetTransaction> select(StatisticsController statistics) =>
+        statistics.snapshot.transactions.where((item) {
+          final amount = statistics.calculationService.signedExpense(item);
+          return statistics.calculationService.isConsumerExpense(item) &&
+              amount > 0 &&
+              amount >= lower &&
+              (upper == null || amount < upper);
+        }).toList();
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => StatisticsOperationsScreen(
+          controller: controller,
+          title: 'Покупки ${controller.snapshot.buckets[index].label}',
+          transactions: select(controller),
+          transactionSelector: select,
+        ),
       ),
     );
   }
@@ -766,13 +838,14 @@ class _LargestTransactionsCard extends StatelessWidget {
           const SizedBox(height: 8),
           for (final transaction in items)
             ListTile(
+              key: Key('largest-operation-${transaction.id}'),
               contentPadding: EdgeInsets.zero,
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute<void>(
-                  builder: (_) => StatisticsOperationsScreen(
-                    controller: controller,
-                    title: transaction.title ?? 'Операция',
-                    transactions: [transaction],
+                  builder: (_) => TransactionDetailsScreen(
+                    controller: controller.budgetController,
+                    period: controller.periodFor(transaction),
+                    transactionId: transaction.id,
                   ),
                 ),
               ),

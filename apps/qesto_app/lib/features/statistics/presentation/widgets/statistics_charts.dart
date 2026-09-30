@@ -16,6 +16,8 @@ class StatisticsLineChartCard extends StatefulWidget {
     this.cumulative = true,
     this.currency = 'RUB',
     this.amountConverter,
+    this.selectedDate,
+    this.onDaySelected,
     super.key,
   });
 
@@ -25,6 +27,8 @@ class StatisticsLineChartCard extends StatefulWidget {
   final bool cumulative;
   final String currency;
   final int Function(int amount)? amountConverter;
+  final DateTime? selectedDate;
+  final ValueChanged<DateTime>? onDaySelected;
 
   @override
   State<StatisticsLineChartCard> createState() =>
@@ -37,16 +41,25 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
   void _select(Offset position, double width) {
     if (widget.points.isEmpty) return;
     final fraction = (position.dx / math.max(width, 1)).clamp(0.0, 1.0);
-    setState(
-      () => selectedIndex = (fraction * (widget.points.length - 1)).round(),
-    );
+    final index = (fraction * (widget.points.length - 1)).round();
+    if (widget.onDaySelected case final onDaySelected?) {
+      onDaySelected(widget.points[index].date);
+    } else {
+      setState(() => selectedIndex = index);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final selected = selectedIndex == null || widget.points.isEmpty
+    final activeIndex = widget.onDaySelected == null
+        ? selectedIndex
+        : widget.points.indexWhere(
+            (point) => DateUtils.isSameDay(point.date, widget.selectedDate),
+          );
+    final selected =
+        activeIndex == null || activeIndex < 0 || widget.points.isEmpty
         ? null
-        : widget.points[selectedIndex!.clamp(0, widget.points.length - 1)];
+        : widget.points[activeIndex.clamp(0, widget.points.length - 1)];
     final endValue = widget.points.isEmpty
         ? 0
         : widget.cumulative
@@ -91,7 +104,9 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
                       points: widget.points,
                       comparison: widget.comparison,
                       cumulative: widget.cumulative,
-                      selectedIndex: selectedIndex,
+                      selectedIndex: activeIndex != null && activeIndex >= 0
+                          ? activeIndex
+                          : null,
                       currency: widget.currency,
                       amountConverter: widget.amountConverter,
                     ),
@@ -116,7 +131,9 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
                       borderRadius: QestoGeometry.control,
                     ),
                     child: Text(
-                      '${formatDate(selected.date, includeYear: true)} · ${formatMoney(_amount(widget.cumulative ? selected.cumulative : selected.amount), widget.currency)} · ${selected.count} операций',
+                      widget.onDaySelected == null
+                          ? '${formatDate(selected.date, includeYear: true)} · ${formatMoney(_amount(widget.cumulative ? selected.cumulative : selected.amount), widget.currency)} · ${selected.count} операций'
+                          : '${formatDate(selected.date, includeYear: true)} · за день ${formatMoney(_amount(selected.amount), widget.currency)} · ${selected.count} операций',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                   ),

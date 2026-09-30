@@ -7,6 +7,9 @@ import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/budget/services/cash_flow_calculation_service.dart';
+import '../../features/statistics/presentation/screens/budget_transaction_drilldown_screen.dart';
+import '../../features/statistics/presentation/screens/statistics_drilldown_screens.dart';
+import '../../features/statistics/presentation/state/statistics_controller.dart';
 import '../desktop_financial_helpers.dart';
 import '../widgets/desktop_charts.dart';
 import '../widgets/desktop_components.dart';
@@ -85,6 +88,9 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                   final cards = [
                     DesktopKpiCard(
                       label: 'Чистый поток',
+                      onTap: _hideAmounts
+                          ? null
+                          : () => _openNet('Чистый денежный поток', periods),
                       value: _money(net, currency, showSign: true),
                       detail: net >= 0
                           ? 'Деньги остались в системе'
@@ -99,6 +105,13 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                     ),
                     DesktopKpiCard(
                       label: 'Доходы',
+                      onTap: _hideAmounts
+                          ? null
+                          : () => _openTreatment(
+                              'Доходы',
+                              periods,
+                              CashFlowTreatment.externalInflow,
+                            ),
                       value: _money(totalIncome, currency),
                       detail: '${periods.length} мес. наблюдения',
                       icon: Icons.south_west_rounded,
@@ -106,6 +119,13 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                     ),
                     DesktopKpiCard(
                       label: 'Расходы',
+                      onTap: _hideAmounts
+                          ? null
+                          : () => _openTreatment(
+                              'Расходы',
+                              periods,
+                              CashFlowTreatment.externalOutflow,
+                            ),
                       value: _money(totalExpenses, currency),
                       detail: expenseChange == null
                           ? 'Нет прошлого периода для сравнения'
@@ -120,6 +140,12 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                     ),
                     DesktopKpiCard(
                       label: 'Норма накопления',
+                      onTap: _hideAmounts
+                          ? null
+                          : () => _openNet(
+                              'Норма накопления · доходы и расходы',
+                              periods,
+                            ),
                       value: totalIncome <= 0
                           ? '—'
                           : '${(savingsRate * 100).toStringAsFixed(1)}%',
@@ -171,6 +197,9 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                       categories: river,
                       currency: currency,
                       hideAmounts: _hideAmounts,
+                      onNodeTap: _hideAmounts
+                          ? null
+                          : (id) => _openRiverNode(id, river, periods),
                     ),
                   ],
                 ),
@@ -185,7 +214,13 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                           'Положительные столбцы — свободный остаток, отрицательные — дефицит месяца',
                     ),
                     const SizedBox(height: 14),
-                    CashFlowBarChart(points: points, currency: currency),
+                    CashFlowBarChart(
+                      points: points,
+                      currency: currency,
+                      onPointTap: _hideAmounts
+                          ? null
+                          : (index) => _openCashFlowPeriod(periods[index]),
+                    ),
                   ],
                 ),
               ),
@@ -199,6 +234,20 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                     values: _groupedIncome(transactions),
                     currency: currency,
                     hideAmounts: _hideAmounts,
+                    onSelected: _hideAmounts
+                        ? null
+                        : (name) => _openDrilldown(
+                            name,
+                            periods,
+                            (budget) => budget.transactions
+                                .where(
+                                  (item) =>
+                                      budget.cashFlowTreatment(item) ==
+                                          CashFlowTreatment.externalInflow &&
+                                      desktopTransactionTitle(item) == name,
+                                )
+                                .toList(),
+                          ),
                   );
                   final expenses = _FlowBreakdownCard(
                     title: 'Категории расходов',
@@ -206,6 +255,9 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
                     values: _groupedExpenses(transactions),
                     currency: currency,
                     hideAmounts: _hideAmounts,
+                    onSelected: _hideAmounts
+                        ? null
+                        : (name) => _openExpenseCategory(name, periods),
                   );
                   if (stacked) {
                     return Column(
@@ -232,6 +284,193 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
   String _money(int value, String currency, {bool showSign = false}) =>
       _hideAmounts ? '••••' : formatMoney(value, currency, showSign: showSign);
 
+  void _openDrilldown(
+    String title,
+    List<BudgetPeriod> periods,
+    List<BudgetTransaction> Function(BudgetController) select, {
+    bool splitCashFlow = false,
+  }) {
+    if (periods.isEmpty) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => BudgetTransactionDrilldownScreen(
+          controller: widget.controller,
+          title: title,
+          selectTransactions: select,
+          from: periods.first.startDate,
+          to: periods.last.endDate,
+          splitCashFlow: splitCashFlow,
+        ),
+      ),
+    );
+  }
+
+  void _openCashFlowPeriod(BudgetPeriod period) => _openDrilldown(
+    'Денежный поток · ${formatBudgetPeriod(period.month, period.year)}',
+    [period],
+    (budget) => budget.transactions.where((item) {
+      final treatment = budget.cashFlowTreatment(item);
+      return treatment == CashFlowTreatment.externalInflow ||
+          treatment == CashFlowTreatment.externalOutflow;
+    }).toList(),
+    splitCashFlow: true,
+  );
+
+  void _openTreatment(
+    String title,
+    List<BudgetPeriod> periods,
+    CashFlowTreatment treatment,
+  ) => _openDrilldown(
+    title,
+    periods,
+    (budget) => budget.transactions
+        .where((item) => budget.cashFlowTreatment(item) == treatment)
+        .toList(),
+  );
+
+  void _openNet(String title, List<BudgetPeriod> periods) => _openDrilldown(
+    title,
+    periods,
+    (budget) => budget.transactions.where((item) {
+      final treatment = budget.cashFlowTreatment(item);
+      return treatment == CashFlowTreatment.externalInflow ||
+          treatment == CashFlowTreatment.externalOutflow;
+    }).toList(),
+    splitCashFlow: true,
+  );
+
+  void _openExpenseCategory(String name, List<BudgetPeriod> periods) {
+    final matches = widget.controller.categories
+        .where((item) => item.name == name || item.shortName == name)
+        .toList(growable: false);
+    if (matches.length == 1) {
+      _openCategoryDetails(matches.single.id, periods);
+      return;
+    }
+    _openDrilldown(
+      name,
+      periods,
+      (budget) => budget.transactions
+          .where(
+            (item) =>
+                budget.cashFlowTreatment(item) ==
+                    CashFlowTreatment.externalOutflow &&
+                desktopCategoryName(budget, item) == name,
+          )
+          .toList(),
+    );
+  }
+
+  void _openCategoryDetails(String categoryId, List<BudgetPeriod> periods) {
+    if (periods.isEmpty) return;
+    final from = periods.first.startDate;
+    final to = periods.last.endDate;
+    final statistics = StatisticsController(
+      budgetController: widget.controller,
+    );
+    statistics.setCustomPeriod(from, to);
+    Navigator.of(context)
+        .push(
+          MaterialPageRoute<void>(
+            builder: (_) => StatisticsCategoryScreen(
+              controller: statistics,
+              categoryId: categoryId,
+              transactionSelector: (budget) =>
+                  budget.transactions.where((item) {
+                    final day = DateUtils.dateOnly(item.date);
+                    return !day.isBefore(from) &&
+                        !day.isAfter(to) &&
+                        item.categoryId == categoryId &&
+                        budget.cashFlowTreatment(item) ==
+                            CashFlowTreatment.externalOutflow;
+                  }).toList(),
+            ),
+          ),
+        )
+        .whenComplete(statistics.dispose);
+  }
+
+  void _openRiverNode(
+    String id,
+    List<MoneyFlowCategory> river,
+    List<BudgetPeriod> periods,
+  ) {
+    if (id == 'root' ||
+        id == 'category-__remainder' ||
+        id.startsWith('purchase-__remainder-')) {
+      _openDrilldown(
+        id == 'root' ? 'Общий денежный поток' : 'Доходы сверх расходов',
+        periods,
+        (budget) => budget.transactions.where((item) {
+          final treatment = budget.cashFlowTreatment(item);
+          return treatment == CashFlowTreatment.externalInflow ||
+              treatment == CashFlowTreatment.externalOutflow;
+        }).toList(),
+        splitCashFlow: true,
+      );
+      return;
+    }
+    final category = river
+        .where(
+          (item) =>
+              id == 'category-${item.id}' ||
+              id.startsWith('purchase-${item.id}-'),
+        )
+        .firstOrNull;
+    if (category == null) return;
+    final purchaseIndex = id.startsWith('purchase-${category.id}-')
+        ? int.tryParse(id.substring('purchase-${category.id}-'.length))
+        : null;
+    final purchase =
+        purchaseIndex != null &&
+            purchaseIndex >= 0 &&
+            purchaseIndex < category.purchases.length
+        ? category.purchases[purchaseIndex]
+        : null;
+    if (purchase == null &&
+        widget.controller.categories.any((item) => item.id == category.id)) {
+      _openCategoryDetails(category.id, periods);
+      return;
+    }
+    _openDrilldown(purchase?.label ?? category.label, periods, (budget) {
+      final from = periods.first.startDate;
+      final to = periods.last.endDate;
+      final outflows = budget.transactions.where((item) {
+        final day = DateUtils.dateOnly(item.date);
+        return !day.isBefore(from) &&
+            !day.isAfter(to) &&
+            budget.cashFlowTreatment(item) == CashFlowTreatment.externalOutflow;
+      }).toList();
+      final groups = <String, List<BudgetTransaction>>{};
+      for (final item in outflows) {
+        groups.putIfAbsent(_riverCategoryId(item), () => []).add(item);
+      }
+      final sorted = groups.entries.toList()
+        ..sort((a, b) => _sum(b.value).compareTo(_sum(a.value)));
+      final categoryRows = category.id == '__other_categories'
+          ? sorted.skip(5).expand((entry) => entry.value).toList()
+          : groups[category.id] ?? <BudgetTransaction>[];
+      if (purchase == null) return categoryRows;
+      final leading = category.purchases
+          .where((item) => item.label != 'Остальные операции')
+          .map((item) => item.label)
+          .toSet();
+      return categoryRows
+          .where(
+            (item) => purchase.label == 'Остальные операции'
+                ? !leading.contains(desktopTransactionTitle(item))
+                : desktopTransactionTitle(item) == purchase.label,
+          )
+          .toList();
+    });
+  }
+
+  String _riverCategoryId(BudgetTransaction item) => switch (item.type) {
+    TransactionType.savingsTransfer => '__savings',
+    TransactionType.investment => '__investment',
+    _ => item.categoryId ?? 'other',
+  };
+
   List<BudgetPeriod> _selectedPeriods() => widget.controller.periods.reversed
       .take(_monthCount)
       .toList()
@@ -243,7 +482,10 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
     final start = periods.first.startDate;
     final end = periods.last.endDate;
     return widget.controller.transactions
-        .where((item) => !item.date.isBefore(start) && !item.date.isAfter(end))
+        .where((item) {
+          final day = DateUtils.dateOnly(item.date);
+          return !day.isBefore(start) && !day.isAfter(end);
+        })
         .toList(growable: false);
   }
 
@@ -332,11 +574,7 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
           widget.controller.cashFlowTreatment(item) ==
           CashFlowTreatment.externalOutflow,
     )) {
-      final id = switch (transaction.type) {
-        TransactionType.savingsTransfer => '__savings',
-        TransactionType.investment => '__investment',
-        _ => transaction.categoryId ?? 'other',
-      };
+      final id = _riverCategoryId(transaction);
       groups.putIfAbsent(id, () => []).add(transaction);
     }
     final sorted = groups.entries.toList()
@@ -499,12 +737,14 @@ class _FlowBreakdownCard extends StatelessWidget {
     required this.values,
     required this.currency,
     required this.hideAmounts,
+    this.onSelected,
   });
   final String title;
   final Color color;
   final Map<String, int> values;
   final String currency;
   final bool hideAmounts;
+  final ValueChanged<String>? onSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -531,33 +771,43 @@ class _FlowBreakdownCard extends StatelessWidget {
               ),
             ),
           for (final entry in sorted.take(5)) ...[
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    entry.key,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+            InkWell(
+              key: Key('cash-flow-breakdown-${entry.key}'),
+              onTap: onSelected == null ? null : () => onSelected!(entry.key),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          entry.key,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        hideAmounts
+                            ? '••••'
+                            : formatMoney(entry.value, currency),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                Text(
-                  hideAmounts ? '••••' : formatMoney(entry.value, currency),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
+                  const SizedBox(height: 6),
+                  DesktopProgressBar(
+                    value: entry.value / maxValue,
+                    color: color,
+                    height: 5,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            DesktopProgressBar(
-              value: entry.value / maxValue,
-              color: color,
-              height: 5,
+                ],
+              ),
             ),
             const SizedBox(height: 12),
           ],

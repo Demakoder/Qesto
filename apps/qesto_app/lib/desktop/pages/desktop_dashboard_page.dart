@@ -7,6 +7,7 @@ import '../../core/theme/qesto_theme.dart';
 import '../../design_system/qesto_window.dart';
 import '../../design_system/qesto_expandable_tool.dart';
 import '../../data/models/qesto_models.dart';
+import '../../features/budget/category_details_screen.dart';
 import '../../features/budget/state/budget_controller.dart';
 import '../../features/budget/widgets/budget_category_icon.dart';
 import '../desktop_financial_helpers.dart';
@@ -120,6 +121,11 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
   }
 
   void _openFlowSelection(OverviewFlowSelection selection) {
+    if (selection.kind == OverviewFlowSelectionKind.category &&
+        widget.controller.categories.any((item) => item.id == selection.id)) {
+      _openCategoryDetails(selection.id);
+      return;
+    }
     showOverviewDrilldownPanel(
       context,
       controller: widget.controller,
@@ -148,6 +154,10 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
   }
 
   void _openCategory(OverviewCategoryBudgetRow category) {
+    if (widget.controller.categories.any((item) => item.id == category.id)) {
+      _openCategoryDetails(category.id);
+      return;
+    }
     showOverviewDrilldownPanel(
       context,
       controller: widget.controller,
@@ -158,6 +168,18 @@ class _DesktopDashboardPageState extends State<DesktopDashboardPage> {
       ),
       onOpenTransaction: widget.onOpenTransaction,
       onOpenTransactions: widget.onOpenFilteredTransactions,
+    );
+  }
+
+  void _openCategoryDetails(String id) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => CategoryDetailsScreen(
+          controller: widget.controller,
+          period: widget.period,
+          categoryId: id,
+        ),
+      ),
     );
   }
 
