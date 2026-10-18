@@ -8,7 +8,32 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../data/models/qesto_models.dart';
 import 'add_expense_screen.dart';
 import 'state/budget_controller.dart';
+import 'transaction_route_scope.dart';
 import '../classification/classification_actions.dart';
+
+/// Exact-ID dispatch: mobile routes through its retained origin stack;
+/// desktop continues to use the existing details presentation.
+void openTransactionDetails(
+  BuildContext context,
+  BudgetController controller,
+  BudgetPeriod period,
+  String id,
+) {
+  final mobile = TransactionRouteScope.of(context);
+  if (mobile != null) {
+    mobile.openTransaction(id);
+    return;
+  }
+  Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => TransactionDetailsScreen(
+        controller: controller,
+        period: period,
+        transactionId: id,
+      ),
+    ),
+  );
+}
 
 class TransactionDetailsScreen extends StatefulWidget {
   const TransactionDetailsScreen({
@@ -121,7 +146,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
             child: Column(
               children: [
                 Text(
-                  transaction.type == TransactionType.refund
+                  transaction.type == TransactionType.income
+                      ? 'Доход'
+                      : transaction.type == TransactionType.refund
                       ? 'Возврат'
                       : 'Расход',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -131,7 +158,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                 const SizedBox(height: 8),
                 AmountText(
                   formatMoney(transaction.amount, transaction.currency),
-                  color: transaction.type == TransactionType.refund
+                  color:
+                      transaction.type == TransactionType.refund ||
+                          transaction.type == TransactionType.income
                       ? context.qestoColors.green
                       : context.qestoColors.text,
                 ),
@@ -149,7 +178,9 @@ class _TransactionDetailsScreenState extends State<TransactionDetailsScreen> {
                   value: transaction.subcategoryId ?? 'Не указана',
                 ),
                 _DetailRow(
-                  label: 'Продавец',
+                  label: transaction.type == TransactionType.income
+                      ? 'Источник'
+                      : 'Продавец',
                   value:
                       transaction.merchant ?? transaction.title ?? 'Не указан',
                 ),

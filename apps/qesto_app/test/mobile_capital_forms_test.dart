@@ -26,23 +26,24 @@ void main() {
         FlutterError.dumpErrorToConsole(details, forceReport: true);
         handler(details);
       };
-      tester
-          .state<ScaffoldState>(find.byKey(const Key('mobile-app-shell')))
-          .openDrawer();
+      expect(find.byType(Drawer), findsNothing);
+      await tester.tap(find.byKey(const Key('mobile-root-capital')));
       await tester.pumpAndSettle();
-      final destination = find.byKey(Key('mobile-destination-$route'));
-      await tester.scrollUntilVisible(
-        destination,
-        250,
-        scrollable: find.descendant(
-          of: find.byType(Drawer),
-          matching: find.byType(Scrollable),
-        ),
-      );
-      await tester.ensureVisible(destination);
-      await tester.pumpAndSettle();
-      await tester.tap(destination);
-      await tester.pumpAndSettle();
+      if (route != 'liquidity') {
+        final destination = find.byKey(Key('mobile-destination-$route'));
+        await tester.scrollUntilVisible(
+          destination,
+          250,
+          scrollable: find
+              .byWidgetPredicate(
+                (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+              )
+              .last,
+        );
+        await tester.ensureVisible(destination);
+        await tester.tap(destination);
+        await tester.pumpAndSettle();
+      }
       final button = route == 'liquidity'
           ? find.text('Добавить счёт')
           : find.byKey(
@@ -52,7 +53,15 @@ void main() {
                 _ => 'investment-add-button',
               }),
             );
-      await tester.ensureVisible(button);
+      await tester.scrollUntilVisible(
+        button,
+        250,
+        scrollable: find
+            .byWidgetPredicate(
+              (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+            )
+            .last,
+      );
       await tester.tap(button);
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull, reason: 'editor $route');
@@ -81,7 +90,18 @@ void main() {
       await tester.enterText(find.byKey(Key(fields[0])), 'Мобильный тест');
       await tester.ensureVisible(find.byKey(Key(fields[1])));
       await tester.enterText(find.byKey(Key(fields[1])), '10000');
-      await tester.ensureVisible(find.byKey(Key(fields[2])));
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(Key(fields[2])),
+        300,
+        scrollable: find
+            .byWidgetPredicate(
+              (w) => w is Scrollable && w.axisDirection == AxisDirection.down,
+            )
+            .last,
+      );
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(Key(fields[2])));
       await tester.pumpAndSettle();
       final controller = tester

@@ -1,0 +1,15 @@
+name: qesto_synoball_core
+description: Shared, offline pure Dart Synoball financial ingestion and reconciliation.
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  # Existing Qesto dependency; preserves the current Dart SHA-256 identities.
+  cryptography: ^2.9.0
+
+dev_dependencies:
+  # Pure Dart regression/parity runner, not a production/runtime dependency.
+  test: ^1.31.0

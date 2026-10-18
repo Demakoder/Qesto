@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../core/formatters/qesto_formatters.dart';
@@ -6,8 +7,8 @@ import '../core/platform/qesto_command_line.dart';
 import '../core/theme/qesto_theme.dart';
 import '../data/models/qesto_models.dart';
 import '../features/budget/add_expense_screen.dart';
+import '../features/budget/transaction_editor_screen.dart';
 import '../features/budget/state/budget_controller.dart';
-import '../features/history/action_history_screen.dart';
 import '../features/bank_screenshot_import/presentation/bank_screenshot_import_screen.dart';
 import '../features/bank_browser/data/browser_profile_manager.dart';
 import '../features/bank_browser/sync/bank_sync_scheduler.dart';
@@ -22,6 +23,9 @@ import '../features/voice_input/domain/voice_transaction_draft_parser.dart';
 import '../features/voice_transaction/data/voice_speech_recognizer.dart';
 import '../features/voice_transaction/presentation/voice_transaction_confirmation_sheet.dart';
 import '../features/voice_transaction/services/voice_transaction_parser.dart';
+import '../mobile/adapters/mobile_page_adapters.dart';
+import '../mobile/mobile_app_shell.dart';
+import '../mobile/sources/mobile_source_attention_controller.dart';
 import 'desktop_destination.dart';
 import 'desktop_financial_helpers.dart';
 import 'pages/desktop_accounts_page.dart';
@@ -48,6 +52,8 @@ class DesktopAppShell extends StatefulWidget {
     required this.bankSyncScheduler,
     this.bankConnectionsAvailable = true,
     this.onOpenNotificationInbox,
+    this.notificationCaptureAvailable = false,
+    this.mobileSourceAttention,
     super.key,
   });
 
@@ -58,6 +64,8 @@ class DesktopAppShell extends StatefulWidget {
   final BankSyncScheduler bankSyncScheduler;
   final bool bankConnectionsAvailable;
   final Future<void> Function()? onOpenNotificationInbox;
+  final bool notificationCaptureAvailable;
+  final MobileSourceAttentionController? mobileSourceAttention;
 
   @override
   State<DesktopAppShell> createState() => _DesktopAppShellState();
@@ -73,8 +81,10 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   var _sidebarCollapsed = false;
   String? _dashboardPeriodId;
   String? _requestedTransactionId;
+  String? _requestedDebtId;
   List<String>? _requestedTransactionIds;
   var _transactionRequestSerial = 0;
+  final _mobileNavigation = GlobalKey<MobileAppShellState>();
 
   @override
   void initState() {
@@ -109,7 +119,9 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
         autofocus: true,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            if (constraints.maxWidth < 900) {
+            if (constraints.maxWidth < 900 ||
+                defaultTargetPlatform == TargetPlatform.android ||
+                defaultTargetPlatform == TargetPlatform.iOS) {
               return _mobileShell();
             }
             final forcedCollapsed = constraints.maxWidth < 1120;
@@ -185,167 +197,31 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   }
 
   Widget _mobileShell() {
-    final section = _destination.section;
-    final selectedIndex = section == null ? 0 : section.index + 1;
-    final destinations = DesktopDestination.values
-        .where((item) => section != null && item.section == section)
-        .toList();
-    return Scaffold(
-      key: const Key('mobile-app-shell'),
-      appBar: AppBar(
-        title: Text(_destination.label, style: const TextStyle(fontSize: 19)),
-        actions: [
-          IconButton(
-            tooltip: 'Поиск',
-            onPressed: _openGlobalSearch,
-            icon: const Icon(Icons.search_rounded),
-          ),
-          ListenableBuilder(
-            listenable: _statistics,
-            builder: (context, _) => Badge(
-              isLabelVisible: attentionTransactions(_statistics).isNotEmpty,
-              label: Text(
-                _badgeLabel(attentionTransactions(_statistics).length),
-              ),
-              child: IconButton(
-                tooltip: 'Уведомления',
-                onPressed: _openNotifications,
-                icon: const Icon(Icons.notifications_none_rounded),
-              ),
-            ),
-          ),
-          IconButton(
-            key: const Key('mobile-add-data'),
-            tooltip: 'Добавить данные',
-            onPressed: _openAddData,
-            icon: const Icon(Icons.add_circle_outline),
-          ),
-        ],
+    return MobileAppShell(
+      key: _mobileNavigation,
+      adapters: MobilePageAdapters(
+        controller: widget.controller,
+        legacyPageBuilder: _pageFor,
       ),
-      drawer: Drawer(
-        child: SafeArea(
-          child: ListView(
-            children: [
-              ListenableBuilder(
-                listenable: widget.controller,
-                builder: (context, _) => ListTile(
-                  title: Text(widget.controller.user.name),
-                  subtitle: Text(widget.controller.user.defaultCurrency),
-                  leading: const CircleAvatar(
-                    child: Icon(Icons.person_outline),
-                  ),
-                  onTap: () {
-                    Navigator.pop(context);
-                    _select(DesktopDestination.settings);
-                  },
-                ),
-              ),
-              const Divider(),
-              for (final item in [
-                DesktopDestination.dashboard,
-                DesktopDestination.insights,
-                ...DesktopDestination.values.where(
-                  (item) => item.section != null,
-                ),
-                DesktopDestination.settings,
-              ])
-                ListTile(
-                  key: Key('mobile-destination-${item.name}'),
-                  leading: Icon(item.icon),
-                  title: Text(item.label),
-                  subtitle: item.section == null
-                      ? null
-                      : Text(item.section!.label),
-                  selected: _destination == item,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _select(item);
-                  },
-                ),
-              ListTile(
-                key: const Key('action-history-button'),
-                leading: const Icon(Icons.history),
-                title: const Text('История действий'),
-                onTap: () {
-                  Navigator.pop(context);
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (_) =>
-                          ActionHistoryScreen(controller: widget.controller),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
+      overviewPeriod: _dashboardPeriod,
+      overviewPeriodLabel: capitalize(
+        formatBudgetPeriod(
+          _dashboardPeriod.month,
+          _dashboardPeriod.year,
+          includeYear: true,
         ),
       ),
-      body: SafeArea(
-        top: false,
-        child: Column(
-          children: [
-            if (_destination == DesktopDestination.dashboard)
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: TextButton.icon(
-                    onPressed: _chooseDashboardPeriod,
-                    icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                    label: Text(_periodLabel ?? 'Период'),
-                  ),
-                ),
-              ),
-            if (destinations.length > 1)
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                child: Row(
-                  children: [
-                    for (final item in destinations)
-                      Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ChoiceChip(
-                          key: Key('mobile-tab-${item.name}'),
-                          label: Text(item.label),
-                          selected: _destination == item,
-                          onSelected: (_) => _select(item),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            Expanded(
-              child: Theme(
-                data: Theme.of(context),
-                child: Material(
-                  color: context.qestoColors.background,
-                  child: _pageFor(_destination),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: selectedIndex,
-        onDestinationSelected: (index) => _select(
-          index == 0
-              ? DesktopDestination.dashboard
-              : DesktopProductSection.values[index - 1].landing,
-        ),
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.space_dashboard_outlined),
-            label: 'Обзор',
-          ),
-          for (final item in DesktopProductSection.values)
-            NavigationDestination(icon: Icon(item.icon), label: item.label),
-        ],
-      ),
+      onChooseOverviewPeriod: _chooseDashboardPeriod,
+      onAddData: _openAddData,
+      onSearch: _openGlobalSearch,
+      onNotifications: () =>
+          _mobileNavigation.currentState?.openAttention(_statistics),
+      onOpenInbox: _openNotificationInbox,
+      transactionAttention: _statistics,
+      transactionAttentionCount: () =>
+          attentionTransactions(_statistics).length,
+      sourceAttention: widget.mobileSourceAttention,
+      bankConnectionsAvailable: widget.bankConnectionsAvailable,
     );
   }
 
@@ -443,6 +319,7 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     ),
     DesktopDestination.recurring => DesktopRecurringPage(
       controller: widget.controller,
+      onOpenDebt: _openDebt,
     ),
     DesktopDestination.liquidity => DesktopAccountsPage(
       controller: widget.controller,
@@ -450,7 +327,11 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     DesktopDestination.investments => DesktopInvestmentsPage(
       controller: widget.controller,
     ),
-    DesktopDestination.debts => DesktopDebtsPage(controller: widget.controller),
+    DesktopDestination.debts => DesktopDebtsPage(
+      key: ValueKey(_requestedDebtId),
+      controller: widget.controller,
+      initialDebtId: _requestedDebtId,
+    ),
     DesktopDestination.goals => DesktopGoalsPage(controller: widget.controller),
     DesktopDestination.insights => DesktopInsightsPage(
       controller: widget.controller,
@@ -471,12 +352,17 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   };
 
   void _select(DesktopDestination destination) {
+    if (_mobileNavigation.currentState case final mobile?) {
+      mobile.openDestination(destination);
+      return;
+    }
     if (destination == DesktopDestination.connections &&
         !widget.bankConnectionsAvailable) {
       return;
     }
     setState(() {
       _destination = destination;
+      _requestedDebtId = null;
       if (destination != DesktopDestination.transactions) {
         _requestedTransactionId = null;
         _requestedTransactionIds = null;
@@ -488,7 +374,18 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     });
   }
 
+  void _openDebt(String id) {
+    setState(() {
+      _requestedDebtId = id;
+      _destination = DesktopDestination.debts;
+    });
+  }
+
   void _openTransaction(String id) {
+    if (_mobileNavigation.currentState case final mobile?) {
+      mobile.openTransaction(id);
+      return;
+    }
     setState(() {
       _destination = DesktopDestination.transactions;
       _requestedTransactionId = id;
@@ -498,6 +395,10 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
   }
 
   void _openFilteredTransactions(List<String> ids) {
+    if (_mobileNavigation.currentState case final mobile?) {
+      mobile.openFilteredTransactions(ids);
+      return;
+    }
     setState(() {
       _destination = DesktopDestination.transactions;
       _requestedTransactionId = null;
@@ -574,6 +475,47 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     if (action == null || !mounted) return;
     switch (action) {
       case _AddDataAction.manual:
+        if (_mobileNavigation.currentState != null) {
+          final c = widget.controller;
+          final draft = BudgetTransaction(
+            id: 'manual-${DateTime.now().microsecondsSinceEpoch}',
+            userId: c.user.id,
+            accountId:
+                c.accounts
+                    .where((a) => a.type != AccountType.liability)
+                    .firstOrNull
+                    ?.id ??
+                c.accounts.first.id,
+            date: c.referenceDate,
+            amount: 0,
+            currency: c.user.defaultCurrency,
+            type: TransactionType.expense,
+          );
+          await Navigator.of(context).push<BudgetTransaction>(
+            MaterialPageRoute<BudgetTransaction>(
+              settings: const RouteSettings(name: '/operations/new'),
+              builder: (_) => TransactionEditorScreen(
+                controller: c,
+                initialTransaction: draft,
+                draftOnly: true,
+                saveLabel: 'Добавить расход',
+                onSubmit: (value) => c.addExpense(
+                  period: c.periodForOrCreate(value.date),
+                  amount: value.amount,
+                  exactAmountMinor: value.amountMinor,
+                  transactionId: value.id,
+                  date: value.date,
+                  categoryId: value.categoryId!,
+                  accountId: value.accountId,
+                  title: value.merchant!,
+                  subcategoryId: value.subcategoryId,
+                  comment: value.comment,
+                ),
+              ),
+            ),
+          );
+          break;
+        }
         await Navigator.of(context).push<void>(
           MaterialPageRoute<void>(
             builder: (_) => AddExpenseScreen(
@@ -626,7 +568,11 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
         );
         if (count != null) _showMessage('Добавлено операций: $count');
       case _AddDataAction.account:
-        _select(DesktopDestination.liquidity);
+        if (_mobileNavigation.currentState case final mobile?) {
+          await mobile.createAccount();
+        } else {
+          _select(DesktopDestination.liquidity);
+        }
       case _AddDataAction.inbox:
         await _openNotifications();
     }
@@ -653,9 +599,9 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
         final added = await showVoiceTransactionConfirmation(
           context: context,
           controller: widget.controller,
-          period: widget.controller.periodForOrCreate(
-            widget.controller.referenceDate,
-          ),
+          // Preview is read-only. The existing import command creates its
+          // period on explicit confirmation, not when recognition is opened.
+          period: _voicePreviewPeriod(),
           draft: draft,
           recognizedOnDevice: recognition.onDevice,
         );
@@ -727,8 +673,23 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     );
   }
 
+  BudgetPeriod _voicePreviewPeriod() {
+    final c = widget.controller;
+    final date = c.referenceDate;
+    return c.periods.where((p) => p.contains(date)).firstOrNull ??
+        BudgetPeriod(
+          id: 'voice-preview',
+          userId: c.user.id,
+          startDate: DateTime(date.year, date.month),
+          endDate: DateTime(date.year, date.month + 1, 0),
+          type: BudgetPeriodType.calendarMonth,
+          totalPlan: 0,
+          currency: c.user.defaultCurrency,
+        );
+  }
+
   Future<void> _openNotificationInbox() async {
-    if (MediaQuery.sizeOf(context).width < 900 &&
+    if (widget.notificationCaptureAvailable &&
         widget.onOpenNotificationInbox != null) {
       await widget.onOpenNotificationInbox!();
       return;
@@ -745,8 +706,6 @@ class _DesktopAppShellState extends State<DesktopAppShell> {
     );
   }
 }
-
-String _badgeLabel(int count) => count > 99 ? '99+' : '$count';
 
 enum _AddDataAction {
   inbox,

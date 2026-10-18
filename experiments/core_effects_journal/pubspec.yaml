@@ -1,0 +1,15 @@
+name: qesto_core_effects_experiment
+publish_to: none
+environment:
+  sdk: ^3.12.2
+dependencies:
+  qesto_synoball_core:
+    path: ../../packages/qesto_synoball_core
+  qesto_incremental_domain_experiment:
+    path: ../incremental_domain_execution
+  qesto_windows_boundary_experiment:
+    path: ../windows_integration_boundary
+  qesto_synthetic_sync:
+    path: ../synthetic_sync_backend
+dev_dependencies:
+  test: 1.31.0

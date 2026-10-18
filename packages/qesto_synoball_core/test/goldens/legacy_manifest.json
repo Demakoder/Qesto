@@ -1,0 +1,76 @@
+{
+  "format": 1,
+  "captured_before_extraction": "2026-10-09",
+  "baseline": "actual working tree, including earlier user changes; not git HEAD",
+  "baseline_flutter_tests": {
+    "passed": 936,
+    "skipped": 12
+  },
+  "baseline_flutter_analyze": "No issues found",
+  "source_files": [
+    {
+      "path": "apps/qesto_app/lib/synoball/core/models.dart",
+      "sha256": "2E958955FA802879D3E136990B796E04C9E71F5D0B4F423129FA81193DB6E0EF"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/core/synoball_core.dart",
+      "sha256": "B1028C0EBC45DA88C728B17D5BAFCA12121749F5C2B67FBE916C95AA48197D69"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/ingestion/adapter.dart",
+      "sha256": "C24F0B799185DEBB19E4B6F57A03F9485527EC465CE9B15730AD8561CA411298"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/reconciliation/deduplication.dart",
+      "sha256": "C3D2F8F274D574DC866A521A9FB4F610CE012DCA19D2F1A087494776CCE6B036"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/reconciliation/source_trust_policy.dart",
+      "sha256": "3A056198420D2FAAF8D71DE2825361BD964EF44F542DD90EC6903870BA166403"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/enrichment/enrichment.dart",
+      "sha256": "84F9F47B89E656784FF1A7BB1417DFB753CA5A5019CA31DB75C7AAFEA6BBE97D"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/enrichment/category_policy.dart",
+      "sha256": "B7C813BA715D67EC9F63DB3F4BFCF1DE9B7156CC90BA9E592A14277F29C6256E"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/enrichment/recurrence_calendar.dart",
+      "sha256": "083960A729FC8C72F6955FE7DCF6D2D84C55633B016A4AE437EE90C68F44DECC"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/adapters/adapters.dart",
+      "sha256": "42F8B89418B8F61D13AE8F316A08BA918E517AEF2F57556E09E1A37AF0B5B65B"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/adapters/transaction_inputs.dart",
+      "sha256": "C5881FFA69176A06FA5375AC9567653163EFA6F4F4DA90D2B9186DF750BCF98C"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/adapters/notification_identity.dart",
+      "sha256": "D8DCAC8C139127DD1781F16DD91439B10BC99415EE7E72AE36AFFCCE54F0CFE2"
+    },
+    {
+      "path": "apps/qesto_app/lib/synoball/adapters/source_identity.dart",
+      "sha256": "3FE824B8EE696F8D6C12F45F7DB993E25027307B2A6D04128F75070FBA69041D"
+    }
+  ],
+  "scenarios": [
+    "repeated-stable-provider",
+    "two-similar-distinct-purchases",
+    "notification-statement-receipt",
+    "user-overrides-and-field-locks",
+    "trash-replay-restore-posted",
+    "trash-replay-restore-pending",
+    "trash-replay-restore-cancelled",
+    "ambiguous-cross-source-batch-false",
+    "ambiguous-cross-source-batch-true",
+    "unconfirmed-deleted-identity-needs-review",
+    "same-provider-different-source-scope",
+    "manual-ids-remain-distinct",
+    "money-currencies-directions-and-types"
+  ],
+  "normalization": "Canonical transaction createdAt/updatedAt and event/audit bookkeeping times only; IDs, business timestamps, money, provenance and policy fields preserved. Injectable clock tested separately."
+}

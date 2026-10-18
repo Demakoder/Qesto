@@ -1,0 +1,25 @@
+name: qesto_durable_effects_experiment
+publish_to: none
+environment:
+  sdk: ^3.12.2
+dependencies:
+  qesto_synoball_core:
+    path: ../../packages/qesto_synoball_core
+  qesto_core_effects_experiment:
+    path: ../core_effects_journal
+  qesto_windows_ui_sync_experiment:
+    path: ../windows_synthetic_ui_sync
+  qesto_windows_boundary_experiment:
+    path: ../windows_integration_boundary
+  qesto_encrypted_sync_experiment:
+    path: ../encrypted_client_sync
+  qesto_storage_spike:
+    path: ../storage_feasibility
+  qesto_synthetic_sync:
+    path: ../synthetic_sync_backend
+dev_dependencies:
+  test: 1.31.0
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc

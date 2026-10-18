@@ -1,0 +1,27 @@
+name: qesto_storage_probe
+description: "Isolated synthetic-only Qesto storage feasibility probe."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  qesto_storage_spike:
+    path: ..
+  flutter_secure_storage: 10.3.1
+  path_provider: 2.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc

@@ -1,0 +1,6 @@
+.dart_tool/
+.runtime/
+build/
+flutter_runner/.dart_tool/
+flutter_runner/build/
+flutter_runner/.flutter-plugins-dependencies

@@ -7,7 +7,7 @@ import '../../../core/widgets/qesto_card.dart';
 import '../../../data/models/qesto_models.dart';
 import '../../../synoball/adapters/notification_identity.dart';
 import '../../../synoball/core/models.dart';
-import '../../budget/add_expense_screen.dart';
+import '../../budget/transaction_editor_screen.dart';
 import '../../budget/state/budget_controller.dart';
 import '../../trash/transaction_trash_screen.dart';
 import '../../transaction_import/services/transaction_account_resolver.dart';
@@ -41,6 +41,10 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
   String? _error;
   List<CapturedNotification> _notifications = const [];
   var _deletingAllData = false;
+  // UI drafts are keyed by delivery version, never by a reused Android slot.
+  final _corrections = <String, BudgetTransaction>{};
+  String _draftKey(CapturedNotification n) =>
+      '${n.notificationKey}:${n.deliveryVersion}';
 
   @override
   void initState() {
@@ -262,23 +266,26 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
     CapturedNotification notification,
     ParsedBankTransaction transaction,
   ) async {
-    final period = _periodFor(transaction.date);
+    final corrected = _corrections[_draftKey(notification)];
+    final period = _periodFor(corrected?.date ?? transaction.date);
     final outcome = await widget.controller.addNotificationTransaction(
       period: period,
-      amountMinor: transaction.amountMinor,
+      amountMinor: corrected?.amountMinor ?? transaction.amountMinor,
       currency: transaction.currency,
-      date: transaction.date,
+      date: corrected?.date ?? transaction.date,
       type: _typeFor(transaction),
-      categoryId: transaction.categoryId,
-      accountId: _accountFor(transaction).id,
-      title: transaction.merchant,
+      categoryId: corrected?.categoryId ?? transaction.categoryId,
+      accountId: corrected?.accountId ?? _accountFor(transaction).id,
+      title: corrected?.merchant ?? transaction.merchant,
       notificationKey: notification.notificationKey,
       packageName: notification.packageName,
       rawNotification: notification.fullText,
       sender: notification.title,
-      subcategoryId: transaction.subcategoryId,
+      subcategoryId: corrected == null
+          ? transaction.subcategoryId
+          : corrected.subcategoryId,
       isSmsNotification: transaction.isSmsNotification,
-      confidence: transaction.confidence,
+      confidence: corrected?.classificationConfidence ?? transaction.confidence,
     );
     var inTrash = outcome.suppressedTransactionIds.isNotEmpty;
     final reviews = widget.controller.pendingCandidates
@@ -347,37 +354,43 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
     CapturedNotification notification,
     ParsedBankTransaction transaction,
   ) async {
-    final period = _periodFor(transaction.date);
-    if (!transaction.hasWholeCurrencyAmount) return;
-
-    final draft = BudgetTransaction(
-      id: 'import-draft-${notification.notificationKey.hashCode}',
-      userId: period.userId,
-      accountId: _accountFor(transaction).id,
-      date: transaction.date,
-      amount: transaction.wholeCurrencyAmount,
-      currency: transaction.currency,
-      type: _typeFor(transaction),
-      categoryId: transaction.categoryId,
-      subcategoryId: transaction.subcategoryId,
-      merchant: transaction.merchant,
-      title: transaction.merchant,
-      normalizedMerchant: transaction.merchant.toLowerCase(),
-      isConfirmed: false,
-      classificationConfidence: transaction.confidence,
-    );
-    final saved = await Navigator.of(context).push<bool>(
-      MaterialPageRoute<bool>(
-        builder: (_) => AddExpenseScreen(
+    // Opening/cancelling correction must not create periods or ledger records.
+    final draft =
+        _corrections[_draftKey(notification)] ??
+        BudgetTransaction(
+          id: 'import-draft-${notification.notificationKey.hashCode}',
+          userId: widget.controller.user.id,
+          accountId: _accountFor(transaction).id,
+          date: transaction.date,
+          amount: transaction.wholeCurrencyAmount,
+          exactAmountMinor: transaction.amountMinor,
+          currency: transaction.currency,
+          type: _typeFor(transaction),
+          transferDirection:
+              transaction.kind == ParsedBankTransactionKind.transfer
+              ? TransferDirection.outgoing
+              : null,
+          categoryId: transaction.categoryId,
+          subcategoryId: transaction.subcategoryId,
+          merchant: transaction.merchant,
+          title: transaction.merchant,
+          normalizedMerchant: transaction.merchant.toLowerCase(),
+          isConfirmed: false,
+          classificationConfidence: transaction.confidence,
+        );
+    final corrected = await Navigator.of(context).push<BudgetTransaction>(
+      MaterialPageRoute<BudgetTransaction>(
+        settings: const RouteSettings(name: '/sources/notification/correct'),
+        builder: (_) => TransactionEditorScreen(
           controller: widget.controller,
-          period: period,
           initialTransaction: draft,
-          addInitialAsNew: true,
+          draftOnly: true,
+          saveLabel: 'Вернуться к проверке',
         ),
       ),
     );
-    if (saved == true) {
-      await _removeNotification(notification);
+    if (corrected != null && mounted) {
+      setState(() => _corrections[_draftKey(notification)] = corrected);
     }
   }
 
@@ -438,9 +451,34 @@ class _NotificationImportScreenState extends State<NotificationImportScreen> {
                     onDiscard: () => _discard(notification),
                   );
                 }
+                final corrected = _corrections[_draftKey(notification)];
+                final displayed = corrected == null
+                    ? transaction
+                    : ParsedBankTransaction(
+                        notificationKey: transaction.notificationKey,
+                        sourcePackage: transaction.sourcePackage,
+                        date: corrected.date,
+                        amountMinor: corrected.amountMinor,
+                        currency: transaction.currency,
+                        merchant: corrected.merchant ?? transaction.merchant,
+                        categoryId:
+                            corrected.categoryId ?? transaction.categoryId,
+                        subcategoryId: corrected.subcategoryId,
+                        confidence: corrected.classificationConfidence,
+                        kind: transaction.kind,
+                        isSmsNotification: transaction.isSmsNotification,
+                        bankHint: transaction.bankHint,
+                        accountHint: transaction.accountHint,
+                      );
                 return _ParsedTransactionCard(
-                  transaction: transaction,
-                  categoryName: _categoryName(transaction.categoryId),
+                  transaction: displayed,
+                  categoryName: _categoryName(displayed.categoryId),
+                  accountName:
+                      widget.controller.accounts
+                          .where((a) => a.id == corrected?.accountId)
+                          .firstOrNull
+                          ?.title ??
+                      _accountFor(transaction).title,
                   hasPeriod: true,
                   onDiscard: () => _discard(notification),
                   onEdit: () => _edit(notification, transaction),
@@ -459,6 +497,7 @@ class _ParsedTransactionCard extends StatelessWidget {
   const _ParsedTransactionCard({
     required this.transaction,
     required this.categoryName,
+    required this.accountName,
     required this.hasPeriod,
     required this.onDiscard,
     required this.onEdit,
@@ -467,6 +506,7 @@ class _ParsedTransactionCard extends StatelessWidget {
 
   final ParsedBankTransaction transaction;
   final String categoryName;
+  final String accountName;
   final bool hasPeriod;
   final VoidCallback onDiscard;
   final VoidCallback onEdit;
@@ -511,12 +551,22 @@ class _ParsedTransactionCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 3),
+                    Text(switch (transaction.kind) {
+                      ParsedBankTransactionKind.expense => 'Расход',
+                      ParsedBankTransactionKind.income => 'Доход',
+                      ParsedBankTransactionKind.refund => 'Возврат',
+                      ParsedBankTransactionKind.transfer => 'Исходящий перевод',
+                    }, key: const Key('notification-transaction-type')),
                     Text(
                       '${_formatMinorMoney(transaction.amountMinor, transaction.currency)} · $categoryName',
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                     Text(
                       '${formatDate(transaction.date)} · $time',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    Text(
+                      'Счёт: $accountName',
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
@@ -540,9 +590,7 @@ class _ParsedTransactionCard extends StatelessWidget {
             children: [
               TextButton(onPressed: onDiscard, child: const Text('Пропустить')),
               OutlinedButton(
-                onPressed: _canAdd && transaction.hasWholeCurrencyAmount
-                    ? onEdit
-                    : null,
+                onPressed: _canAdd ? onEdit : null,
                 child: const Text('Изменить'),
               ),
               FilledButton.icon(

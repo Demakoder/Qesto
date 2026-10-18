@@ -5,6 +5,10 @@ import 'package:flutter/foundation.dart';
 import '../../../core/safety/financial_write_guard.dart';
 
 import '../../../data/models/qesto_models.dart';
+import '../../../data/mutations/transaction_note_boundary.dart';
+import '../../../data/persistence/user_financial_data_codec.dart';
+import '../services/transaction_note_preparation.dart';
+import '../../transaction_import/services/sber_transaction_projection.dart';
 import '../services/budget_calculation_service.dart';
 import '../services/budget_forecast_service.dart';
 import '../services/cash_flow_calculation_service.dart';
@@ -83,12 +87,21 @@ class BudgetController extends ChangeNotifier {
   int _dataGeneration = 0;
   bool _disposed = false;
   int get dataGeneration => _dataGeneration;
-  void _checkWrite([int? expectedGeneration]) {
+  void _checkNoteWrite([int? expectedGeneration]) {
     FinancialWriteGuard.check();
     if (_disposed ||
         (expectedGeneration != null && expectedGeneration != _dataGeneration)) {
       throw StateError(
         'Financial data changed while the operation was running',
+      );
+    }
+  }
+
+  void _checkWrite([int? expectedGeneration]) {
+    _checkNoteWrite(expectedGeneration);
+    if (noteBoundary != null) {
+      throw const NoteBoundaryFailure(
+        'unsupported-synthetic-financial-command',
       );
     }
   }
@@ -104,11 +117,16 @@ class BudgetController extends ChangeNotifier {
     required BudgetConfiguration configuration,
     required UserFinancialData financialData,
     this.onChanged,
+    this.noteBoundary,
+    int initialNoteRevision = 0,
+    SynoballIdFactory? synoballIds,
+    DateTime Function()? synoballClock,
     this.calculationService = const BudgetCalculationService(),
     this.forecastService = const BudgetForecastService(),
     this.categoryCalculationService = const CategoryBudgetCalculationService(),
     this.cashFlowCalculationService = const CashFlowCalculationService(),
-  }) : referenceDate = financialData.referenceDate,
+  }) : _noteRevision = initialNoteRevision,
+       referenceDate = financialData.referenceDate,
        _userId = financialData.user.id,
        _ledgerCurrency = financialData.user.defaultCurrency,
        user = financialData.user,
@@ -144,10 +162,17 @@ class BudgetController extends ChangeNotifier {
        debtPayments = List.of(financialData.debtPayments),
        _upcomingExpenses = List.of(financialData.upcomingExpenses),
        _actions = List.of(financialData.actions) {
+    if (noteBoundary != null && onChanged != null) {
+      throw ArgumentError(
+        'A note boundary cannot share the legacy save callback',
+      );
+    }
     final storedState = financialData.synoballState;
     _synoball = SynoballCore(
       initialState: storedState ?? const SynoballState(),
       categoryPolicy: _classification.policy,
+      ids: synoballIds,
+      clock: synoballClock,
     );
     if (storedState == null) {
       final input = _legacyBridge.buildInput(financialData);
@@ -286,86 +311,7 @@ class BudgetController extends ChangeNotifier {
 
   Iterable<BudgetTransaction> _applySberAdapterCompatibility(
     Iterable<BudgetTransaction> transactions,
-  ) sync* {
-    for (final transaction in transactions) {
-      if (!transaction.tags.contains('sberbank')) {
-        yield transaction;
-        continue;
-      }
-      var compatible = transaction;
-      final normalizedTransferText =
-          '${transaction.merchant ?? ''} ${transaction.title ?? ''} '
-                  '${transaction.description ?? ''} '
-                  '${transaction.comment ?? ''} '
-                  '${transaction.originalCategoryId ?? ''}'
-              .toLowerCase()
-              .replaceAll('ё', 'е');
-      final ownAccountMovement = RegExp(
-        r'между\s+(?:своими|собственными)|на\s+сво[юий]\s+(?:карт|счет)|со\s+своего\s+(?:счета|карт)',
-      ).hasMatch(normalizedTransferText);
-      final cashMovement =
-          normalizedTransferText.contains('внесение наличных') ||
-          normalizedTransferText.contains('выдача наличных');
-      final hasTransferSemantics =
-          transaction.type == TransactionType.transfer ||
-          transaction.tags.contains(qestoInternalTransferTag) ||
-          transaction.tags.contains(qestoExternalTransferTag);
-      // Legacy data needs textual repair, but a current source classification
-      // must not be re-decided from a shortened UI description. That text can
-      // omit "между своими", while the original bank row states it explicitly.
-      if (hasTransferSemantics &&
-          !transaction.tags.contains('user-field:type') &&
-          !transaction.tags.contains('sber-classification:v2')) {
-        final tags = transaction.tags.toSet();
-        if (ownAccountMovement || cashMovement) {
-          tags
-            ..remove(qestoExternalTransferTag)
-            ..add(qestoInternalTransferTag);
-          compatible = compatible.copyWith(
-            type: TransactionType.transfer,
-            tags: tags.toList(growable: false),
-          );
-        } else {
-          tags
-            ..remove(qestoInternalTransferTag)
-            ..add(qestoExternalTransferTag);
-          compatible = compatible.copyWith(
-            type:
-                transaction.transferDirection == TransferDirection.incoming ||
-                    transaction.type == TransactionType.income
-                ? TransactionType.income
-                : TransactionType.expense,
-            tags: tags.toList(growable: false),
-          );
-        }
-      }
-      if (!transaction.tags.contains(qestoManualCategoryTag) &&
-          !transaction.tags.any((t) => t.startsWith(userCategoryRulePrefix))) {
-        final resolved = compatible.type == TransactionType.income
-            ? const ResolvedTransactionCategory(
-                categoryId: 'business',
-                confidence: 0.95,
-              )
-            : _transactionCategoryResolver.resolve(
-                '${transaction.merchant ?? ''} ${transaction.title ?? ''} '
-                '${transaction.description ?? ''} '
-                '${transaction.originalCategoryId ?? ''}',
-              );
-        compatible = compatible.copyWith(
-          categoryId: _classification.policy.resolve(resolved.categoryId),
-          subcategoryId: resolved.subcategoryId,
-          classificationConfidence: resolved.confidence,
-        );
-      }
-      if (compatible.tags.contains('sber-status-refund') &&
-          !transaction.tags.contains('user-field:type') &&
-          compatible.type != TransactionType.refund) {
-        yield compatible.copyWith(type: TransactionType.refund);
-        continue;
-      }
-      yield compatible;
-    }
-  }
+  ) => projectSberTransactions(transactions, _classification.policy);
 
   final DateTime referenceDate;
   final String _userId;
@@ -397,6 +343,16 @@ class BudgetController extends ChangeNotifier {
   final CategoryBudgetCalculationService categoryCalculationService;
   final CashFlowCalculationService cashFlowCalculationService;
   final Future<void> Function()? onChanged;
+  final TransactionNoteBoundary? noteBoundary;
+  int _noteRevision;
+  int _presentationRevision = 0;
+  bool _noteInProgress = false;
+  bool _noteOutcomeUnknown = false;
+  int get noteRevision => _noteRevision;
+  bool get noteRecoveryRequired => _noteOutcomeUnknown;
+  NoteSyncStatus _noteSyncStatus = NoteSyncStatus.localOnly;
+  NoteSyncStatus get noteSyncStatus => _noteSyncStatus;
+  int lastNotePublicationMicros = 0;
 
   late final List<BudgetTransaction> _transactions;
   late final Map<String, BudgetTransaction> _legacyTransactionIdentities;
@@ -510,6 +466,7 @@ class BudgetController extends ChangeNotifier {
   /// not persist changes, contact a bank, or alter category overrides.
   void refreshLocalReadModel() {
     if (_disposed) throw StateError('BudgetController is disposed');
+    if (noteBoundary != null) _presentationRevision++;
     _syncFromSynoball();
     notifyListeners();
   }
@@ -521,6 +478,11 @@ class BudgetController extends ChangeNotifier {
 
   Future<void> _changed() async {
     _checkWrite();
+    if (noteBoundary != null) {
+      _noteOutcomeUnknown = true;
+      throw StateError('This synthetic boundary supports only staged notes');
+    }
+    _presentationRevision++;
     await onChanged?.call();
     _checkWrite();
     notifyListeners();
@@ -637,6 +599,7 @@ class BudgetController extends ChangeNotifier {
   Future<void> updateAccountPreferences(
     QestoAccountPreferences preferences,
   ) async {
+    _checkWrite();
     if (!accounts.any((item) => item.id == preferences.accountId)) return;
     final index = accountPreferences.indexWhere(
       (item) => item.accountId == preferences.accountId,
@@ -653,6 +616,10 @@ class BudgetController extends ChangeNotifier {
     for (final period in periods) {
       if (period.contains(date)) return period;
     }
+
+    // Reading an existing period is safe; allocating a new one is a financial
+    // mutation outside the narrow synthetic note contract.
+    if (noteBoundary != null) _checkWrite();
 
     final period = BudgetPeriod(
       id: 'imported-${date.year}-${date.month.toString().padLeft(2, '0')}',
@@ -675,6 +642,7 @@ class BudgetController extends ChangeNotifier {
     String actionTitle = 'Добавление операции',
     bool confirmedVoiceInput = false,
   }) async {
+    _checkWrite();
     final createdIds = <String>[];
     for (final transaction in transactions) {
       if (hasTransaction(transaction.id)) {
@@ -951,6 +919,7 @@ class BudgetController extends ChangeNotifier {
     SberSyncSnapshot snapshot, {
     int? expectedGeneration,
   }) async {
+    _checkWrite();
     _checkWrite(expectedGeneration);
     final accountsBeforeImport = List<QestoAccount>.of(accounts);
     final accountReconciliation = _reconcileSberAccounts(
@@ -1611,14 +1580,19 @@ class BudgetController extends ChangeNotifier {
     required String title,
     String? subcategoryId,
     String? comment,
+    int? exactAmountMinor,
+    String? transactionId,
   }) async {
     _checkWrite();
+    final minor = exactAmountMinor ?? amount * 100;
+    if (minor <= 0) throw ArgumentError('Amount must be positive');
     final transaction = BudgetTransaction(
-      id: 'manual-${DateTime.now().microsecondsSinceEpoch}',
+      id: transactionId ?? 'manual-${DateTime.now().microsecondsSinceEpoch}',
       userId: period.userId,
       accountId: accountId,
       date: date,
       amount: amount,
+      exactAmountMinor: exactAmountMinor,
       currency: period.currency,
       type: TransactionType.expense,
       categoryId: categoryId,
@@ -1632,13 +1606,20 @@ class BudgetController extends ChangeNotifier {
         'user-field:category',
       ],
     );
+    // A mobile form keeps its draft ID across a persistence retry. Do not
+    // create a second canonical operation when the first write already ran.
+    if (transactionId != null &&
+        _synoball.transactionById(transactionId) != null) {
+      await updateTransaction(transaction);
+      return;
+    }
     final outcome = _synoball.ingest(
       ManualInputAdapter(),
       ManualInput(
         entityId: _legacyBridge.entityIdFor(_userId),
         receivedAt: DateTime.now(),
         rawPayload: jsonEncode({
-          'amountMinor': amount * 100,
+          'amountMinor': minor,
           'currency': period.currency,
           'date': date.toIso8601String(),
           'categoryId': categoryId,
@@ -1711,6 +1692,7 @@ class BudgetController extends ChangeNotifier {
     bool isSmsNotification = false,
     double confidence = 0.8,
   }) async {
+    _checkWrite();
     final direction = switch (type) {
       TransactionType.income ||
       TransactionType.refund => FinancialDirection.inflow,
@@ -1920,6 +1902,7 @@ class BudgetController extends ChangeNotifier {
     required String rawPayload,
     required String rawText,
   }) async {
+    _checkWrite();
     final outcome = _ingestReceipt(
       transaction,
       rawPayload: rawPayload,
@@ -1951,6 +1934,7 @@ class BudgetController extends ChangeNotifier {
     String? categoryId,
     double confidence = 0.7,
   }) async {
+    _checkWrite();
     final outcome = _synoball.ingest(
       VoiceInputAdapter(),
       VoiceInput(
@@ -1977,6 +1961,35 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<String> confirmVoiceCandidate(String candidateId) async {
+    _checkWrite();
+    final candidate = _synoball.state.candidates
+        .where((c) => c.id == candidateId)
+        .firstOrNull;
+    final record = _synoball.state.ingestionRecords
+        .where((r) => r.id == candidate?.ingestionRecordId)
+        .firstOrNull;
+    if (record?.sourceType != SynoballSourceType.manualVoice) {
+      throw StateError(
+        'Этот источник необходимо проверить в его экране импорта.',
+      );
+    }
+    if (candidate != null && candidate.status != CandidateStatus.pending) {
+      // A failed persistence does not revert the in-memory confirmation.
+      // Retry the same write, never reconcile a second candidate.
+      final targets = _synoball.state.evidence
+          .where(
+            (e) =>
+                e.ingestionRecordId == record!.id &&
+                e.providerTransactionId == candidate.providerTransactionId,
+          )
+          .map((e) => e.transactionId)
+          .toSet();
+      if (targets.length != 1) {
+        throw StateError('Unresolved voice confirmation identity');
+      }
+      await _changed();
+      return targets.single;
+    }
     final id = _synoball.confirmCandidate(candidateId, actorId: _userId);
     _syncFromSynoball();
     await _changed();
@@ -1984,6 +1997,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<bool> undoAction(String id) async {
+    _checkWrite();
     final actionIndex = _actions.indexWhere((item) => item.id == id);
     if (actionIndex < 0 || _actions[actionIndex].isUndone) return false;
     final action = _actions[actionIndex];
@@ -2032,32 +2046,246 @@ class BudgetController extends ChangeNotifier {
 
   Future<void> updateTransaction(BudgetTransaction transaction) async {
     _checkWrite();
-    final canonical = _synoball.transactionById(transaction.id);
-    if (canonical == null) return;
     final displayed = _transactions
         .where((t) => t.id == transaction.id)
         .firstOrNull;
-    final categoryChanged =
-        transaction.categoryId !=
-        (displayed?.categoryId ?? canonical.effectiveCategory);
-    final updated = categoryChanged
-        ? transaction.copyWith(
-            tags: {
-              ...transaction.tags.where((tag) => tag != qestoAutoCategoryTag),
-              qestoManualCategoryTag,
-            }.toList(),
-          )
-        : transaction;
-    _synoball.updateTransaction(
-      _legacyBridge.canonicalFromQesto(
-        updated,
-        previous: canonical,
-        categoryWasEdited: categoryChanged,
-      ),
+    if (!applyQestoTransactionEdit(
+      _synoball,
+      transaction,
       actorId: _userId,
-    );
+      displayed: displayed,
+    )) {
+      return;
+    }
     _syncFromSynoball();
     await _changed();
+  }
+
+  /// Narrow future-engine seam. Default calls the existing repository callback.
+  /// Injected boundaries are used only by explicitly constructed test profiles.
+  Future<void> setTransactionNote(
+    String id,
+    String note, {
+    required String commandId,
+    NoteCancellation? cancellation,
+  }) async {
+    _checkNoteWrite();
+    final boundary = noteBoundary;
+    final displayed = _transactions.where((t) => t.id == id).firstOrNull;
+    if (displayed == null) throw StateError('Visible transaction required');
+    if (boundary == null) {
+      if (cancellation?.isCancelled == true) {
+        throw const NoteBoundaryFailure('cancelled-before-save');
+      }
+      return updateTransaction(displayed.copyWith(comment: note));
+    }
+    if (_noteInProgress || _noteOutcomeUnknown) {
+      throw const NoteBoundaryFailure('note-boundary-recovery-or-busy');
+    }
+    final generation = _dataGeneration, presentation = _presentationRevision;
+    _noteInProgress = true;
+    try {
+      final intent = TransactionNoteIntent(
+        commandId: commandId,
+        transactionId: id,
+        note: note,
+        expectedRevision: _noteRevision,
+      );
+      final delta = boundary is TransactionNoteDeltaBoundary
+          ? await boundary.commitDelta(intent, cancellation: cancellation)
+          : null;
+      CommittedTransactionNote? committed =
+          boundary is TransactionNoteDeltaBoundary
+          ? null
+          : await boundary.commitNote(intent, cancellation: cancellation);
+      // Cancellation/disposal after commit cannot undo durable state. Keep the
+      // old UI and require explicit reload rather than publish a stale success.
+      if (_disposed ||
+          _noteOutcomeUnknown ||
+          generation != _dataGeneration ||
+          presentation != _presentationRevision ||
+          cancellation?.isCancelled == true) {
+        throw const NoteBoundaryFailure(
+          'committed-reload-required',
+          outcomeUnknown: true,
+        );
+      }
+      try {
+        _checkNoteWrite(generation);
+      } on Object {
+        throw const NoteBoundaryFailure(
+          'committed-reload-required',
+          outcomeUnknown: true,
+        );
+      }
+      if (boundary is TransactionNoteDeltaBoundary) {
+        if (delta != null &&
+            (delta.commandId != commandId ||
+                delta.userId != _userId ||
+                delta.baseRevision != _noteRevision ||
+                delta.revision != _noteRevision + 1)) {
+          throw const NoteBoundaryFailure(
+            'invalid-delta-receipt',
+            outcomeUnknown: true,
+          );
+        }
+        if (delta != null && _tryPublishNoteDelta(delta)) {
+          _noteSyncStatus = NoteSyncStatus.localOnly;
+          return;
+        }
+        committed = await boundary.loadCommittedState();
+        if (_disposed ||
+            _noteOutcomeUnknown ||
+            generation != _dataGeneration ||
+            presentation != _presentationRevision ||
+            cancellation?.isCancelled == true ||
+            committed.revision != intent.expectedRevision + 1) {
+          throw const NoteBoundaryFailure(
+            'delta-full-reload-stale',
+            outcomeUnknown: true,
+          );
+        }
+        try {
+          _checkNoteWrite(generation);
+        } on Object {
+          throw const NoteBoundaryFailure(
+            'delta-full-reload-stale',
+            outcomeUnknown: true,
+          );
+        }
+      }
+      if (committed == null ||
+          (boundary is TransactionNoteDeltaBoundary
+              ? committed.commandId.isNotEmpty &&
+                    committed.commandId != commandId
+              : committed.commandId != commandId) ||
+          committed.data.user.id != _userId ||
+          committed.revision < _noteRevision) {
+        throw const NoteBoundaryFailure(
+          'invalid-local-receipt',
+          outcomeUnknown: true,
+        );
+      }
+      _noteSyncStatus = NoteSyncStatus.localOnly;
+      _publishNoteState(committed);
+    } on NoteBoundaryFailure catch (e) {
+      if (e.outcomeUnknown) _noteOutcomeUnknown = true;
+      rethrow;
+    } finally {
+      _noteInProgress = false;
+    }
+  }
+
+  void _publishNoteState(CommittedTransactionNote committed) {
+    final watch = Stopwatch()..start();
+    lastNotePublicationWasDelta = false;
+    _synoball = committed.preparedCore;
+    _transactions
+      ..clear()
+      ..addAll(committed.data.transactions);
+    accounts
+      ..clear()
+      ..addAll(committed.data.accounts);
+    _noteRevision = committed.revision;
+    _presentationRevision++;
+    notifyListeners();
+    lastNotePublicationMicros = watch.elapsedMicroseconds;
+  }
+
+  bool _tryPublishNoteDelta(CommittedTransactionNoteDelta delta) {
+    final watch = Stopwatch()..start();
+    const codec = UserFinancialDataCodec();
+    late SynoballCore next;
+    final transactions = List<BudgetTransaction>.of(_transactions);
+    final nextAccounts = List<QestoAccount>.of(accounts);
+    try {
+      next = _synoball.forkForVerifiedNotePresentation(delta.coreWrites);
+      for (final change in delta.projections) {
+        final before = jsonDecode(change.beforeJson) as Map<String, dynamic>;
+        final after = jsonDecode(change.afterJson) as Map<String, dynamic>;
+        if (before['id'] != after['id']) return false;
+        if (change.collection == 'transactions') {
+          if (change.index < 0 ||
+              change.index >= transactions.length ||
+              jsonEncode(codec.transactionToJson(transactions[change.index])) !=
+                  change.beforeJson)
+            return false;
+          transactions[change.index] = codec.transactionFromJson(after);
+        } else if (change.collection == 'accounts') {
+          if (change.index < 0 ||
+              change.index >= nextAccounts.length ||
+              jsonEncode(codec.accountToJson(nextAccounts[change.index])) !=
+                  change.beforeJson)
+            return false;
+          nextAccounts[change.index] = codec.accountFromJson(after);
+        } else {
+          return false;
+        }
+      }
+    } on Object {
+      return false;
+    }
+    // Swap only after every precondition passes. No partially published rows.
+    _synoball = next;
+    _transactions
+      ..clear()
+      ..addAll(transactions);
+    accounts
+      ..clear()
+      ..addAll(nextAccounts);
+    _noteRevision = delta.revision;
+    _presentationRevision++;
+    _noteSyncStatus = NoteSyncStatus.localOnly;
+    lastNotePublicationWasDelta = true;
+    notifyListeners();
+    lastNotePublicationMicros = watch.elapsedMicroseconds;
+    return true;
+  }
+
+  bool lastNotePublicationWasDelta = false;
+
+  /// Incoming publication does not invoke the legacy callback or create an intent.
+  Future<SynchronizedTransactionNotes> syncTransactionNotes({
+    bool pushPending = true,
+  }) async {
+    _checkNoteWrite();
+    final boundary = noteBoundary;
+    if (boundary is! TransactionNoteSyncBoundary)
+      throw const NoteBoundaryFailure('sync-not-enabled');
+    if (_noteInProgress || _noteOutcomeUnknown)
+      throw const NoteBoundaryFailure('note-boundary-recovery-or-busy');
+    final generation = _dataGeneration, presentation = _presentationRevision;
+    _noteInProgress = true;
+    try {
+      final result = await boundary.synchronize(pushPending: pushPending);
+      try {
+        _checkNoteWrite(generation);
+      } on Object {
+        throw const NoteBoundaryFailure(
+          'incoming-reload-required',
+          outcomeUnknown: true,
+        );
+      }
+      if (_noteOutcomeUnknown ||
+          presentation != _presentationRevision ||
+          result.state.data.user.id != _userId ||
+          result.state.revision < _noteRevision) {
+        throw const NoteBoundaryFailure(
+          'incoming-reload-required',
+          outcomeUnknown: true,
+        );
+      }
+      _noteSyncStatus = result.status;
+      _publishNoteState(result.state);
+      return result;
+    } on NoteBoundaryFailure catch (e) {
+      if (e.outcomeUnknown) _noteOutcomeUnknown = true;
+      _noteSyncStatus = NoteSyncStatus.unavailable;
+      if (!_disposed) notifyListeners();
+      rethrow;
+    } finally {
+      _noteInProgress = false;
+    }
   }
 
   Future<void> updateTransactions(
@@ -2104,6 +2332,7 @@ class BudgetController extends ChangeNotifier {
     required String categoryId,
     required int plannedAmount,
   }) async {
+    _checkWrite();
     final index = categoryBudgets.indexWhere(
       (item) =>
           item.budgetPeriodId == period.id && item.categoryId == categoryId,
@@ -2128,6 +2357,7 @@ class BudgetController extends ChangeNotifier {
     required BudgetPeriod period,
     required int totalPlan,
   }) async {
+    _checkWrite();
     final index = periods.indexWhere((item) => item.id == period.id);
     if (index < 0) return;
     periods[index] = periods[index].copyWith(
@@ -2184,6 +2414,7 @@ class BudgetController extends ChangeNotifier {
     required AccountType type,
     String? currency,
   }) async {
+    _checkWrite();
     final id = 'account-${DateTime.now().microsecondsSinceEpoch}';
     final resolvedCurrency = currency ?? user.defaultCurrency;
     final account = QestoAccount(
@@ -2223,8 +2454,13 @@ class BudgetController extends ChangeNotifier {
     // hasTransaction only considers posted/provider IDs. They must be
     // removable to the same recoverable trash as posted operations.
     final existing = _synoball.transactionById(id);
-    if (existing == null ||
-        existing.status == CanonicalTransactionStatus.deleted) {
+    if (existing == null) {
+      return;
+    }
+    if (existing.status == CanonicalTransactionStatus.deleted) {
+      // The in-memory trash transition may precede a failed persistence call.
+      // An explicit retry must persist it, not silently report success.
+      await _changed();
       return;
     }
     _synoball.deleteTransaction(id, actorId: _userId);
@@ -2313,6 +2549,7 @@ class BudgetController extends ChangeNotifier {
     required String defaultCurrency,
     String? avatarUrl,
   }) async {
+    _checkWrite();
     final cleanedName = name.trim();
     final cleanedCurrency = defaultCurrency.trim().toUpperCase();
     if (cleanedName.isEmpty || cleanedCurrency.length != 3) return;
@@ -2333,6 +2570,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> updateExpenseDisplayCurrency(String currency) async {
+    _checkWrite();
     final cleaned = currency.trim().toUpperCase();
     if (!const {'RUB', 'USD', 'EUR', 'CNY'}.contains(cleaned)) return;
     if (user.expenseDisplayCurrency == cleaned) return;
@@ -2356,6 +2594,7 @@ class BudgetController extends ChangeNotifier {
     String? comment,
     int? colorValue,
   }) async {
+    _checkWrite();
     final cleanedTitle = title.trim();
     if (cleanedTitle.isEmpty ||
         targetAmount < 0 ||
@@ -2412,6 +2651,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> updateSavingsGoal(SavingsGoal goal) async {
+    _checkWrite();
     final index = savingsGoals.indexWhere((item) => item.id == goal.id);
     if (index < 0 ||
         goal.title.trim().isEmpty ||
@@ -2501,6 +2741,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> deleteSavingsGoal(String id) async {
+    _checkWrite();
     final index = savingsGoals.indexWhere((item) => item.id == id);
     if (index < 0) return;
     savingsGoals[index] = savingsGoals[index].copyWith(
@@ -2511,6 +2752,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<bool> upsertGoalAllocation(GoalAllocation allocation) async {
+    _checkWrite();
     if (allocation.allocatedAmount < 0 ||
         !savingsGoals.any((item) => item.id == allocation.goalId)) {
       return false;
@@ -2574,6 +2816,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> removeGoalAllocation(String id) async {
+    _checkWrite();
     final allocation = goalAllocations
         .where((item) => item.id == id)
         .firstOrNull;
@@ -2602,6 +2845,7 @@ class BudgetController extends ChangeNotifier {
     String? accountId,
     GoalContributionSource source = GoalContributionSource.manual,
   }) async {
+    _checkWrite();
     final index = savingsGoals.indexWhere((item) => item.id == goalId);
     if (index < 0 || amount <= 0) return null;
     final goal = savingsGoals[index];
@@ -2638,6 +2882,7 @@ class BudgetController extends ChangeNotifier {
     bool includeInTotal = true,
     InvestmentPlan? plan,
   }) async {
+    _checkWrite();
     final cleanedName = name.trim();
     if (cleanedName.isEmpty || currentBalance < 0) return null;
     final now = DateTime.now();
@@ -2693,6 +2938,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> updateInvestmentAccount(InvestmentAccount investment) async {
+    _checkWrite();
     final index = investmentAccounts.indexWhere(
       (item) => item.id == investment.id,
     );
@@ -2724,6 +2970,7 @@ class BudgetController extends ChangeNotifier {
     required int balance,
     required DateTime date,
   }) async {
+    _checkWrite();
     final index = investmentAccounts.indexWhere(
       (item) => item.id == investmentAccountId,
     );
@@ -2750,6 +2997,7 @@ class BudgetController extends ChangeNotifier {
     String? transactionId,
     bool adjustBalance = false,
   }) async {
+    _checkWrite();
     final account = investmentAccounts
         .where((item) => item.id == investmentAccountId)
         .firstOrNull;
@@ -2858,6 +3106,7 @@ class BudgetController extends ChangeNotifier {
     DebtPaymentType paymentType = DebtPaymentType.unknown,
     CreditCardDebtDetails? creditCardDetails,
   }) async {
+    _checkWrite();
     final cleanedName = name.trim();
     if (cleanedName.isEmpty || currentBalance < 0) return null;
     final now = DateTime.now();
@@ -2928,6 +3177,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> updateDebt(DebtAccount debt) async {
+    _checkWrite();
     final index = debts.indexWhere((item) => item.id == debt.id);
     if (index < 0 || debt.name.trim().isEmpty || debt.currentBalance < 0) {
       return;
@@ -2982,6 +3232,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> archiveDebt(String id) async {
+    _checkWrite();
     final index = debts.indexWhere((item) => item.id == id);
     if (index < 0) return;
     debts[index] = debts[index].copyWith(
@@ -3016,6 +3267,7 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> addDebtPayment(DebtPayment payment) async {
+    _checkWrite();
     if (debts.every((item) => item.id != payment.debtId) ||
         debtPayments.any((item) => item.id == payment.id)) {
       return;
@@ -3025,18 +3277,38 @@ class BudgetController extends ChangeNotifier {
   }
 
   Future<void> addUpcoming(UpcomingExpense expense) async {
+    _checkWrite();
+    if (expense.userId != _userId ||
+        expense.amount <= 0 ||
+        expense.title.trim().isEmpty ||
+        _upcomingExpenses.any((item) => item.id == expense.id)) {
+      throw ArgumentError('Invalid upcoming expense for this profile');
+    }
     _upcomingExpenses.add(expense);
     await _changed();
   }
 
   Future<void> updateUpcoming(UpcomingExpense expense) async {
+    _checkWrite();
     final index = _upcomingExpenses.indexWhere((item) => item.id == expense.id);
     if (index < 0) return;
+    if (expense.userId != _userId ||
+        _upcomingExpenses[index].userId != _userId ||
+        expense.amount <= 0 ||
+        expense.title.trim().isEmpty) {
+      throw ArgumentError('Invalid upcoming expense for this profile');
+    }
     _upcomingExpenses[index] = expense;
     await _changed();
   }
 
   Future<void> deleteUpcoming(String id) async {
+    _checkWrite();
+    if (_upcomingExpenses.any(
+      (item) => item.id == id && item.userId != _userId,
+    )) {
+      throw ArgumentError('Invalid upcoming expense for this profile');
+    }
     final before = _upcomingExpenses.length;
     _upcomingExpenses.removeWhere((expense) => expense.id == id);
     if (_upcomingExpenses.length != before) await _changed();

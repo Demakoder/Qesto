@@ -32,8 +32,9 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
   late final TextEditingController _amountController;
   late DateTime _date;
   String? _categoryId;
-  late String _accountId;
-  late bool _recurring;
+  String? _accountId;
+  String? _recurrenceRule;
+  late String _currency;
 
   @override
   void initState() {
@@ -43,15 +44,23 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
     _amountController = TextEditingController(
       text: expense == null ? '' : expense.amount.toString(),
     );
-    _date =
-        expense?.plannedDate ??
-        widget.controller
-            .activeDateFor(widget.period)
-            .add(const Duration(days: 1));
-    if (_date.isAfter(widget.period.endDate)) _date = widget.period.endDate;
+    final now = DateTime.now();
+    _date = expense?.plannedDate ?? DateTime(now.year, now.month, now.day + 1);
     _categoryId = expense?.categoryId;
-    _accountId = expense?.accountId ?? widget.controller.accounts.first.id;
-    _recurring = expense?.isRecurring ?? false;
+    final availableAccounts = widget.controller.accounts
+        .where(
+          (item) =>
+              item.userId == widget.controller.user.id &&
+              item.type != AccountType.liability,
+        )
+        .toList();
+    _accountId = availableAccounts.any((item) => item.id == expense?.accountId)
+        ? expense?.accountId
+        : null;
+    _currency = expense?.currency ?? widget.period.currency;
+    _recurrenceRule = expense?.isRecurring == true
+        ? expense?.recurrenceRule ?? 'monthly'
+        : null;
   }
 
   @override
@@ -72,50 +81,70 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
   }
 
   Future<void> _chooseDate() async {
+    final today = DateTime.now();
+    final firstDay = DateTime(today.year, today.month, today.day);
+    final earliest = _date.isBefore(firstDay) ? _date : firstDay;
     final value = await showDatePicker(
       context: context,
       initialDate: _date,
-      firstDate: widget.period.startDate,
-      lastDate: widget.period.endDate,
+      firstDate: earliest,
+      lastDate: DateTime(today.year + 20, 12, 31),
     );
     if (value != null && mounted) setState(() => _date = value);
   }
 
-  void _save() {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final amount = int.parse(_amountController.text.replaceAll(' ', ''));
     final current = widget.expense;
-    if (current == null) {
-      widget.controller.addUpcoming(
-        UpcomingExpense(
-          id: 'upcoming-${DateTime.now().microsecondsSinceEpoch}',
-          userId: widget.period.userId,
-          budgetPeriodId: widget.period.id,
-          title: _titleController.text.trim(),
-          amount: amount,
-          currency: widget.period.currency,
-          plannedDate: _date,
-          categoryId: _categoryId,
-          accountId: _accountId,
-          isRecurring: _recurring,
-          recurrenceRule: _recurring ? 'monthly' : null,
-          source: UpcomingExpenseSource.manual,
-        ),
-      );
-    } else {
-      widget.controller.updateUpcoming(
-        current.copyWith(
-          title: _titleController.text.trim(),
-          amount: amount,
-          plannedDate: _date,
-          categoryId: _categoryId,
-          accountId: _accountId,
-          isRecurring: _recurring,
-          recurrenceRule: _recurring ? 'monthly' : null,
-        ),
-      );
+    final period = widget.controller.periodForOrCreate(_date);
+    try {
+      if (current == null) {
+        await widget.controller.addUpcoming(
+          UpcomingExpense(
+            id: 'upcoming-${DateTime.now().microsecondsSinceEpoch}',
+            userId: widget.controller.user.id,
+            budgetPeriodId: period.id,
+            title: _titleController.text.trim(),
+            amount: amount,
+            currency: _currency,
+            plannedDate: _date,
+            categoryId: _categoryId,
+            accountId: _accountId,
+            isRecurring: _recurrenceRule != null,
+            recurrenceRule: _recurrenceRule,
+            source: UpcomingExpenseSource.manual,
+          ),
+        );
+      } else {
+        await widget.controller.updateUpcoming(
+          current.copyWith(
+            budgetPeriodId: period.id,
+            title: _titleController.text.trim(),
+            amount: amount,
+            currency: _currency,
+            plannedDate: _date,
+            categoryId: _categoryId,
+            accountId: _accountId,
+            clearAccountId: _accountId == null,
+            isRecurring: _recurrenceRule != null,
+            recurrenceRule: _recurrenceRule,
+            clearRecurrenceRule: _recurrenceRule == null,
+          ),
+        );
+      }
+    } catch (error) {
+      debugPrint('Upcoming expense save failed: ${error.runtimeType}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Не удалось сохранить платёж. Попробуйте ещё раз.'),
+          ),
+        );
+      }
+      return;
     }
-    Navigator.of(context).pop();
+    if (mounted) Navigator.of(context).pop();
   }
 
   Future<void> _delete() async {
@@ -123,7 +152,9 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Удалить предстоящий расход?'),
-        content: const Text('Он исчезнет из списка текущего периода.'),
+        content: const Text(
+          'План исчезнет, фактические операции не изменятся.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -137,8 +168,19 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
       ),
     );
     if (confirmed == true && mounted) {
-      widget.controller.deleteUpcoming(widget.expense!.id);
-      Navigator.of(context).pop();
+      try {
+        await widget.controller.deleteUpcoming(widget.expense!.id);
+        if (mounted) Navigator.of(context).pop();
+      } catch (error) {
+        debugPrint('Upcoming expense delete failed: ${error.runtimeType}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Не удалось удалить платёж. Попробуйте ещё раз.'),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -180,7 +222,7 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: 'Сумма',
-                      suffixText: currencySymbol(widget.period.currency),
+                      suffixText: currencySymbol(_currency),
                       border: const OutlineInputBorder(),
                     ),
                     validator: (value) {
@@ -190,6 +232,34 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
                       return amount == null || amount <= 0
                           ? 'Введите сумму'
                           : null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: _currency,
+                    decoration: const InputDecoration(
+                      labelText: 'Валюта',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: [
+                      for (final currency in {
+                        'RUB',
+                        'USD',
+                        'EUR',
+                        'CNY',
+                        widget.controller.user.defaultCurrency,
+                        ...widget.controller.accounts.map(
+                          (account) => account.currency,
+                        ),
+                        _currency,
+                      })
+                        DropdownMenuItem(
+                          value: currency,
+                          child: Text(currency),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) setState(() => _currency = value);
                     },
                   ),
                   const SizedBox(height: 10),
@@ -209,31 +279,70 @@ class _UpcomingExpenseEditorState extends State<UpcomingExpenseEditor> {
                     subtitle: Text(category?.name ?? 'Не выбрана'),
                     trailing: const Icon(Icons.chevron_right_rounded),
                   ),
-                  DropdownButtonFormField<String>(
+                  DropdownButtonFormField<String?>(
                     initialValue: _accountId,
                     decoration: const InputDecoration(
                       labelText: 'Счёт',
                       border: OutlineInputBorder(),
                     ),
                     items: [
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('Не выбран'),
+                      ),
                       for (final account in widget.controller.accounts)
-                        if (account.type != AccountType.liability)
+                        if (account.userId == widget.controller.user.id &&
+                            account.type != AccountType.liability)
                           DropdownMenuItem(
                             value: account.id,
                             child: Text(account.title),
                           ),
                     ],
-                    onChanged: (value) {
-                      if (value != null) setState(() => _accountId = value);
-                    },
+                    onChanged: (value) => setState(() => _accountId = value),
                   ),
                   const SizedBox(height: 8),
-                  SwitchListTile.adaptive(
-                    contentPadding: EdgeInsets.zero,
-                    value: _recurring,
-                    onChanged: (value) => setState(() => _recurring = value),
-                    title: const Text('Регулярный платёж'),
-                    subtitle: const Text('Например, подписка или аренда'),
+                  DropdownButtonFormField<String?>(
+                    initialValue: _recurrenceRule,
+                    decoration: const InputDecoration(
+                      labelText: 'Повторение',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: const [
+                      DropdownMenuItem(
+                        value: null,
+                        child: Text('Не повторять'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'weekly',
+                        child: Text('Еженедельно'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'biweekly',
+                        child: Text('Раз в две недели'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'monthly',
+                        child: Text('Ежемесячно'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'bimonthly',
+                        child: Text('Раз в два месяца'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'quarterly',
+                        child: Text('Ежеквартально'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'halfYearly',
+                        child: Text('Раз в полгода'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'yearly',
+                        child: Text('Ежегодно'),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        setState(() => _recurrenceRule = value),
                   ),
                 ],
               ),

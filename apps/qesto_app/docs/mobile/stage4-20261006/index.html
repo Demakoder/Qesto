@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="ru"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Qesto Mobile · Stage 4</title>
+<style>
+body{margin:0;background:#f0f3f5;color:#20262b;font:16px system-ui,sans-serif}header{padding:32px 5vw;background:white;border-bottom:1px solid #d9dde0}h1{margin:0 0 12px;font-size:28px}p{max-width:850px;line-height:1.5}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;padding:28px 5vw}figure{margin:0;max-width:390px}img{width:100%;height:auto;border:1px solid #d9dde0;border-radius:12px;box-shadow:0 8px 24px #20262b12}figcaption{padding:12px 0;font-weight:600}a{color:#245b64}nav{display:flex;gap:12px;flex-wrap:wrap;margin-top:14px}section{padding:8px 5vw 32px}h2{font-size:20px}small{color:#5e6972}
+</style>
+<header><h1>Qesto Mobile — Stage 4</h1><p>Рендеры реальных Flutter-экранов на синтетическом профиле. Новые «Обзор» и «Бюджет», отдельные аналитические маршруты, фильтры и touch-график. Личные банковские данные не использованы. Физическая Android QA пока не выполнена.</p><nav><a href="#screens">Основные экраны</a><a href="#matrix">Размеры и состояния</a><a href="../mobile-stage4-2026-10-06.md">Технический отчёт</a></nav></header>
+<main id="screens" class="grid">
+<figure><img src="01-overview.png" alt="Обзор: финансовая сводка, изменение, внимание и preview расходов"><figcaption>1 · Обзор</figcaption></figure>
+<figure><img src="02-budget.png" alt="Бюджет: план и факт, лимиты и превышение"><figcaption>2 · Бюджет</figcaption></figure>
+<figure><img src="03-expenses.png" alt="Расходы: период, сводка и динамика"><figcaption>3 · Аналитика расходов</figcaption></figure>
+<figure><img src="04-cash-flow.png" alt="Денежный поток: доход, расход, итог и разбивка"><figcaption>4 · Денежный поток</figcaption></figure>
+<figure><img src="05-rhythm.png" alt="Ритм: календарь расходов, дни, недели и циклы"><figcaption>5 · Ритм жизни</figcaption></figure>
+<figure><img src="06-upcoming.png" alt="Предстоящие: ручные планы и прогнозы по истории"><figcaption>6 · Предстоящие и регулярные</figcaption></figure>
+<figure><img src="07a-filter-sheet.png" alt="Фильтры в отдельном bottom sheet"><figcaption>7a · FilterSheet</figcaption></figure>
+<figure><img src="07b-active-filters.png" alt="Применённая категория, возможность снять фильтр"><figcaption>7b · Активные фильтры</figcaption></figure>
+<figure><img src="08-chart-touch.png" alt="Выбранный день, сумма и переход к операциям"><figcaption>8 · Touch-состояние графика</figcaption></figure>
+</main>
+<section id="matrix"><h2>Проверка размеров</h2><nav>
+<a href="overview-320.png">Обзор 320</a><a href="overview-360.png">360</a><a href="overview-390.png">390</a><a href="overview-430.png">430</a>
+<a href="budget-320.png">Бюджет 320</a><a href="budget-360.png">360</a><a href="budget-390.png">390</a><a href="budget-430.png">430</a>
+</nav><h2>Дополнительные состояния</h2><nav>
+<a href="overview-empty.png">Пустой профиль</a><a href="overview-many.png">Много данных</a><a href="overview-huge.png">Большие суммы</a><a href="overview-long.png">Длинные категории</a><a href="overview-no-comparison.png">Без сравнения</a>
+<a href="budget-no-budget.png">Без бюджета</a><a href="budget-exceeded.png">Превышение</a><a href="budget-many.png">Много категорий</a><a href="budget-long.png">Длинные названия</a>
+</nav><p><small>320 / 360 / 390 / 430 logical px. Галерея показывает presentation и не заменяет проверку клавиатуры, native permissions и системного Back на телефоне.</small></p></section>
+</html>

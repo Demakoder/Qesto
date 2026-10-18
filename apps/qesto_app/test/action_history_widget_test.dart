@@ -10,24 +10,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    tester
-        .state<ScaffoldState>(find.byKey(const Key('mobile-app-shell')))
-        .openDrawer();
+    await tester.tap(find.byKey(const Key('mobile-more')));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('action-history-button')),
-      250,
-      scrollable: find.descendant(
-        of: find.byType(Drawer),
-        matching: find.byType(Scrollable),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await Scrollable.ensureVisible(
-      tester.element(find.byKey(const Key('action-history-button'))),
-      alignment: 1,
-    );
-    await tester.tap(find.byKey(const Key('action-history-button')));
+    final history = find.byKey(const Key('mobile-more-history'));
+    await tester.ensureVisible(history);
+    await tester.tap(history);
     await tester.pumpAndSettle();
 
     expect(find.text('История действий'), findsOneWidget);

@@ -37,6 +37,15 @@ jobs:
         with:
           channel: stable
           cache: true
+      - name: Resolve shared core dependencies
+        working-directory: packages/qesto_synoball_core
+        run: dart pub get
+      - name: Analyze pure Dart shared core
+        working-directory: packages/qesto_synoball_core
+        run: dart analyze
+      - name: Verify pre-extraction financial parity
+        working-directory: packages/qesto_synoball_core
+        run: dart test
       - name: Resolve dependencies
         working-directory: apps/qesto_app
         run: flutter pub get

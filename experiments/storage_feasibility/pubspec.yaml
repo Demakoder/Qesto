@@ -1,0 +1,22 @@
+name: qesto_storage_spike
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: ^3.12.2
+dependencies:
+  # 3.6/3.7 require hooks >=2.2 -> meta >=1.19, incompatible with this Flutter SDK.
+  sqlite3: 3.5.2
+  # Common hook toolchain on CLI and this Flutter SDK; not a dependency override.
+  hooks: 2.0.2
+  ffi: 2.2.0
+  drift: 2.35.2
+  cryptography: 2.9.0
+  crypto: 3.0.7
+  qesto_synoball_core:
+    path: ../../packages/qesto_synoball_core
+dev_dependencies:
+  test: 1.31.0
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc

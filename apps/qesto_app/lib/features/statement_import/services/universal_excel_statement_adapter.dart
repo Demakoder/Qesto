@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../../notification_import/services/merchant_category_classifier.dart';
 import '../domain/bank_statement_models.dart';
 import 'excel_source_identity.dart';
+import 'xlsx_package_relationships.dart';
 
 /// Converts user-authored XLSX/XLSM workbooks into the existing statement
 /// import model. Synoball is deliberately kept outside this adapter: the
@@ -42,11 +43,20 @@ class UniversalExcelStatementAdapter {
         'Размер Excel-файла не должен превышать 20 МБ',
       );
     }
-    _validateExcelArchive(bytes);
+    final archive = _validateExcelArchive(bytes);
 
     late final Excel workbook;
     try {
-      workbook = Excel.decodeBytes(bytes);
+      // Normalize decoder input only. Original file/source identity, rows and
+      // ingestion semantics are deliberately unchanged.
+      workbook = Excel.decodeBytes(prepareXlsxRelationships(archive) ?? bytes);
+      if (workbook.tables.isEmpty) {
+        throw const UnsupportedBankStatementException(
+          'В Excel не найдены листы',
+        );
+      }
+    } on UnsupportedBankStatementException {
+      rethrow;
     } on Object {
       throw const UnsupportedBankStatementException(
         'Не удалось прочитать Excel. Поддерживаются файлы XLSX и XLSM без запуска макросов.',
@@ -1256,7 +1266,7 @@ class UniversalExcelStatementAdapter {
   }
 }
 
-void _validateExcelArchive(Uint8List bytes) {
+Archive _validateExcelArchive(Uint8List bytes) {
   const endSignature = 0x06054b50;
   const centralSignature = 0x02014b50;
   const maximumEntries = 5000;
@@ -1285,6 +1295,7 @@ void _validateExcelArchive(Uint8List bytes) {
   }
 
   var uncompressedTotal = 0;
+  final entryNames = <String>{};
   for (var entry = 0; entry < entries; entry++) {
     if (offset + 46 > bytes.length ||
         data.getUint32(offset, Endian.little) != centralSignature) {
@@ -1328,6 +1339,16 @@ void _validateExcelArchive(Uint8List bytes) {
     final nameLength = data.getUint16(offset + 28, Endian.little);
     final extraLength = data.getUint16(offset + 30, Endian.little);
     final commentLength = data.getUint16(offset + 32, Endian.little);
+    if (offset + 46 + nameLength + extraLength + commentLength > bytes.length ||
+        !entryNames.add(
+          String.fromCharCodes(
+            bytes.sublist(offset + 46, offset + 46 + nameLength),
+          ),
+        )) {
+      throw const UnsupportedBankStatementException(
+        'Excel-файл содержит повреждённые или повторяющиеся архивные элементы',
+      );
+    }
     offset += 46 + nameLength + extraLength + commentLength;
   }
 
@@ -1347,6 +1368,7 @@ void _validateExcelArchive(Uint8List bytes) {
       entry.writeContent(counter);
       actualUncompressedTotal += counter.length;
     }
+    return archive;
   } on UnsupportedBankStatementException {
     rethrow;
   } on Object {

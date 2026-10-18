@@ -1,0 +1,14 @@
+name: qesto_plain_storage_probe
+publish_to: none
+version: 0.0.1
+environment:
+  sdk: ^3.12.2
+dependencies:
+  qesto_storage_spike:
+    path: ..
+dev_dependencies:
+  test: 1.31.0
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3

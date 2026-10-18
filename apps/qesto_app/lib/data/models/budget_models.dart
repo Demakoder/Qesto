@@ -311,28 +311,34 @@ class UpcomingExpense {
   final bool isCancelled;
 
   UpcomingExpense copyWith({
+    String? budgetPeriodId,
     String? title,
     int? amount,
+    String? currency,
     DateTime? plannedDate,
     String? categoryId,
     String? accountId,
+    bool clearAccountId = false,
     bool? isRecurring,
     String? recurrenceRule,
+    bool clearRecurrenceRule = false,
     UpcomingExpenseSource? source,
     bool? isCancelled,
   }) {
     return UpcomingExpense(
       id: id,
       userId: userId,
-      budgetPeriodId: budgetPeriodId,
+      budgetPeriodId: budgetPeriodId ?? this.budgetPeriodId,
       title: title ?? this.title,
       amount: amount ?? this.amount,
-      currency: currency,
+      currency: currency ?? this.currency,
       plannedDate: plannedDate ?? this.plannedDate,
       categoryId: categoryId ?? this.categoryId,
-      accountId: accountId ?? this.accountId,
+      accountId: clearAccountId ? null : accountId ?? this.accountId,
       isRecurring: isRecurring ?? this.isRecurring,
-      recurrenceRule: recurrenceRule ?? this.recurrenceRule,
+      recurrenceRule: clearRecurrenceRule
+          ? null
+          : recurrenceRule ?? this.recurrenceRule,
       source: source ?? this.source,
       isCancelled: isCancelled ?? this.isCancelled,
     );

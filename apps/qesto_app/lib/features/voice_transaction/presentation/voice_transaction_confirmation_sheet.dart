@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/formatters/qesto_formatters.dart';
 import '../../../core/theme/qesto_theme.dart';
@@ -14,19 +15,41 @@ Future<bool?> showVoiceTransactionConfirmation({
   required BudgetPeriod period,
   required VoiceTransactionDraft draft,
   required bool recognizedOnDevice,
-}) => showModalBottomSheet<bool>(
-  context: context,
-  isScrollControlled: true,
-  useSafeArea: true,
-  showDragHandle: true,
-  backgroundColor: context.qestoColors.surface,
-  builder: (_) => VoiceTransactionConfirmationSheet(
-    controller: controller,
-    period: period,
-    draft: draft,
-    recognizedOnDevice: recognizedOnDevice,
-  ),
-);
+}) {
+  if (!kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS)) {
+    return Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        settings: const RouteSettings(name: '/sources/voice/review'),
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Голосовая операция')),
+          body: SafeArea(
+            child: VoiceTransactionConfirmationSheet(
+              controller: controller,
+              period: period,
+              draft: draft,
+              recognizedOnDevice: recognizedOnDevice,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+  return showModalBottomSheet<bool>(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    backgroundColor: context.qestoColors.surface,
+    builder: (_) => VoiceTransactionConfirmationSheet(
+      controller: controller,
+      period: period,
+      draft: draft,
+      recognizedOnDevice: recognizedOnDevice,
+    ),
+  );
+}
 
 class VoiceTransactionConfirmationSheet extends StatefulWidget {
   const VoiceTransactionConfirmationSheet({

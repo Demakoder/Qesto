@@ -12,6 +12,7 @@ import '../../../budget/services/category_budget_calculation_service.dart';
 import '../../domain/models/statistics_models.dart';
 import '../screens/statistics_drilldown_screens.dart';
 import '../state/statistics_controller.dart';
+import '../state/analytics_presentation_selectors.dart';
 import '../widgets/statistics_charts.dart';
 import '../widgets/statistics_components.dart';
 
@@ -676,16 +677,7 @@ class _WeeksCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final totals = <int, int>{};
-    for (final point in controller.snapshot.daily) {
-      final week =
-          point.date.difference(controller.query.period.start).inDays ~/ 7 + 1;
-      totals.update(
-        week,
-        (value) => value + point.amount,
-        ifAbsent: () => point.amount,
-      );
-    }
+    final totals = rhythmWeekAmounts(controller);
     final maxValue = totals.values.fold<int>(1, math.max);
     return QestoCard(
       child: Column(
@@ -712,29 +704,16 @@ class _SalaryCycleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final income = controller.snapshot.transactions
-        .where((item) => item.type == TransactionType.income)
-        .toList();
-    if (income.isEmpty) {
+    final cycle = rhythmSalaryCycle(controller);
+    if (cycle == null) {
       return const EmptyState(
         message: 'Зарплатный цикл не настроен',
         icon: Icons.payments_outlined,
       );
     }
-    final salaryDay = income.first.date;
-    final firstFive = controller.snapshot.transactions
-        .where(controller.calculationService.isConsumerExpense)
-        .where(
-          (item) =>
-              !item.date.isBefore(salaryDay) &&
-              item.date.difference(salaryDay).inDays < 5,
-        )
-        .fold<int>(
-          0,
-          (sum, item) =>
-              sum + controller.calculationService.signedExpense(item),
-        );
-    final share = firstFive / math.max(controller.snapshot.summary.expenses, 1);
+    final salaryDay = cycle.day;
+    final firstFive = cycle.expenses;
+    final share = cycle.share;
     return QestoCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

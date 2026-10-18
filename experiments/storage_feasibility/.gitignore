@@ -1,0 +1,14 @@
+.dart_tool/
+build/
+plain_runner/.dart_tool/
+plain_runner/build/
+android_probe/.dart_tool/
+android_probe/build/
+android_probe/android/.gradle/
+android_probe/android/local.properties
+android_probe/android/key.properties
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.key

@@ -8,3 +8,20 @@
 # regular Git objects (Windows installers exceed GitHub's 100 MB file limit).
 /Qesto-Android-*.apk
 /Qesto-Setup-*.exe
+
+# Local experiment/runtime output; source, tests, and reports are versioned.
+**/node_modules/
+**/.dart_tool/
+**/build/
+**/.runtime/
+**/results/
+**/.flutter-plugins-dependencies
+**/.metadata
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/*.log
+
+# Physical-device audit captures remain local, not in the public repository.
+/apps/qesto_app/docs/mobile/stage6a-20261006/
+/apps/qesto_app/docs/mobile/stage6b-20261007/
