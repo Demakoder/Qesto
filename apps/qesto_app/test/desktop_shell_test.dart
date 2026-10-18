@@ -7,8 +7,18 @@ import 'package:qesto/mocks/mock_qesto_repository.dart';
 
 import 'fixtures/sample_user_financial_data.dart';
 
+// Desktop regression must exercise the actual host capability, not the
+// flutter_test default Android platform at a wide phone/tablet viewport.
+void desktopTest(String description, WidgetTesterCallback callback) {
+  testWidgets(
+    description,
+    callback,
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+}
+
 void main() {
-  testWidgets('production desktop starts without seeded financial data', (
+  desktopTest('production desktop starts without seeded financial data', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -37,7 +47,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop P0 routes remain overflow-free at target width', (
+  desktopTest('desktop P0 routes remain overflow-free at target width', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -69,7 +79,7 @@ void main() {
     }
   });
 
-  testWidgets('desktop shell remains compact and overflow-free at 1024', (
+  desktopTest('desktop shell remains compact and overflow-free at 1024', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -90,7 +100,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('capital accounts expose liquidity, emergency goal and details', (
+  desktopTest('capital accounts expose liquidity, emergency goal and details', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -133,7 +143,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop uses approved White Silver typography', (tester) async {
+  desktopTest('desktop uses approved White Silver typography', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1440, 900);
     addTearDown(tester.view.resetPhysicalSize);
@@ -150,7 +160,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('dark theme can be selected and persists', (tester) async {
+  desktopTest('dark theme can be selected and persists', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1440, 900);
     addTearDown(tester.view.resetPhysicalSize);
@@ -182,7 +192,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop does not report overrun when budget is unassigned', (
+  desktopTest('desktop does not report overrun when budget is unassigned', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -241,7 +251,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
+  desktopTest(
     'overview metrics, period and transaction sorting are interactive',
     (tester) async {
       tester.view.devicePixelRatio = 1;
@@ -291,7 +301,7 @@ void main() {
     },
   );
 
-  testWidgets('overview day drilldown opens scoped journal and keeps month', (
+  desktopTest('overview day drilldown opens scoped journal and keeps month', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -336,7 +346,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('overview lower cards open merchant and category details', (
+  desktopTest('overview lower cards open merchant and category details', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -407,7 +417,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop is organised into Budget, Benefits and Capital', (
+  desktopTest('desktop is organised into Budget, Benefits and Capital', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -482,7 +492,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('cash flow has an interactive money river and privacy mode', (
+  desktopTest('cash flow has an interactive money river and privacy mode', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -515,7 +525,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('category visual identity can be edited from the budget', (
+  desktopTest('category visual identity can be edited from the budget', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -555,7 +565,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('budget exposes unique analytics without a statistics hub', (
+  desktopTest('budget exposes unique analytics without a statistics hub', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -628,7 +638,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('budget analytics has a genuine empty state', (tester) async {
+  desktopTest('budget analytics has a genuine empty state', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1024, 768);
     addTearDown(tester.view.resetPhysicalSize);
@@ -654,7 +664,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop notifications exposes guarded full data deletion', (
+  desktopTest('desktop notifications exposes guarded full data deletion', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -680,7 +690,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop add dialog exposes a dedicated Excel action', (
+  desktopTest('desktop add dialog exposes a dedicated Excel action', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -705,7 +715,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('all direct budget analytics sections fit at 1024', (
+  desktopTest('all direct budget analytics sections fit at 1024', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -740,7 +750,7 @@ void main() {
     }
   });
 
-  testWidgets('expenses can be displayed in the fixed CBR currencies', (
+  desktopTest('expenses can be displayed in the fixed CBR currencies', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -771,7 +781,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop goals can be created with category and deadline', (
+  desktopTest('desktop goals can be created with category and deadline', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -816,7 +826,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop investment account can be created from empty state', (
+  desktopTest('desktop investment account can be created from empty state', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -859,7 +869,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop debt can be created from the honest empty state', (
+  desktopTest('desktop debt can be created from the honest empty state', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;

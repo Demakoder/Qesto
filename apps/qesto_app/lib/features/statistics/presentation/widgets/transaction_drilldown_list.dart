@@ -172,17 +172,14 @@ class _TransactionDrilldownListState extends State<TransactionDrilldownList> {
               ListTile(
                 key: Key('${widget.keyPrefix}-operation-${item.id}'),
                 contentPadding: EdgeInsets.zero,
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => TransactionDetailsScreen(
-                      controller: widget.controller,
-                      period: widget.controller.periods.firstWhere(
-                        (period) => period.contains(item.date),
-                        orElse: () => widget.controller.periods.last,
-                      ),
-                      transactionId: item.id,
-                    ),
+                onTap: () => openTransactionDetails(
+                  context,
+                  widget.controller,
+                  widget.controller.periods.firstWhere(
+                    (period) => period.contains(item.date),
+                    orElse: () => widget.controller.periods.last,
                   ),
+                  item.id,
                 ),
                 title: Text(
                   _name(item),

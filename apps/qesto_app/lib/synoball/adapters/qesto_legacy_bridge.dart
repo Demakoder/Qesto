@@ -147,9 +147,10 @@ class QestoLegacyBridge {
       categoryConfidence: value.classificationConfidence,
       subcategoryId: seed.subcategoryId,
       clearSubcategoryId:
+          seed.subcategoryId == null ||
           categoryChanged &&
-          value.categoryId != previous.effectiveCategory &&
-          seed.subcategoryId == previous.subcategoryId,
+              value.categoryId != previous.effectiveCategory &&
+              seed.subcategoryId == previous.subcategoryId,
       transferDirection: seed.transferDirection,
       receiptId: seed.receiptId,
       tags: {...seed.tags, ...fieldLocks}.toList(),

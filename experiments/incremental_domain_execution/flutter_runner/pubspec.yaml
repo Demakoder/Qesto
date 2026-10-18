@@ -1,0 +1,20 @@
+name: qesto_domain_flutter_test
+publish_to: none
+environment:
+  sdk: ^3.12.2
+dependencies:
+  flutter:
+    sdk: flutter
+  qesto:
+    path: ../../../apps/qesto_app
+  qesto_incremental_domain_experiment:
+    path: ..
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc
+flutter:
+  uses-material-design: true

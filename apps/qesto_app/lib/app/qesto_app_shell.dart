@@ -19,6 +19,7 @@ import '../features/budget/state/budget_controller.dart';
 import '../features/notification_import/data/notification_capture_service.dart';
 import '../features/notification_import/presentation/notification_import_screen.dart';
 import '../features/notification_import/services/automatic_notification_importer.dart';
+import '../mobile/sources/mobile_source_attention_controller.dart';
 
 class QestoAppShell extends StatefulWidget {
   const QestoAppShell({
@@ -44,6 +45,7 @@ class _QestoAppShellState extends State<QestoAppShell>
   late final BrowserProfileManager _browserProfileManager;
   late final BankSyncManager _bankSyncManager;
   late final BankSyncScheduler _bankSyncScheduler;
+  late final MobileSourceAttentionController _sourceAttention;
   StreamSubscription<void>? _notificationEvents;
 
   @override
@@ -56,6 +58,10 @@ class _QestoAppShellState extends State<QestoAppShell>
       onChanged: _saveFinancialData,
     );
     _notificationCaptureService = const NotificationCaptureService();
+    _sourceAttention = MobileSourceAttentionController(
+      gateway: _notificationCaptureService,
+      supported: _supportsNotificationCapture,
+    );
     _browserProfileManager = BrowserProfileManager();
     const bankSyncConfig = BankSyncConfig();
     _bankSyncManager = BankSyncManager(
@@ -82,9 +88,11 @@ class _QestoAppShellState extends State<QestoAppShell>
       (_) => unawaited(_drainNotificationInbox()),
       onError: (_) {
         // Native notification events do not exist on desktop/web.
+        _sourceAttention.reportEventFailure();
       },
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_sourceAttention.start(listenEvents: false));
       unawaited(_drainNotificationInbox());
       if (_supportsBackgroundBankBrowser) {
         unawaited(_bankSyncScheduler.start());
@@ -100,8 +108,14 @@ class _QestoAppShellState extends State<QestoAppShell>
           defaultTargetPlatform == TargetPlatform.macOS ||
           defaultTargetPlatform == TargetPlatform.linux);
 
+  bool get _supportsNotificationCapture =>
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+
   Future<void> _drainNotificationInbox() async {
-    await _automaticNotificationImporter.drain();
+    final result = await _automaticNotificationImporter.drain();
+    if (!mounted) return;
+    _sourceAttention.reportImportFailures(result.failed);
+    await _sourceAttention.refresh();
   }
 
   @override
@@ -124,20 +138,18 @@ class _QestoAppShellState extends State<QestoAppShell>
     unawaited(_notificationEvents?.cancel());
     _bankSyncScheduler.dispose();
     _bankSyncManager.dispose();
+    _sourceAttention.dispose();
     _budgetController.dispose();
     super.dispose();
   }
 
   Future<void> _openNotifications() async {
-    var captureAvailable = false;
-    try {
-      captureAvailable = await _notificationCaptureService.hasAccess();
-    } on Object {
-      captureAvailable = false;
-    }
+    // Capability != permission. Previously captured inbox records remain
+    // reviewable even when access was revoked; Sources owns onboarding.
+    final captureAvailable = _supportsNotificationCapture;
     if (!mounted) return;
 
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => NotificationImportScreen(
           controller: _budgetController,
@@ -147,6 +159,13 @@ class _QestoAppShellState extends State<QestoAppShell>
         ),
       ),
     );
+    if (mounted) {
+      await _sourceAttention.refresh();
+      if (_sourceAttention.pendingCount == 0 &&
+          _sourceAttention.error == null) {
+        _sourceAttention.reportImportFailures(0);
+      }
+    }
   }
 
   @override
@@ -162,5 +181,7 @@ class _QestoAppShellState extends State<QestoAppShell>
             defaultTargetPlatform == TargetPlatform.macOS ||
             defaultTargetPlatform == TargetPlatform.linux),
     onOpenNotificationInbox: _openNotifications,
+    notificationCaptureAvailable: _supportsNotificationCapture,
+    mobileSourceAttention: _sourceAttention,
   );
 }

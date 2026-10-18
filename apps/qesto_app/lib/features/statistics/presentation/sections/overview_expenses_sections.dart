@@ -840,14 +840,11 @@ class _LargestTransactionsCard extends StatelessWidget {
             ListTile(
               key: Key('largest-operation-${transaction.id}'),
               contentPadding: EdgeInsets.zero,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => TransactionDetailsScreen(
-                    controller: controller.budgetController,
-                    period: controller.periodFor(transaction),
-                    transactionId: transaction.id,
-                  ),
-                ),
+              onTap: () => openTransactionDetails(
+                context,
+                controller.budgetController,
+                controller.periodFor(transaction),
+                transaction.id,
               ),
               leading: CircleAvatar(
                 backgroundColor: context.qestoColors.primarySoft,

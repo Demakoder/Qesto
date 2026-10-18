@@ -79,6 +79,88 @@ void main() {
     expect(s.transactionIds, hasLength(4));
     expect(s.typicalAmount.minorUnits, 44900);
   });
+  test('variable monthly utility uses a robust typical amount', () {
+    final series = monthlyFixture(
+      amounts: [424000, 481000, 452000, 505000],
+      names: List.filled(4, 'Электричество'),
+    );
+    final result = engine.detectRecurring(series).single;
+    expect(result.isTentative, isFalse);
+    expect(result.typicalAmount.minorUnits, 481000);
+    expect(result.nextExpectedAt, DateTime(2026, 5, 5));
+  });
+  test('one merchant can have two independent monthly subscriptions', () {
+    final items = <CanonicalTransaction>[
+      for (var month = 1; month <= 4; month++) ...[
+        recurringFixture(
+          month * 2,
+          DateTime(2026, month, 5),
+          name: 'Same Aggregator',
+          amount: 39900,
+        ),
+        recurringFixture(
+          month * 2 + 1,
+          DateTime(2026, month, 20),
+          name: 'Same Aggregator',
+          amount: 89900,
+        ),
+      ],
+    ];
+    final found = engine.detectRecurring(items);
+    expect(found, hasLength(2));
+    expect(found.map((item) => item.id).toSet(), hasLength(2));
+    expect(found.map((item) => item.transactionIds.length), everyElement(4));
+    expect(found.map((item) => item.typicalAmount.minorUnits).toSet(), {
+      39900,
+      89900,
+    });
+  });
+  test(
+    'Playerok-like merchant repetition with chaotic dates is not recurring',
+    () {
+      final dates = [
+        DateTime(2026, 1, 10),
+        DateTime(2026, 1, 23),
+        DateTime(2026, 3, 17),
+        DateTime(2026, 6, 8),
+        DateTime(2026, 6, 14),
+      ];
+      expect(
+        engine.detectRecurring(
+          monthlyFixture(
+            dates: dates,
+            names: List.filled(dates.length, 'Playerok'),
+            amounts: [30000, 90000, 20000, 150000, 40000],
+          ),
+        ),
+        isEmpty,
+      );
+    },
+  );
+  test('dense mixed merchant history does not trigger stream splitting', () {
+    final items = [
+      for (var i = 0; i < 150; i++)
+        recurringFixture(
+          i,
+          DateTime(2026, 1, 1).add(Duration(days: i * 2)),
+          amount: 10000 + (i * 7919) % 90000,
+          name: 'Marketplace',
+        ),
+    ];
+    expect(engine.detectRecurring(items), isEmpty);
+  });
+  test('calendar coincidence at an everyday store is not a subscription', () {
+    final purchases = monthlyFixture(
+      names: List.filled(4, 'Пятёрочка'),
+      amounts: [453600, 498400, 580000, 604800],
+    );
+    expect(
+      engine.detectRecurring(
+        purchases.map((item) => item.copyWith(synoballCategory: 'groceries')),
+      ),
+      isEmpty,
+    );
+  });
   test(
     'D: reseller / FX price variation needs periodicity, not a service name',
     () {
@@ -113,6 +195,22 @@ void main() {
       isEmpty,
     );
   });
+  test(
+    'compact payment-prefix and city suffix resolve to the same service',
+    () {
+      final series = monthlyFixture(
+        names: [
+          'YANDEX*PLUS',
+          'YANDEX PLUS MOSCOW',
+          'YM*YANDEXPLUS',
+          'Яндекс Плюс',
+        ],
+      );
+      final stream = engine.detectRecurring(series).single;
+      expect(stream.title, 'Яндекс Плюс');
+      expect(stream.transactionIds, hasLength(4));
+    },
+  );
   test('E2: punctuation variants of an unknown merchant are grouped', () {
     expect(
       engine.detectRecurring(
@@ -283,48 +381,48 @@ void main() {
       );
     },
   );
-  test(
-    'weekly, quarterly, yearly work; biweekly has no model enum, not guessed',
-    () {
-      for (final entry in {
-        RecurrenceFrequency.weekly: [
-          DateTime(2026, 1, 1),
-          DateTime(2026, 1, 8),
-          DateTime(2026, 1, 15),
-        ],
-        RecurrenceFrequency.quarterly: [
-          DateTime(2025, 1, 31),
-          DateTime(2025, 4, 30),
-          DateTime(2025, 7, 31),
-        ],
-        RecurrenceFrequency.yearly: [
-          DateTime(2024, 2, 29),
-          DateTime(2025, 2, 28),
-          DateTime(2026, 2, 28),
-        ],
-      }.entries) {
-        expect(
-          engine
-              .detectRecurring(monthlyFixture(dates: entry.value))
-              .single
-              .frequency,
-          entry.key,
-        );
-      }
+  test('all supported non-monthly cadences use a calendar anchor', () {
+    for (final entry in {
+      RecurrenceFrequency.weekly: [
+        DateTime(2026, 1, 1),
+        DateTime(2026, 1, 8),
+        DateTime(2026, 1, 15),
+      ],
+      RecurrenceFrequency.biweekly: [
+        DateTime(2026, 1, 1),
+        DateTime(2026, 1, 15),
+        DateTime(2026, 1, 29),
+      ],
+      RecurrenceFrequency.bimonthly: [
+        DateTime(2026, 1, 31),
+        DateTime(2026, 3, 31),
+        DateTime(2026, 5, 31),
+      ],
+      RecurrenceFrequency.quarterly: [
+        DateTime(2025, 1, 31),
+        DateTime(2025, 4, 30),
+        DateTime(2025, 7, 31),
+      ],
+      RecurrenceFrequency.halfYearly: [
+        DateTime(2025, 1, 31),
+        DateTime(2025, 7, 31),
+        DateTime(2026, 1, 31),
+      ],
+      RecurrenceFrequency.yearly: [
+        DateTime(2024, 2, 29),
+        DateTime(2025, 2, 28),
+        DateTime(2026, 2, 28),
+      ],
+    }.entries) {
       expect(
-        engine.detectRecurring(
-          monthlyFixture(
-            dates: [
-              DateTime(2026, 1, 1),
-              DateTime(2026, 1, 15),
-              DateTime(2026, 1, 29),
-            ],
-          ),
-        ),
-        isEmpty,
+        engine
+            .detectRecurring(monthlyFixture(dates: entry.value))
+            .single
+            .frequency,
+        entry.key,
       );
-    },
-  );
+    }
+  });
   test('calendar-end clamp, year boundary and UTC are preserved', () {
     final s = engine
         .detectRecurring(

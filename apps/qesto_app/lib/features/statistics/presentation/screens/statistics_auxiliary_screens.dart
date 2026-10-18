@@ -7,6 +7,7 @@ import '../../../../core/widgets/qesto_card.dart';
 import '../../../../core/widgets/states.dart';
 import '../../../../data/models/qesto_models.dart';
 import '../../../budget/transaction_details_screen.dart';
+import '../../../budget/transaction_route_scope.dart';
 import '../../domain/models/statistics_models.dart';
 import '../state/statistics_controller.dart';
 import '../widgets/statistics_components.dart';
@@ -475,6 +476,11 @@ class DataQualityScreen extends StatelessWidget {
         : controller.budgetController.transactions
               .where((item) => item.id == issue.transactionId)
               .firstOrNull;
+    final mobile = TransactionRouteScope.of(context);
+    if (mobile != null && transaction != null) {
+      mobile.openTransaction(transaction.id);
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       useSafeArea: true,
@@ -496,14 +502,11 @@ class DataQualityScreen extends StatelessWidget {
               FilledButton.icon(
                 onPressed: () {
                   Navigator.of(sheetContext).pop();
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => TransactionDetailsScreen(
-                        controller: controller.budgetController,
-                        period: controller.periodFor(transaction),
-                        transactionId: transaction.id,
-                      ),
-                    ),
+                  openTransactionDetails(
+                    context,
+                    controller.budgetController,
+                    controller.periodFor(transaction),
+                    transaction.id,
                   );
                 },
                 icon: const Icon(Icons.open_in_new_rounded),

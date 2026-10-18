@@ -6,6 +6,17 @@ import '../../synoball/core/models.dart';
 class UserFinancialDataCodec {
   const UserFinancialDataCodec();
 
+  // Additive codec-v7 record seam for the opt-in synthetic delta experiment.
+  // Reuses the exact persistence mapping; does not change the profile schema.
+  Map<String, dynamic> transactionToJson(BudgetTransaction value) =>
+      _transactionToJson(value);
+  BudgetTransaction transactionFromJson(Map<String, dynamic> value) =>
+      _transactionFromJson(value);
+  Map<String, dynamic> accountToJson(QestoAccount value) =>
+      _accountToJson(value);
+  QestoAccount accountFromJson(Map<String, dynamic> value) =>
+      _accountFromJson(value);
+
   static const schemaVersion = 7;
 
   String encode(UserFinancialData data) => jsonEncode({

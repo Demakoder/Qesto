@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../../features/statistics/presentation/state/analytics_presentation_selectors.dart';
 
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
@@ -530,37 +531,19 @@ class _DesktopCashFlowPageState extends State<DesktopCashFlowPage> {
   }
 
   Map<String, int> _groupedIncome(Iterable<BudgetTransaction> transactions) {
-    final result = <String, int>{};
-    for (final transaction in transactions.where(
-      (item) =>
-          widget.controller.cashFlowTreatment(item) ==
-          CashFlowTreatment.externalInflow,
-    )) {
-      final title = desktopTransactionTitle(transaction);
-      result.update(
-        title,
-        (value) => value + transaction.amount,
-        ifAbsent: () => transaction.amount,
-      );
-    }
-    return result;
+    return cashFlowDisplayGroups(
+      widget.controller,
+      transactions,
+      CashFlowTreatment.externalInflow,
+    );
   }
 
   Map<String, int> _groupedExpenses(Iterable<BudgetTransaction> transactions) {
-    final result = <String, int>{};
-    for (final transaction in transactions.where(
-      (item) =>
-          widget.controller.cashFlowTreatment(item) ==
-          CashFlowTreatment.externalOutflow,
-    )) {
-      final title = desktopCategoryName(widget.controller, transaction);
-      result.update(
-        title,
-        (value) => value + transaction.amount,
-        ifAbsent: () => transaction.amount,
-      );
-    }
-    return result;
+    return cashFlowDisplayGroups(
+      widget.controller,
+      transactions,
+      CashFlowTreatment.externalOutflow,
+    );
   }
 
   List<MoneyFlowCategory> _riverCategories(

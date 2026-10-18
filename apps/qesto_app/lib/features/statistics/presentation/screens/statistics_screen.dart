@@ -12,6 +12,20 @@ import '../state/statistics_controller.dart';
 import '../widgets/statistics_components.dart';
 import 'statistics_auxiliary_screens.dart';
 
+/// Shares the existing filter UI/engine with mobile analysis routes.
+Future<void> showStatisticsFilterSheet(
+  BuildContext context,
+  StatisticsController controller, {
+  bool compact = false,
+}) => showModalBottomSheet<void>(
+  context: context,
+  useSafeArea: true,
+  showDragHandle: true,
+  isScrollControlled: true,
+  builder: (_) =>
+      _StatisticsFilterSheet(controller: controller, compact: compact),
+);
+
 class StatisticsScreen extends StatefulWidget {
   const StatisticsScreen({required this.budgetController, super.key});
 
@@ -250,13 +264,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> {
   }
 
   Future<void> _showFilterSheet() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (context) => _StatisticsFilterSheet(controller: _controller),
-    );
+    await showStatisticsFilterSheet(context, _controller);
   }
 
   Future<void> _refreshAnalytics() async {
@@ -596,8 +604,12 @@ class _ComparisonSheet extends StatelessWidget {
 }
 
 class _StatisticsFilterSheet extends StatefulWidget {
-  const _StatisticsFilterSheet({required this.controller});
+  const _StatisticsFilterSheet({
+    required this.controller,
+    this.compact = false,
+  });
   final StatisticsController controller;
+  final bool compact;
 
   @override
   State<_StatisticsFilterSheet> createState() => _StatisticsFilterSheetState();
@@ -608,6 +620,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
   late Set<String> categories;
   late Set<String> subcategories;
   late Set<String> merchants;
+  late Set<String> tags;
   late Set<TransactionType> types;
   late bool includeCash;
   late bool includeLarge;
@@ -624,6 +637,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
     categories = {...query.categoryIds};
     subcategories = {...query.subcategoryIds};
     merchants = {...query.merchantNames};
+    tags = {...query.tagIds};
     types = {...query.transactionTypes};
     includeCash = query.includeCash;
     includeLarge = query.includeLargePurchases;
@@ -675,7 +689,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
                     for (final item
                         in widget.controller.budgetController.accounts)
                       FilterChip(
-                        label: Text(item.title),
+                        label: _label(item.title),
                         selected: accounts.contains(item.id),
                         onSelected: (_) =>
                             setState(() => _toggle(accounts, item.id)),
@@ -688,7 +702,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
                     for (final item
                         in widget.controller.budgetController.categories)
                       FilterChip(
-                        label: Text(item.name),
+                        label: _label(item.name),
                         selected: categories.contains(item.id),
                         onSelected: (_) =>
                             setState(() => _toggle(categories, item.id)),
@@ -700,7 +714,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
                   children: [
                     for (final item in allSubcategories.take(14))
                       FilterChip(
-                        label: Text(item),
+                        label: _label(item),
                         selected: subcategories.contains(item),
                         onSelected: (_) =>
                             setState(() => _toggle(subcategories, item)),
@@ -712,7 +726,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
                   children: [
                     for (final item in allMerchants.take(14))
                       FilterChip(
-                        label: Text(item),
+                        label: _label(item),
                         selected: merchants.contains(item),
                         onSelected: (_) =>
                             setState(() => _toggle(merchants, item)),
@@ -791,6 +805,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
       categoryIds: categories,
       subcategoryIds: subcategories,
       merchantNames: merchants,
+      tagIds: tags,
       transactionTypes: types,
       includeCash: includeCash,
       includeLargePurchases: includeLarge,
@@ -808,6 +823,7 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
       categories.clear();
       subcategories.clear();
       merchants.clear();
+      tags.clear();
       types.clear();
       includeCash = true;
       includeLarge = true;
@@ -820,6 +836,15 @@ class _StatisticsFilterSheetState extends State<_StatisticsFilterSheet> {
 
   void _toggle<T>(Set<T> values, T value) =>
       values.contains(value) ? values.remove(value) : values.add(value);
+
+  Widget _label(String value) => widget.compact
+      ? ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.sizeOf(context).width - 110,
+          ),
+          child: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis),
+        )
+      : Text(value);
 
   String _transactionTypeLabel(TransactionType type) => switch (type) {
     TransactionType.expense => 'Расход',

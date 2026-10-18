@@ -58,14 +58,17 @@ void main() {
                         controller: statistics,
                         scrollController: scroll,
                       )
-                    : DesktopRecurringPage(controller: budget),
+                    : DesktopRecurringPage(
+                        controller: budget,
+                        asOf: DateTime(2026, 4, 10),
+                      ),
               ),
             ),
           );
           await tester.pumpAndSettle();
           expect(budget.upcomingExpenses, isEmpty);
           expect(budget.synoballState.recurringStreams, hasLength(1));
-          expect(find.text('Unknown Cloud Service'), findsOneWidget);
+          expect(find.text('Unknown Cloud Service'), findsWidgets);
           expect(find.text('Регулярные платежи пока не найдены'), findsNothing);
           expect(tester.takeException(), isNull);
         },
@@ -80,13 +83,96 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: buildQestoTheme(),
-        home: Scaffold(body: DesktopRecurringPage(controller: budget)),
+        home: Scaffold(
+          body: DesktopRecurringPage(
+            controller: budget,
+            asOf: DateTime(2026, 4, 10),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.textContaining('Возможный повтор'), findsOneWidget);
+    expect(find.text('Возможные повторы'), findsOneWidget);
     expect(budget.financialState.mandatoryExpenses.minorUnits, 0);
   });
+
+  testWidgets(
+    'manual payment can be created, edited and removed without a transaction',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final budget = controller(observations: 0);
+      addTearDown(budget.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildQestoTheme(),
+          home: Scaffold(
+            body: DesktopRecurringPage(
+              controller: budget,
+              asOf: DateTime(2026, 9, 30),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('recurring-add-payment')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Название'),
+        'Playerok',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Сумма'),
+        '3000',
+      );
+      await tester.tap(find.text('Не повторять'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Еженедельно').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Сохранить'));
+      await tester.tap(find.text('Сохранить'));
+      await tester.pumpAndSettle();
+      expect(budget.upcomingExpenses, hasLength(1));
+      expect(budget.upcomingExpenses.single.recurrenceRule, 'weekly');
+      expect(budget.transactions, isEmpty);
+      expect(find.text('Playerok'), findsWidgets);
+
+      final stored = const UserFinancialDataCodec().decode(
+        const UserFinancialDataCodec().encode(
+          budget.mergeInto(
+            UserFinancialData(
+              user: budget.user,
+              referenceDate: budget.referenceDate,
+            ),
+          ),
+        ),
+      );
+      expect(stored.upcomingExpenses.single.recurrenceRule, 'weekly');
+      expect(stored.transactions, isEmpty);
+
+      await tester.tap(find.text('Playerok').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Сумма'),
+        '4500',
+      );
+      await tester.ensureVisible(find.text('Сохранить'));
+      await tester.tap(find.text('Сохранить'));
+      await tester.pumpAndSettle();
+      expect(budget.upcomingExpenses.single.amount, 4500);
+      await tester.tap(find.text('Playerok').last);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Удалить'));
+      await tester.tap(find.text('Удалить'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Удалить'));
+      await tester.pumpAndSettle();
+      expect(budget.upcomingExpenses, isEmpty);
+      expect(budget.transactions, isEmpty);
+    },
+  );
 
   // Explicit opt-in; no repository/native storage/bank calls. The ignored
   // private snapshot is never copied into fixtures or test failure messages.

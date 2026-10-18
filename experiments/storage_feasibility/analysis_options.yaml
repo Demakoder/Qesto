@@ -1,0 +1,8 @@
+analyzer:
+  exclude:
+    # Intentionally runs against the unchanged app package configuration.
+    - tool/emit_v7_fixture.dart
+    - tool/container_codec_fixture.dart
+    # Independent package analyzers are run separately.
+    - android_probe/**
+    - plain_runner/**

@@ -11,9 +11,14 @@ import '../../features/capital/domain/debt_analytics_service.dart';
 import '../widgets/desktop_components.dart';
 
 class DesktopDebtsPage extends StatefulWidget {
-  const DesktopDebtsPage({required this.controller, super.key});
+  const DesktopDebtsPage({
+    required this.controller,
+    this.initialDebtId,
+    super.key,
+  });
 
   final BudgetController controller;
+  final String? initialDebtId;
 
   @override
   State<DesktopDebtsPage> createState() => _DesktopDebtsPageState();
@@ -26,6 +31,12 @@ class _DesktopDebtsPageState extends State<DesktopDebtsPage> {
   String? _openedDebtId;
   int _extraMonthlyPayment = 0;
   final _oneTimeController = TextEditingController(text: '100000');
+
+  @override
+  void initState() {
+    super.initState();
+    _openedDebtId = widget.initialDebtId;
+  }
 
   @override
   void dispose() {

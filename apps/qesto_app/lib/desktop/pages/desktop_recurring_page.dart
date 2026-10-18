@@ -3,252 +3,341 @@ import 'package:flutter/material.dart';
 import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
+import '../../features/budget/services/upcoming_events_service.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/budget/upcoming_expense_editor.dart';
 import '../../synoball/core/models.dart';
 import '../widgets/desktop_components.dart';
 
 class DesktopRecurringPage extends StatelessWidget {
-  const DesktopRecurringPage({required this.controller, super.key});
-  final BudgetController controller;
+  const DesktopRecurringPage({
+    required this.controller,
+    this.onOpenDebt,
+    this.asOf,
+    super.key,
+  });
 
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final streams =
-            controller.synoballState.recurringStreams
-                .where((s) => s.entityId == 'ent-${controller.user.id}')
-                .toList()
-              ..sort((a, b) => a.nextExpectedAt.compareTo(b.nextExpectedAt));
-        final upcoming =
-            controller.upcomingExpenses
-                .where((item) => !item.isCancelled)
-                .toList()
-              ..sort((a, b) => a.plannedDate.compareTo(b.plannedDate));
-        return Padding(
-          padding: QestoSpacing.workspace(context),
-          child: Column(
-            children: [
-              LayoutBuilder(
-                builder: (context, constraints) => SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(
-                    width: constraints.maxWidth < 600
-                        ? 790
-                        : constraints.maxWidth,
-                    child: Row(
-                      children:
-                          [
-                                DesktopKpiCard(
-                                  label: 'Регулярные расходы',
-                                  value: formatMoney(
-                                    controller
-                                            .financialState
-                                            .mandatoryExpenses
-                                            .minorUnits ~/
-                                        100,
-                                    controller
-                                        .financialState
-                                        .mandatoryExpenses
-                                        .currency,
-                                  ),
-                                  detail: 'Оценка · без предварительных серий',
-                                  icon: Icons.event_repeat_outlined,
-                                  accent: context.qestoColors.purple,
-                                ),
-                                const SizedBox(width: 14),
-                                DesktopKpiCard(
-                                  label: 'Следующее событие',
-                                  value: _nextDate(streams, upcoming),
-                                  detail: 'Ожидаемое, не факт',
-                                  icon: Icons.calendar_month_outlined,
-                                ),
-                                const SizedBox(width: 14),
-                                DesktopKpiCard(
-                                  label: 'Потоков найдено',
-                                  value: '${streams.length}',
-                                  detail: 'По повторениям операций',
-                                  icon: Icons.auto_awesome_outlined,
-                                  accent: context.qestoColors.positive,
-                                ),
-                              ]
-                              .map(
-                                (item) => Expanded(
-                                  child: SizedBox(height: 138, child: item),
-                                ),
-                              )
-                              .toList(),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Expanded(
-                child: DesktopCard(
-                  padding: EdgeInsets.zero,
-                  child: Column(
-                    children: [
-                      const Padding(
-                        padding: EdgeInsets.all(18),
-                        child: DesktopSectionHeader(
-                          title: 'Предстоящие и регулярные',
-                          subtitle:
-                              'Expected, planned и inferred события не смешиваются с observed транзакциями',
-                        ),
-                      ),
-                      const Divider(height: 1),
-                      Expanded(
-                        child: streams.isEmpty && upcoming.isEmpty
-                            ? const DesktopEmptyState(
-                                title: 'Регулярные платежи ещё не найдены',
-                                message:
-                                    'Для предварительного месячного прогноза нужны два списания у одного продавца, для устойчивой серии — три и больше.',
-                                icon: Icons.event_repeat_outlined,
-                              )
-                            : ListView(
-                                children: [
-                                  for (final item in upcoming)
-                                    _UpcomingRow(item: item),
-                                  for (final stream in streams)
-                                    _StreamRow(stream: stream),
-                                ],
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
+  static const _service = UpcomingEventsService();
+  final BudgetController controller;
+  final ValueChanged<String>? onOpenDebt;
+  final DateTime? asOf;
+
+  Future<void> _openEditor(BuildContext context, [UpcomingExpense? item]) {
+    final date = item?.plannedDate ?? asOf ?? DateTime.now();
+    final period = controller.periods
+        .where((candidate) => candidate.contains(date))
+        .firstOrNull;
+    return Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => UpcomingExpenseEditor(
+          controller: controller,
+          // Opening and cancelling the editor must not create a budget
+          // period. A new one is created only if the user saves the plan.
+          period: period ?? controller.periods.first,
+          expense: item,
+        ),
+      ),
+    );
+  }
+
+  void _openEvent(BuildContext context, UpcomingPaymentEvent event) {
+    switch (event.origin) {
+      case UpcomingEventOrigin.manualOneTime:
+      case UpcomingEventOrigin.manualRecurring:
+        final item = controller.upcomingExpenses
+            .where((expense) => expense.id == event.sourceId)
+            .firstOrNull;
+        if (item != null) _openEditor(context, item);
+      case UpcomingEventOrigin.debt:
+        onOpenDebt?.call(event.sourceId);
+      case UpcomingEventOrigin.inferredRecurring:
+        showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text(event.title),
+            content: const Text(
+              'Это прогноз по повторяющимся фактическим операциям. '
+              'Ожидаемый платёж не создаёт новую операцию и не изменяет баланс.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Понятно'),
               ),
             ],
           ),
         );
-      },
-    );
+    }
   }
 
-  String _nextDate(
-    List<RecurringStream> streams,
-    List<UpcomingExpense> upcoming,
-  ) {
-    final dates = <DateTime>[
-      ...streams.map((item) => item.nextExpectedAt),
-      ...upcoming.map((item) => item.plannedDate),
-    ]..sort();
-    return dates.isEmpty ? 'Нет событий' : formatDate(dates.first);
-  }
-}
-
-class _UpcomingRow extends StatelessWidget {
-  const _UpcomingRow({required this.item});
-  final UpcomingExpense item;
   @override
-  Widget build(BuildContext context) => _RecurringRow(
-    date: item.plannedDate,
-    title: item.title,
-    amount: item.amount,
-    currency: item.currency,
-    status: item.source == UpcomingExpenseSource.manual
-        ? 'Запланировано'
-        : 'Ожидается',
-    icon: item.source == UpcomingExpenseSource.manual
-        ? Icons.edit_calendar_outlined
-        : Icons.schedule_rounded,
-    color: item.source == UpcomingExpenseSource.manual
-        ? context.qestoColors.primary
-        : context.qestoColors.purple,
-  );
-}
-
-class _StreamRow extends StatelessWidget {
-  const _StreamRow({required this.stream});
-  final RecurringStream stream;
-  @override
-  Widget build(BuildContext context) => _RecurringRow(
-    date: stream.nextExpectedAt,
-    title: stream.title,
-    amount: stream.typicalAmount.minorUnits ~/ 100,
-    currency: stream.typicalAmount.currency,
-    status:
-        '${stream.isTentative ? 'Возможный повтор' : '≈ прогноз'} · ${(stream.confidence * 100).round()}%',
-    icon: Icons.auto_awesome_outlined,
-    color: context.qestoColors.warning,
-  );
-}
-
-class _RecurringRow extends StatelessWidget {
-  const _RecurringRow({
-    required this.date,
-    required this.title,
-    required this.amount,
-    required this.currency,
-    required this.status,
-    required this.icon,
-    required this.color,
-  });
-  final DateTime date;
-  final String title;
-  final int amount;
-  final String currency;
-  final String status;
-  final IconData icon;
-  final Color color;
-  @override
-  Widget build(BuildContext context) => MediaQuery.sizeOf(context).width < 600
-      ? ListTile(
-          leading: Icon(icon, color: color),
-          title: Text(title),
-          subtitle: Text('${formatDate(date)} · $status'),
-          trailing: Text(
-            formatMoney(-amount, currency),
-            style: const TextStyle(fontSize: 12),
-          ),
-        )
-      : Column(
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) {
+      final data = _service.build(
+        userId: controller.user.id,
+        asOf: asOf ?? DateTime.now(),
+        streams: controller.synoballState.recurringStreams,
+        transactions: controller.synoballState.transactions,
+        manualExpenses: controller.upcomingExpenses,
+        debts: controller.debts,
+      );
+      final amounts = data.monthlyRegularByCurrency;
+      final regularAmount = amounts.isEmpty
+          ? formatMoney(0, controller.user.defaultCurrency)
+          : amounts.length == 1
+          ? formatMoney(amounts.values.single, amounts.keys.single)
+          : 'Несколько валют';
+      final next = data.nextEvent;
+      return Padding(
+        padding: QestoSpacing.workspace(context),
+        child: Column(
           children: [
-            SizedBox(
-              height: 62,
-              child: Row(
-                children: [
-                  const SizedBox(width: 18),
-                  SizedBox(
-                    width: 72,
-                    child: Text(
-                      formatDate(date),
-                      style: TextStyle(
-                        color: context.qestoColors.secondaryText,
-                        fontSize: 11,
-                      ),
-                    ),
+            LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: SizedBox(
+                  width: constraints.maxWidth < 600
+                      ? 790
+                      : constraints.maxWidth,
+                  child: Row(
+                    children:
+                        [
+                              DesktopKpiCard(
+                                label: 'Регулярные расходы',
+                                value: regularAmount,
+                                detail:
+                                    'В среднем за месяц · без разовых событий',
+                                icon: Icons.event_repeat_outlined,
+                                accent: context.qestoColors.purple,
+                              ),
+                              const SizedBox(width: 14),
+                              DesktopKpiCard(
+                                label: 'Следующее событие',
+                                value: next == null
+                                    ? 'Нет событий'
+                                    : formatDate(next.date),
+                                detail: next?.title ?? 'Ожидаемое, не факт',
+                                icon: Icons.calendar_month_outlined,
+                              ),
+                              const SizedBox(width: 14),
+                              DesktopKpiCard(
+                                label: 'Потоков найдено',
+                                value: '${data.detectedStreamCount}',
+                                detail: 'По повторениям фактических операций',
+                                icon: Icons.auto_awesome_outlined,
+                                accent: context.qestoColors.positive,
+                              ),
+                            ]
+                            .map(
+                              (item) => Expanded(
+                                child: SizedBox(height: 138, child: item),
+                              ),
+                            )
+                            .toList(),
                   ),
-                  Icon(icon, size: 18, color: color),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  DesktopPill(label: status, color: color),
-                  const SizedBox(width: 18),
-                  SizedBox(
-                    width: 120,
-                    child: Text(
-                      formatMoney(-amount, currency),
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 20),
-                ],
+                ),
               ),
             ),
-            const Divider(height: 1, indent: 18, endIndent: 18),
+            const SizedBox(height: 16),
+            Expanded(
+              child: DesktopCard(
+                padding: EdgeInsets.zero,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final addButton = OutlinedButton.icon(
+                            key: const Key('recurring-add-payment'),
+                            onPressed: () => _openEditor(context),
+                            icon: const Icon(Icons.add_rounded, size: 17),
+                            label: const Text('Добавить платёж'),
+                          );
+                          const header = DesktopSectionHeader(
+                            title: 'Предстоящие и регулярные',
+                            subtitle:
+                                'Прогнозы и планы не считаются фактическими операциями',
+                          );
+                          if (constraints.maxWidth < 600) {
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                header,
+                                const SizedBox(height: 10),
+                                addButton,
+                              ],
+                            );
+                          }
+                          return Row(
+                            children: [
+                              const Expanded(child: header),
+                              addButton,
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                    const Divider(height: 1),
+                    Expanded(
+                      child:
+                          data.upcoming.isEmpty &&
+                              data.overdue.isEmpty &&
+                              data.tentativeStreams.isEmpty &&
+                              data.tentativeEvents.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.event_available_outlined,
+                                    size: 42,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  const Text(
+                                    'Предстоящих платежей пока нет',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Qesto найдёт регулярные списания при достаточной истории. '
+                                    'Будущий платёж можно добавить вручную.',
+                                    textAlign: TextAlign.center,
+                                  ),
+                                  const SizedBox(height: 16),
+                                  FilledButton.icon(
+                                    onPressed: () => _openEditor(context),
+                                    icon: const Icon(Icons.add_rounded),
+                                    label: const Text('Добавить платёж'),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView(
+                              children: [
+                                for (final event in data.upcoming)
+                                  _EventRow(
+                                    event: event,
+                                    onTap: () => _openEvent(context, event),
+                                  ),
+                                if (data.overdue.isNotEmpty) ...[
+                                  const _GroupLabel('Прошедшие планы'),
+                                  for (final event in data.overdue)
+                                    _EventRow(
+                                      event: event,
+                                      onTap: () => _openEvent(context, event),
+                                    ),
+                                ],
+                                if (data.tentativeStreams.isNotEmpty ||
+                                    data.tentativeEvents.isNotEmpty) ...[
+                                  const _GroupLabel('Возможные повторы'),
+                                  for (final stream in data.tentativeStreams)
+                                    _TentativeRow(stream: stream),
+                                  for (final event in data.tentativeEvents)
+                                    ListTile(
+                                      title: Text(event.title),
+                                      subtitle: const Text(
+                                        'Предварительная оценка · требуется больше истории',
+                                      ),
+                                      trailing: Text(
+                                        formatMoney(
+                                          event.amount,
+                                          event.currency,
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              ],
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ],
-        );
+        ),
+      );
+    },
+  );
+}
+
+class _GroupLabel extends StatelessWidget {
+  const _GroupLabel(this.label);
+  final String label;
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(18, 20, 18, 8),
+    child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+  );
+}
+
+class _TentativeRow extends StatelessWidget {
+  const _TentativeRow({required this.stream});
+  final RecurringStream stream;
+  @override
+  Widget build(BuildContext context) => ListTile(
+    leading: Icon(
+      Icons.help_outline_rounded,
+      color: context.qestoColors.warning,
+    ),
+    title: Text(stream.title),
+    subtitle: const Text('Пока недостаточно истории для уверенного прогноза'),
+    trailing: Text(
+      formatMoney(
+        stream.typicalAmount.minorUnits ~/ 100,
+        stream.typicalAmount.currency,
+      ),
+    ),
+  );
+}
+
+class _EventRow extends StatelessWidget {
+  const _EventRow({required this.event, required this.onTap});
+  final UpcomingPaymentEvent event;
+  final VoidCallback onTap;
+
+  String get _sourceLabel => switch (event.origin) {
+    UpcomingEventOrigin.inferredRecurring => 'Регулярный · прогноз Qesto',
+    UpcomingEventOrigin.manualOneTime => 'Запланировано вами',
+    UpcomingEventOrigin.manualRecurring => 'Регулярный · добавлено вами',
+    UpcomingEventOrigin.debt => 'Из долгов',
+  };
+
+  IconData get _icon => switch (event.origin) {
+    UpcomingEventOrigin.inferredRecurring => Icons.auto_awesome_outlined,
+    UpcomingEventOrigin.manualOneTime => Icons.edit_calendar_outlined,
+    UpcomingEventOrigin.manualRecurring => Icons.event_repeat_outlined,
+    UpcomingEventOrigin.debt => Icons.account_balance_outlined,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final status = event.isOverdue
+        ? 'Просрочено · $_sourceLabel'
+        : _sourceLabel;
+    final amount =
+        '${event.isEstimate ? '≈ ' : ''}'
+        '${formatMoney(event.amount, event.currency)}';
+    return Column(
+      children: [
+        ListTile(
+          key: Key('upcoming-event-${event.id}'),
+          onTap: onTap,
+          leading: Icon(_icon, color: context.qestoColors.primary),
+          title: Text(event.title),
+          subtitle: Text(
+            '${formatDate(event.date, includeYear: true)} · $status',
+          ),
+          trailing: Text(
+            amount,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+        ),
+        const Divider(height: 1, indent: 18, endIndent: 18),
+      ],
+    );
+  }
 }

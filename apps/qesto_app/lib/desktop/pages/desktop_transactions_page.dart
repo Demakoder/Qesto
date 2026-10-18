@@ -6,10 +6,12 @@ import '../../core/theme/qesto_theme.dart';
 import '../../design_system/qesto_window.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/state/budget_controller.dart';
+import '../../features/budget/mobile_selection_toolbar.dart';
 import '../../features/classification/category_manager_screen.dart';
 import '../../features/classification/classification_actions.dart';
 import '../../features/trash/transaction_trash_screen.dart';
 import '../../synoball/core/models.dart';
+import '../../mobile/transactions/mobile_pending_review.dart';
 import '../desktop_financial_helpers.dart';
 import '../widgets/desktop_components.dart';
 
@@ -21,6 +23,7 @@ class DesktopTransactionsPage extends StatefulWidget {
     this.initialCategoryId,
     this.initialTagId,
     this.initialTransactionIds,
+    this.onOpenTransaction,
     super.key,
   });
 
@@ -30,6 +33,9 @@ class DesktopTransactionsPage extends StatefulWidget {
   final String? initialCategoryId;
   final String? initialTagId;
   final List<String>? initialTransactionIds;
+
+  /// Mobile can route details; desktop keeps its existing inline drawer.
+  final ValueChanged<String>? onOpenTransaction;
 
   @override
   State<DesktopTransactionsPage> createState() =>
@@ -197,16 +203,29 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                   ),
                   if (widget.controller.pendingCandidates.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    _CandidateBanner(controller: widget.controller),
+                    if (widget.onOpenTransaction != null)
+                      MobilePendingReviewBanner(
+                        controller: widget.controller,
+                        onOpenTransaction: widget.onOpenTransaction!,
+                      )
+                    else
+                      _CandidateBanner(controller: widget.controller),
                   ],
                   if (_selectedIds.isNotEmpty) ...[
                     const SizedBox(height: 12),
-                    _BulkBar(
-                      controller: widget.controller,
-                      selectedIds: _selectedIds,
-                      onClear: () => setState(_selectedIds.clear),
-                      onChanged: () => setState(() {}),
-                    ),
+                    if (widget.onOpenTransaction != null)
+                      MobileSelectionToolbar(
+                        controller: widget.controller,
+                        ids: _selectedIds,
+                        onClear: () => setState(_selectedIds.clear),
+                      )
+                    else
+                      _BulkBar(
+                        controller: widget.controller,
+                        selectedIds: _selectedIds,
+                        onClear: () => setState(_selectedIds.clear),
+                        onChanged: () => setState(() {}),
+                      ),
                   ],
                   const SizedBox(height: 14),
                   Expanded(
@@ -276,10 +295,17 @@ class _DesktopTransactionsPageState extends State<DesktopTransactionsPage> {
                                                       );
                                                     }
                                                   }),
-                                              onTap: () => setState(
-                                                () =>
-                                                    _openedId = transaction.id,
-                                              ),
+                                              onTap: () {
+                                                if (widget.onOpenTransaction
+                                                    case final open?) {
+                                                  open(transaction.id);
+                                                } else {
+                                                  setState(
+                                                    () => _openedId =
+                                                        transaction.id,
+                                                  );
+                                                }
+                                              },
                                             );
                                           },
                                         ),

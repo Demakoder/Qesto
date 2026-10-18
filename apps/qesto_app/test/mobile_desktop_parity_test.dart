@@ -4,6 +4,8 @@ import 'package:qesto/app/qesto_app.dart';
 import 'package:qesto/data/persistence/local_key_value_store.dart';
 import 'package:qesto/desktop/desktop_destination.dart';
 import 'package:qesto/mocks/mock_qesto_repository.dart';
+import 'package:qesto/mobile/analytics/mobile_analysis_page.dart';
+import 'package:qesto/mobile/analytics/mobile_upcoming_page.dart';
 
 import 'fixtures/sample_user_financial_data.dart';
 
@@ -46,27 +48,8 @@ void main() {
             FlutterError.dumpErrorToConsole(details, forceReport: true);
             errorHandler(details);
           };
-          if (route != DesktopDestination.dashboard) {
-            tester
-                .state<ScaffoldState>(find.byKey(const Key('mobile-app-shell')))
-                .openDrawer();
-            await tester.pumpAndSettle();
-            final destination = find.byKey(
-              Key('mobile-destination-${route.name}'),
-            );
-            await tester.scrollUntilVisible(
-              destination,
-              250,
-              scrollable: find.descendant(
-                of: find.byType(Drawer),
-                matching: find.byType(Scrollable),
-              ),
-            );
-            await tester.ensureVisible(destination);
-            await tester.pumpAndSettle();
-            await tester.tap(destination);
-            await tester.pumpAndSettle();
-          }
+          expect(find.byType(Drawer), findsNothing);
+          await _openMobileDestination(tester, route);
           expect(tester.takeException(), isNull, reason: route.name);
           // Build the lower cards, including lazy lists; a clean first viewport
           // alone does not prove a desktop page can be used on a phone.
@@ -127,4 +110,61 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+Future<void> _openMobileDestination(
+  WidgetTester tester,
+  DesktopDestination destination,
+) async {
+  if (destination == DesktopDestination.dashboard) return;
+  final root = switch (destination) {
+    DesktopDestination.transactions => 'transactions',
+    DesktopDestination.budget ||
+    DesktopDestination.expenses ||
+    DesktopDestination.cashFlow ||
+    DesktopDestination.rhythm ||
+    DesktopDestination.recurring => 'budget',
+    DesktopDestination.liquidity ||
+    DesktopDestination.investments ||
+    DesktopDestination.debts ||
+    DesktopDestination.goals => 'capital',
+    _ => null,
+  };
+  if (root == null) {
+    await tester.tap(find.byKey(const Key('mobile-more')));
+    await tester.pumpAndSettle();
+    final link = find.byKey(Key('mobile-more-${destination.name}'));
+    await tester.ensureVisible(link);
+    await tester.tap(link);
+  } else {
+    await tester.tap(find.byKey(Key('mobile-root-$root')));
+    await tester.pumpAndSettle();
+    if (destination != DesktopDestination.transactions &&
+        destination != DesktopDestination.budget &&
+        destination != DesktopDestination.liquidity) {
+      final link = find.byKey(Key('mobile-destination-${destination.name}'));
+      if (root == 'budget' || root == 'capital') {
+        await tester.scrollUntilVisible(
+          link,
+          300,
+          scrollable: find.byType(Scrollable).last,
+        );
+      }
+      await tester.ensureVisible(link);
+      await tester.pumpAndSettle();
+      await tester.tap(link);
+      await tester.pumpAndSettle();
+      if (root == 'budget') {
+        expect(
+          find.byType(
+            destination == DesktopDestination.recurring
+                ? MobileUpcomingPage
+                : MobileAnalysisPage,
+          ),
+          findsOneWidget,
+        );
+      }
+    }
+  }
+  await tester.pumpAndSettle();
 }

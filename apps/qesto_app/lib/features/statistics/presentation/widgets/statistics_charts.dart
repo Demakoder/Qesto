@@ -18,6 +18,8 @@ class StatisticsLineChartCard extends StatefulWidget {
     this.amountConverter,
     this.selectedDate,
     this.onDaySelected,
+    this.height = 210,
+    this.enableScrub = false,
     super.key,
   });
 
@@ -29,6 +31,8 @@ class StatisticsLineChartCard extends StatefulWidget {
   final int Function(int amount)? amountConverter;
   final DateTime? selectedDate;
   final ValueChanged<DateTime>? onDaySelected;
+  final double height;
+  final bool enableScrub;
 
   @override
   State<StatisticsLineChartCard> createState() =>
@@ -95,8 +99,16 @@ class _StatisticsLineChartCardState extends State<StatisticsLineChartCard> {
                     _select(details.localPosition, constraints.maxWidth),
                 onLongPressStart: (details) =>
                     _select(details.localPosition, constraints.maxWidth),
+                onHorizontalDragStart: widget.enableScrub
+                    ? (details) =>
+                          _select(details.localPosition, constraints.maxWidth)
+                    : null,
+                onHorizontalDragUpdate: widget.enableScrub
+                    ? (details) =>
+                          _select(details.localPosition, constraints.maxWidth)
+                    : null,
                 child: SizedBox(
-                  height: 210,
+                  height: widget.height,
                   width: double.infinity,
                   child: CustomPaint(
                     painter: _LinePainter(

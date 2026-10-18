@@ -12,6 +12,7 @@ class OverviewExpenseTrendChart extends StatefulWidget {
     required this.granularity,
     this.onSelection,
     this.height = 285,
+    this.enableScrub = false,
     super.key,
   });
   final List<OverviewTrendPoint> points;
@@ -19,6 +20,7 @@ class OverviewExpenseTrendChart extends StatefulWidget {
   final OverviewTrendGranularity granularity;
   final ValueChanged<OverviewTrendSelection>? onSelection;
   final double height;
+  final bool enableScrub;
   @override
   State<OverviewExpenseTrendChart> createState() =>
       _OverviewExpenseTrendChartState();
@@ -111,24 +113,35 @@ class _OverviewExpenseTrendChartState extends State<OverviewExpenseTrendChart> {
                                   constraints.maxWidth - tooltipWidth - 8,
                                 ),
                               );
+                    void commit(Offset position) {
+                      final index = geometry.indexAt(
+                        position.dx,
+                        points.length,
+                      );
+                      setState(() {
+                        _selectedIndex = index;
+                        _hoveredIndex = null;
+                      });
+                      widget.onSelection?.call(
+                        overviewTrendSelection(
+                          points,
+                          widget.granularity,
+                          index,
+                          widget.points.first.date,
+                        ),
+                      );
+                    }
+
                     return GestureDetector(
                       key: const Key('overview-trend-hit-area'),
                       behavior: HitTestBehavior.opaque,
-                      onTapUp: (event) {
-                        final index = geometry.indexAt(
-                          event.localPosition.dx,
-                          points.length,
-                        );
-                        setState(() => _selectedIndex = index);
-                        widget.onSelection?.call(
-                          overviewTrendSelection(
-                            points,
-                            widget.granularity,
-                            index,
-                            widget.points.first.date,
-                          ),
-                        );
-                      },
+                      onTapUp: (event) => commit(event.localPosition),
+                      onHorizontalDragStart: widget.enableScrub
+                          ? (event) => commit(event.localPosition)
+                          : null,
+                      onHorizontalDragUpdate: widget.enableScrub
+                          ? (event) => commit(event.localPosition)
+                          : null,
                       child: MouseRegion(
                         cursor: widget.onSelection == null
                             ? MouseCursor.defer

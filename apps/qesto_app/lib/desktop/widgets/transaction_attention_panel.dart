@@ -4,6 +4,7 @@ import '../../core/formatters/qesto_formatters.dart';
 import '../../core/theme/qesto_theme.dart';
 import '../../data/models/qesto_models.dart';
 import '../../features/budget/add_expense_screen.dart';
+import '../../features/budget/transaction_route_scope.dart';
 import '../../features/statistics/domain/models/statistics_models.dart';
 import '../../features/statistics/presentation/state/statistics_controller.dart';
 import '../desktop_financial_helpers.dart';
@@ -40,27 +41,34 @@ List<AttentionTransaction> attentionTransactions(
 Future<void> showTransactionAttentionPanel(
   BuildContext context,
   StatisticsController statistics,
-) => showGeneralDialog<void>(
-  context: context,
-  barrierDismissible: true,
-  barrierLabel: 'Закрыть проверку операций',
-  barrierColor: Colors.black.withValues(alpha: .36),
-  pageBuilder: (dialogContext, _, _) => Align(
-    alignment: Alignment.centerRight,
-    child: SizedBox(
-      width: MediaQuery.sizeOf(dialogContext).width < 650
-          ? MediaQuery.sizeOf(dialogContext).width
-          : 520,
-      height: double.infinity,
-      child: Material(
-        color: dialogContext.qestoColors.surface,
-        child: SafeArea(
-          child: TransactionAttentionPanel(statistics: statistics),
+) {
+  final mobile = TransactionRouteScope.of(context);
+  if (mobile != null) {
+    mobile.openAttention(statistics);
+    return Future<void>.value();
+  }
+  return showGeneralDialog<void>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Закрыть проверку операций',
+    barrierColor: Colors.black.withValues(alpha: .36),
+    pageBuilder: (dialogContext, _, _) => Align(
+      alignment: Alignment.centerRight,
+      child: SizedBox(
+        width: MediaQuery.sizeOf(dialogContext).width < 650
+            ? MediaQuery.sizeOf(dialogContext).width
+            : 520,
+        height: double.infinity,
+        child: Material(
+          color: dialogContext.qestoColors.surface,
+          child: SafeArea(
+            child: TransactionAttentionPanel(statistics: statistics),
+          ),
         ),
       ),
     ),
-  ),
-);
+  );
+}
 
 Future<void> showQestoNotificationCenter(
   BuildContext context,

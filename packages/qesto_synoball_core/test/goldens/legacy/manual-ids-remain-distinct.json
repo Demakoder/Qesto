@@ -1,0 +1,724 @@
+{
+  "format": 1,
+  "origin": "Qesto working-tree Synoball before extraction, 2026-10-09",
+  "clockNormalization": "Only canonical createdAt/updatedAt and core event/audit bookkeeping timestamps; no business dates or source identities.",
+  "identities": {
+    "source": "parity-v1-fc8f75ece37a0533177bf0e258f7fa692c4907494ac9be2bf1bf088b319d3139",
+    "normalizedText": "synthetic кофе ёж"
+  },
+  "scenario": "manual-ids-remain-distinct",
+  "steps": [
+    {
+      "step": "existing-manual-001",
+      "outcome": {
+        "ingestionRecordId": "ing-parity-2",
+        "created": [
+          "existing-manual-001"
+        ],
+        "matched": [],
+        "pending": [],
+        "batch": null,
+        "warnings": [],
+        "failed": [],
+        "resolved": [
+          "existing-manual-001"
+        ],
+        "suppressed": []
+      },
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "Synthetic manual input",
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "manual",
+            "connectionId": null,
+            "institutionId": null,
+            "receivedAt": "2026-09-08T12:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "manual-input",
+            "adapterVersion": "1.0.0",
+            "importBatchId": null,
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-3",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": null,
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "userConfirmed",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": "existing-manual-001"
+          }
+        ],
+        "transactions": [
+          {
+            "id": "existing-manual-001",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "status": "posted",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "userConfirmed"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-5",
+            "transactionId": "existing-manual-001",
+            "sourceType": "manual",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "userConfirmed",
+            "observedAt": "2026-09-08T12:00:00.000Z",
+            "providerTransactionId": null
+          }
+        ],
+        "receipts": [],
+        "importBatches": [],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-4",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "existing-manual-001",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-6",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    },
+    {
+      "step": "existing-manual-002",
+      "outcome": {
+        "ingestionRecordId": "ing-parity-8",
+        "created": [
+          "existing-manual-002"
+        ],
+        "matched": [],
+        "pending": [],
+        "batch": null,
+        "warnings": [],
+        "failed": [],
+        "resolved": [
+          "existing-manual-002"
+        ],
+        "suppressed": []
+      },
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "Synthetic manual input",
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-7",
+            "contentType": "application/json",
+            "body": "Synthetic manual input",
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "manual",
+            "connectionId": null,
+            "institutionId": null,
+            "receivedAt": "2026-09-08T12:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "manual-input",
+            "adapterVersion": "1.0.0",
+            "importBatchId": null,
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-8",
+            "entityId": "entity-existing-001",
+            "sourceType": "manual",
+            "connectionId": null,
+            "institutionId": null,
+            "receivedAt": "2026-09-08T12:00:00.000Z",
+            "rawPayloadId": "raw-parity-7",
+            "status": "completed",
+            "adapterId": "manual-input",
+            "adapterVersion": "1.0.0",
+            "importBatchId": null,
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-3",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": null,
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "userConfirmed",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": "existing-manual-001"
+          },
+          {
+            "id": "cand-parity-9",
+            "ingestionRecordId": "ing-parity-8",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": null,
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "userConfirmed",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": "existing-manual-002"
+          }
+        ],
+        "transactions": [
+          {
+            "id": "existing-manual-001",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "status": "posted",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "userConfirmed"
+          },
+          {
+            "id": "existing-manual-002",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "status": "posted",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "userConfirmed"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-5",
+            "transactionId": "existing-manual-001",
+            "sourceType": "manual",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "userConfirmed",
+            "observedAt": "2026-09-08T12:00:00.000Z",
+            "providerTransactionId": null
+          },
+          {
+            "id": "evd-parity-11",
+            "transactionId": "existing-manual-002",
+            "sourceType": "manual",
+            "ingestionRecordId": "ing-parity-8",
+            "confidence": 1.0,
+            "trust": "userConfirmed",
+            "observedAt": "2026-09-08T12:00:00.000Z",
+            "providerTransactionId": null
+          }
+        ],
+        "receipts": [],
+        "importBatches": [],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-4",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "existing-manual-001",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-6",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          },
+          {
+            "id": "evt-parity-10",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "existing-manual-002",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-12",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-8"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    },
+    {
+      "step": "serialized-and-restored",
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "Synthetic manual input",
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-7",
+            "contentType": "application/json",
+            "body": "Synthetic manual input",
+            "createdAt": "2026-09-08T12:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "manual",
+            "connectionId": null,
+            "institutionId": null,
+            "receivedAt": "2026-09-08T12:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "manual-input",
+            "adapterVersion": "1.0.0",
+            "importBatchId": null,
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-8",
+            "entityId": "entity-existing-001",
+            "sourceType": "manual",
+            "connectionId": null,
+            "institutionId": null,
+            "receivedAt": "2026-09-08T12:00:00.000Z",
+            "rawPayloadId": "raw-parity-7",
+            "status": "completed",
+            "adapterId": "manual-input",
+            "adapterVersion": "1.0.0",
+            "importBatchId": null,
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-3",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": null,
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "userConfirmed",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": "existing-manual-001"
+          },
+          {
+            "id": "cand-parity-9",
+            "ingestionRecordId": "ing-parity-8",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": null,
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "userConfirmed",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": "existing-manual-002"
+          }
+        ],
+        "transactions": [
+          {
+            "id": "existing-manual-001",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "status": "posted",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "userConfirmed"
+          },
+          {
+            "id": "existing-manual-002",
+            "entityId": "entity-existing-001",
+            "accountId": "account-existing-001",
+            "status": "posted",
+            "amount": {
+              "value": "100.25",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "userConfirmed"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-5",
+            "transactionId": "existing-manual-001",
+            "sourceType": "manual",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "userConfirmed",
+            "observedAt": "2026-09-08T12:00:00.000Z",
+            "providerTransactionId": null
+          },
+          {
+            "id": "evd-parity-11",
+            "transactionId": "existing-manual-002",
+            "sourceType": "manual",
+            "ingestionRecordId": "ing-parity-8",
+            "confidence": 1.0,
+            "trust": "userConfirmed",
+            "observedAt": "2026-09-08T12:00:00.000Z",
+            "providerTransactionId": null
+          }
+        ],
+        "receipts": [],
+        "importBatches": [],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-4",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "existing-manual-001",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-6",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          },
+          {
+            "id": "evt-parity-10",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "existing-manual-002",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-12",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-8"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    }
+  ]
+}

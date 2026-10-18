@@ -17,6 +17,7 @@ import android.provider.Settings
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import android.util.Log
 import com.googlecode.tesseract.android.TessBaseAPI
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
@@ -47,8 +48,9 @@ class MainActivity : FlutterActivity() {
     private val bankScreenshotChannelName = "ru.qesto.qesto/bank_screenshots"
     private val voiceChannelName = "ru.qesto.qesto/voice"
     private var pendingStatementResult: MethodChannel.Result? = null
-    private var pendingReceiptResult: MethodChannel.Result? = null
-    private var pendingReceiptDocumentResult: MethodChannel.Result? = null
+    private val receiptQrRequests = ScannerRequestGate<MethodChannel.Result>()
+    private val receiptDocumentRequests = ScannerRequestGate<MethodChannel.Result>()
+    private var receiptDocumentActivityCode: Int? = null
     private var pendingBankScreenshotResult: MethodChannel.Result? = null
     private var pendingVoiceResult: MethodChannel.Result? = null
     private var speechRecognizer: SpeechRecognizer? = null
@@ -394,12 +396,14 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        closeReceiptScanners()
         pendingVoiceResult = null
         releaseSpeechRecognizer()
         super.onDestroy()
     }
 
     override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        closeReceiptScanners()
         aiExportFileBridge?.dispose()
         aiExportFileBridge = null
         notificationEventSink = null
@@ -430,7 +434,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun scanReceiptQr(result: MethodChannel.Result) {
-        if (pendingReceiptResult != null) {
+        if (receiptQrRequests.closed) {
+            result.error("receipt_scanner_closed", "Сканер закрыт. Откройте Qesto снова", null)
+            return
+        }
+        if (receiptQrRequests.current != null || receiptDocumentRequests.current != null) {
             result.error(
                 "receipt_scanner_busy",
                 "Сканер чеков уже открыт",
@@ -439,41 +447,53 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        pendingReceiptResult = result
-        val options = GmsBarcodeScannerOptions.Builder()
-            .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-            .enableAutoZoom()
-            .build()
-        GmsBarcodeScanning.getClient(this, options)
-            .startScan()
-            .addOnSuccessListener { barcode ->
-                val pending = pendingReceiptResult ?: return@addOnSuccessListener
-                pendingReceiptResult = null
-                val rawValue = barcode.rawValue
-                if (rawValue.isNullOrBlank()) {
-                    pending.error(
-                        "receipt_qr_empty",
-                        "QR-код чека не содержит данных",
-                        null,
-                    )
-                } else {
-                    pending.success(rawValue)
+        val request = receiptQrRequests.begin(result) ?: run {
+            result.error("receipt_scanner_closed", "Перезапустите Qesto, чтобы открыть сканер", null)
+            return
+        }
+        try {
+            val options = GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build()
+            GmsBarcodeScanning.getClient(this, options)
+                .startScan()
+                .addOnSuccessListener { barcode ->
+                    receiptQrRequests.complete(request) { pending ->
+                        val rawValue = barcode.rawValue
+                        if (rawValue.isNullOrBlank()) {
+                            pending.error("receipt_qr_empty", "QR-код чека не содержит данных", null)
+                        } else {
+                            pending.success(rawValue)
+                        }
+                    }
                 }
-            }
-            .addOnCanceledListener {
-                val pending = pendingReceiptResult ?: return@addOnCanceledListener
-                pendingReceiptResult = null
-                pending.success(null)
-            }
-            .addOnFailureListener { error ->
-                val pending = pendingReceiptResult ?: return@addOnFailureListener
-                pendingReceiptResult = null
-                pending.error(
-                    "receipt_scan_failed",
-                    "Не удалось отсканировать QR-код чека",
-                    error.javaClass.simpleName,
-                )
-            }
+                .addOnCanceledListener {
+                    receiptQrRequests.complete(request) { it.success(null) }
+                }
+                .addOnFailureListener { error ->
+                    failReceiptQr(request, error)
+                }
+        } catch (error: Exception) {
+            failReceiptQr(request, error)
+        } catch (error: LinkageError) {
+            failReceiptQr(request, error)
+        }
+    }
+
+    private fun failReceiptQr(
+        request: ScannerRequestGate.Request<MethodChannel.Result>, error: Throwable,
+    ) {
+        Log.w("QestoReceiptScanner", "QR scanner failed", error)
+        receiptQrRequests.complete(request) {
+            it.error("receipt_scan_failed", "Не удалось открыть сканер QR. Попробуйте ещё раз или введите код вручную", null)
+        }
+    }
+
+    private fun closeReceiptScanners() {
+        receiptDocumentActivityCode = null
+        receiptQrRequests.close { it.error("receipt_scanner_closed", "Сканер закрыт", null) }
+        receiptDocumentRequests.close { it.error("receipt_document_scanner_closed", "Сканер закрыт", null) }
     }
 
     private fun pickAndRecognizeBankScreenshots(result: MethodChannel.Result) {
@@ -497,7 +517,11 @@ class MainActivity : FlutterActivity() {
     }
 
     private fun scanReceiptDocument(result: MethodChannel.Result) {
-        if (pendingReceiptDocumentResult != null) {
+        if (receiptDocumentRequests.closed) {
+            result.error("receipt_document_scanner_closed", "Сканер закрыт. Откройте Qesto снова", null)
+            return
+        }
+        if (receiptDocumentRequests.current != null || receiptQrRequests.current != null) {
             result.error(
                 "receipt_document_scanner_busy",
                 "Сканер бумажного чека уже открыт",
@@ -506,36 +530,49 @@ class MainActivity : FlutterActivity() {
             return
         }
 
-        pendingReceiptDocumentResult = result
-        val options = GmsDocumentScannerOptions.Builder()
-            .setGalleryImportAllowed(true)
-            .setPageLimit(1)
-            .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
-            .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
-            .build()
+        val request = receiptDocumentRequests.begin(result) ?: run {
+            result.error("receipt_document_scanner_closed", "Перезапустите Qesto, чтобы открыть сканер", null)
+            return
+        }
+        try {
+            val options = GmsDocumentScannerOptions.Builder()
+                .setGalleryImportAllowed(true)
+                .setPageLimit(1)
+                .setResultFormats(GmsDocumentScannerOptions.RESULT_FORMAT_JPEG)
+                .setScannerMode(GmsDocumentScannerOptions.SCANNER_MODE_FULL)
+                .build()
+            GmsDocumentScanning.getClient(options)
+                .getStartScanIntent(this)
+                .addOnSuccessListener { intentSender ->
+                    if (!receiptDocumentRequests.owns(request)) return@addOnSuccessListener
+                    try {
+                        receiptDocumentActivityCode = request.id
+                        startIntentSenderForResult(intentSender, request.id, null, 0, 0, 0)
+                    } catch (error: Exception) {
+                        failReceiptDocument(request, error)
+                    }
+                }
+                .addOnCanceledListener {
+                    receiptDocumentRequests.complete(request) { it.success(null) }
+                }
+                .addOnFailureListener { error ->
+                    failReceiptDocument(request, error)
+                }
+        } catch (error: Exception) {
+            failReceiptDocument(request, error)
+        } catch (error: LinkageError) {
+            failReceiptDocument(request, error)
+        }
+    }
 
-        GmsDocumentScanning.getClient(options)
-            .getStartScanIntent(this)
-            .addOnSuccessListener { intentSender ->
-                startIntentSenderForResult(
-                    intentSender,
-                    REQUEST_RECEIPT_DOCUMENT,
-                    null,
-                    0,
-                    0,
-                    0,
-                )
-            }
-            .addOnFailureListener { error ->
-                val pending = pendingReceiptDocumentResult
-                    ?: return@addOnFailureListener
-                pendingReceiptDocumentResult = null
-                pending.error(
-                    "receipt_document_scan_failed",
-                    "Не удалось открыть сканер бумажного чека",
-                    error.javaClass.simpleName,
-                )
-            }
+    private fun failReceiptDocument(
+        request: ScannerRequestGate.Request<MethodChannel.Result>, error: Throwable,
+    ) {
+        Log.w("QestoReceiptScanner", "Document scanner failed", error)
+        if (receiptDocumentRequests.owns(request)) receiptDocumentActivityCode = null
+        receiptDocumentRequests.complete(request) {
+            it.error("receipt_document_scan_failed", "Не удалось открыть сканер бумажного чека. Попробуйте ещё раз", null)
+        }
     }
 
     @Deprecated("Deprecated in Android SDK, kept for FlutterActivity compatibility")
@@ -546,6 +583,28 @@ class MainActivity : FlutterActivity() {
     ) {
         super.onActivityResult(requestCode, resultCode, data)
         if (aiExportFileBridge?.onActivityResult(requestCode, resultCode, data) == true) return
+        if (requestCode == receiptDocumentActivityCode) {
+            receiptDocumentActivityCode = null
+            val request = receiptDocumentRequests.current ?: return
+            if (resultCode != Activity.RESULT_OK) {
+                receiptDocumentRequests.complete(request) { it.success(null) }
+                return
+            }
+            try {
+                val scan = GmsDocumentScanningResult.fromActivityResultIntent(data)
+                val uri = scan?.pages?.firstOrNull()?.imageUri
+                if (uri == null) {
+                    receiptDocumentRequests.complete(request) {
+                        it.error("receipt_document_empty", "Сканер не вернул изображение чека", null)
+                    }
+                } else {
+                    recognizeReceiptDocument(uri, request)
+                }
+            } catch (error: Exception) {
+                failReceiptDocument(request, error)
+            }
+            return
+        }
         when (requestCode) {
             REQUEST_STATEMENT_PDF -> {
                 val result = pendingStatementResult ?: return
@@ -556,28 +615,6 @@ class MainActivity : FlutterActivity() {
                     return
                 }
                 extractStatement(uri, result)
-            }
-
-            REQUEST_RECEIPT_DOCUMENT -> {
-                val result = pendingReceiptDocumentResult ?: return
-                if (resultCode != Activity.RESULT_OK) {
-                    pendingReceiptDocumentResult = null
-                    result.success(null)
-                    return
-                }
-                val scan = GmsDocumentScanningResult
-                    .fromActivityResultIntent(data)
-                val uri = scan?.pages?.firstOrNull()?.imageUri
-                if (uri == null) {
-                    pendingReceiptDocumentResult = null
-                    result.error(
-                        "receipt_document_empty",
-                        "Сканер не вернул изображение чека",
-                        null,
-                    )
-                    return
-                }
-                recognizeReceiptDocument(uri, result)
             }
 
             REQUEST_BANK_SCREENSHOTS -> {
@@ -695,7 +732,7 @@ class MainActivity : FlutterActivity() {
 
     private fun recognizeReceiptDocument(
         uri: Uri,
-        result: MethodChannel.Result,
+        request: ScannerRequestGate.Request<MethodChannel.Result>,
     ) {
         Thread {
             var tess: TessBaseAPI? = null
@@ -722,26 +759,19 @@ class MainActivity : FlutterActivity() {
                     .toList()
 
                 runOnUiThread {
-                    val pending = pendingReceiptDocumentResult
-                        ?: return@runOnUiThread
-                    pendingReceiptDocumentResult = null
-                    pending.success(
-                        mapOf(
-                            "text" to text,
-                            "lines" to lines,
-                        ),
-                    )
+                    receiptDocumentRequests.complete(request) { pending ->
+                        pending.success(mapOf("text" to text, "lines" to lines))
+                    }
                 }
             } catch (error: Exception) {
                 runOnUiThread {
-                    val pending = pendingReceiptDocumentResult
-                        ?: return@runOnUiThread
-                    pendingReceiptDocumentResult = null
-                    pending.error(
-                        "receipt_ocr_failed",
-                        "Не удалось распознать русский текст бумажного чека",
-                        error.javaClass.simpleName,
-                    )
+                    receiptDocumentRequests.complete(request) { pending ->
+                        pending.error(
+                            "receipt_ocr_failed",
+                            "Не удалось распознать русский текст бумажного чека",
+                            null,
+                        )
+                    }
                 }
             } finally {
                 tess?.recycle()
@@ -956,7 +986,6 @@ class MainActivity : FlutterActivity() {
         const val MAX_STATEMENT_TEXT_CHARACTERS = 5 * 1024 * 1024
         const val MAX_RECEIPT_IMAGE_BYTES = 20L * 1024L * 1024L
         const val REQUEST_STATEMENT_PDF = 4102
-        const val REQUEST_RECEIPT_DOCUMENT = 4103
         const val REQUEST_RECORD_AUDIO = 4104
         const val REQUEST_BANK_SCREENSHOTS = 4105
         const val MAX_BANK_SCREENSHOTS = 10

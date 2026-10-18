@@ -1,0 +1,26 @@
+name: qesto_incremental_sync_experiment
+publish_to: none
+environment:
+  sdk: ^3.12.2
+dependencies:
+  qesto_windows_ui_sync_experiment:
+    path: ../windows_synthetic_ui_sync
+  qesto_windows_boundary_experiment:
+    path: ../windows_integration_boundary
+  qesto_encrypted_sync_experiment:
+    path: ../encrypted_client_sync
+  qesto_storage_spike:
+    path: ../storage_feasibility
+  qesto_synthetic_sync:
+    path: ../synthetic_sync_backend
+  qesto_synoball_core:
+    path: ../../packages/qesto_synoball_core
+  sqlite3: 3.5.2
+  crypto: 3.0.7
+  ffi: ^2.1.4
+dev_dependencies:
+  test: 1.31.0
+hooks:
+  user_defines:
+    sqlite3:
+      source: sqlite3mc

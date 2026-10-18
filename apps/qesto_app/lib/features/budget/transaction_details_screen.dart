@@ -8,7 +8,32 @@ import '../../core/widgets/qesto_elements.dart';
 import '../../data/models/qesto_models.dart';
 import 'add_expense_screen.dart';
 import 'state/budget_controller.dart';
+import 'transaction_route_scope.dart';
 import '../classification/classification_actions.dart';
+
+/// Exact-ID dispatch: mobile routes through its retained origin stack;
+/// desktop continues to use the existing details presentation.
+void openTransactionDetails(
+  BuildContext context,
+  BudgetController controller,
+  BudgetPeriod period,
+  String id,
+) {
+  final mobile = TransactionRouteScope.of(context);
+  if (mobile != null) {
+    mobile.openTransaction(id);
+    return;
+  }
+  Navigator.of(context).push<void>(
+    MaterialPageRoute<void>(
+      builder: (_) => TransactionDetailsScreen(
+        controller: controller,
+        period: period,
+        transactionId: id,
+      ),
+    ),
+  );
+}
 
 class TransactionDetailsScreen extends StatefulWidget {
   const TransactionDetailsScreen({

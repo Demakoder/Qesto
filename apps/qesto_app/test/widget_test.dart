@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:qesto/app/qesto_app.dart';
 import 'package:qesto/desktop/desktop_app_shell.dart';
 import 'package:qesto/data/models/qesto_models.dart';
 import 'package:qesto/mocks/fixtures/mock_deals.dart';
 import 'package:qesto/mocks/mock_qesto_repository.dart';
+import 'package:qesto/mobile/analytics/mobile_overview_page.dart';
 
 import 'fixtures/sample_user_financial_data.dart';
 
@@ -116,24 +118,23 @@ void main() {
   Future<void> openHistory(WidgetTester tester) async {
     await tester.pump(const Duration(seconds: 5));
     await tester.pumpAndSettle();
-    tester
-        .state<ScaffoldState>(find.byKey(const Key('mobile-app-shell')))
-        .openDrawer();
+    await tester.tap(find.byKey(const Key('mobile-more')));
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('action-history-button')),
-      250,
-      scrollable: find.descendant(
-        of: find.byType(Drawer),
-        matching: find.byType(Scrollable),
-      ),
-    );
+    final history = find.byKey(const Key('mobile-more-history'));
+    await tester.ensureVisible(history);
+    await tester.tap(history);
     await tester.pumpAndSettle();
-    await Scrollable.ensureVisible(
-      tester.element(find.byKey(const Key('action-history-button'))),
-      alignment: 1,
-    );
-    await tester.tap(find.byKey(const Key('action-history-button')));
+  }
+
+  Future<void> openInbox(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('mobile-more')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('mobile-more-sources')));
+    await tester.pumpAndSettle();
+    final inbox = find.byKey(const Key('mobile-source-open-inbox'));
+    await tester.ensureVisible(inbox);
+    await tester.pumpAndSettle();
+    await tester.tap(inbox);
     await tester.pumpAndSettle();
   }
 
@@ -168,16 +169,23 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Уведомления'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Уведомления и SMS'));
-    await tester.pumpAndSettle();
+    await openInbox(tester);
     expect(find.text('Найденные операции'), findsOneWidget);
     expect(find.text('Новых операций нет'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Назад'));
     await tester.pumpAndSettle();
-    expect(find.text('Добрый день'), findsOneWidget);
+    expect(find.byKey(const Key('mobile-source-status-page')), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(MobileOverviewPage), findsOneWidget);
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      0,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('уведомление Сбербанка автоматически добавляется как расход', (
@@ -204,10 +212,7 @@ void main() {
       isTrue,
     );
 
-    await tester.tap(find.byTooltip('Уведомления'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Уведомления и SMS'));
-    await tester.pumpAndSettle();
+    await openInbox(tester);
 
     expect(find.text('Новых операций нет'), findsOneWidget);
     expect(find.text('Добавить'), findsNothing);
@@ -219,23 +224,21 @@ void main() {
 
     await add(tester, 'manual');
 
+    await tester.enterText(find.byKey(const Key('transaction-amount')), '1000');
     await tester.enterText(
-      find.byKey(const Key('expense-amount-field')),
-      '1000',
-    );
-    await tester.enterText(
-      find.byKey(const Key('expense-title-field')),
+      find.byKey(const Key('transaction-merchant')),
       'Тестовая покупка',
     );
-    await tester.tap(find.text('Выбрать'));
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('transaction-category-null')),
+    );
+    await tester.tap(find.byKey(const ValueKey('transaction-category-null')));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).last, 'Продукты');
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'Продукты').last);
+    await tester.tap(find.text('Продукты').last);
     await tester.pumpAndSettle();
     await tester.fling(find.byType(ListView), const Offset(0, -900), 1500);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Сохранить расход'));
+    await tester.tap(find.byKey(const Key('transaction-save')));
     await tester.pumpAndSettle();
 
     expect(
@@ -372,5 +375,62 @@ void main() {
 
     expect(find.text('Чек уже добавлен'), findsOneWidget);
     expect(find.text('Обновить состав чека'), findsOneWidget);
+  });
+
+  for (final action in ['statement', 'excel', 'receipt', 'voice', 'manual']) {
+    testWidgets(
+      '$action cancellation does not mutate canonical data or periods',
+      (tester) async {
+        await tester.pumpWidget(buildApp());
+        await tester.pumpAndSettle();
+        final c = tester
+            .widget<DesktopAppShell>(find.byType(DesktopAppShell))
+            .controller;
+        final before = jsonEncode(c.synoballState.toJson());
+        final periods = c.periods.map((p) => p.id).toList();
+        await add(tester, action);
+        if (action == 'statement' || action == 'excel') {
+          await tester.tap(
+            find.byKey(
+              Key(action == 'excel' ? 'pick-excel-file' : 'pick-statement-pdf'),
+            ),
+          );
+        } else if (action == 'receipt') {
+          await tester.tap(find.byKey(const Key('scan-receipt-qr')));
+        }
+        await tester.pumpAndSettle();
+        if (action != 'voice') {
+          await tester.binding.handlePopRoute();
+          await tester.pumpAndSettle();
+          expect(
+            find.text('Отменить изменения?'),
+            findsNothing,
+            reason: 'unchanged $action review must return directly',
+          );
+        }
+        expect(jsonEncode(c.synoballState.toJson()), before);
+        expect(c.periods.map((p) => p.id).toList(), periods);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('voice preview cancel is read-only and uses a mobile route', (
+    tester,
+  ) async {
+    mockVoiceRecognition = {'text': 'Получил 2000 рублей', 'onDevice': true};
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+    final c = tester
+        .widget<DesktopAppShell>(find.byType(DesktopAppShell))
+        .controller;
+    final before = jsonEncode(c.synoballState.toJson());
+    final periods = c.periods.map((p) => p.id).toList();
+    await add(tester, 'voice');
+    expect(find.text('Голосовая операция'), findsOneWidget);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(jsonEncode(c.synoballState.toJson()), before);
+    expect(c.periods.map((p) => p.id).toList(), periods);
   });
 }

@@ -11,6 +11,14 @@ import 'package:qesto/desktop/overview/desktop_overview_data.dart';
 import 'package:qesto/desktop/overview/overview_expense_trend_chart.dart';
 import 'package:qesto/mocks/mock_qesto_repository.dart';
 
+void windowsTest(String description, WidgetTesterCallback callback) {
+  testWidgets(
+    description,
+    callback,
+    variant: TargetPlatformVariant.only(TargetPlatform.windows),
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final points = List.generate(
@@ -170,7 +178,7 @@ void main() {
   });
 
   for (final dpr in [1.0, 1.5, 2.0]) {
-    testWidgets('Cold app and resize retain real viewport at DPR $dpr', (
+    windowsTest('Cold app and resize retain real viewport at DPR $dpr', (
       tester,
     ) async {
       tester.view.devicePixelRatio = dpr;

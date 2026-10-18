@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../../core/theme/qesto_theme.dart';
+import '../../../core/formatters/qesto_formatters.dart';
 import '../../../core/widgets/nested_screen_header.dart';
 import '../../../data/models/qesto_models.dart';
 import '../../budget/state/budget_controller.dart';
+import '../../budget/transaction_editor_screen.dart';
 import '../../transaction_import/services/transaction_account_resolver.dart';
 import '../data/bank_screenshot_scanner_service.dart';
 import '../domain/bank_screenshot_models.dart';
@@ -120,6 +123,53 @@ class _BankScreenshotImportScreenState
   }
 
   Future<void> _edit(int index) async {
+    if (defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS) {
+      final row = _candidates[index];
+      final draft = BudgetTransaction(
+        id: row.id,
+        userId: widget.controller.user.id,
+        accountId: row.accountId ?? '',
+        date: row.date,
+        amount: (row.amountMinor + 50) ~/ 100,
+        exactAmountMinor: row.amountMinor,
+        currency: row.currency,
+        type: row.transactionType,
+        transferDirection: row.kind == BankScreenshotTransactionKind.transfer
+            ? TransferDirection.outgoing
+            : null,
+        categoryId: row.categoryId,
+        merchant: row.merchant,
+        title: row.merchant,
+        isConfirmed: false,
+        classificationConfidence: row.confidence,
+      );
+      final edited = await Navigator.of(context).push<BudgetTransaction>(
+        MaterialPageRoute<BudgetTransaction>(
+          settings: const RouteSettings(name: '/sources/screenshot/correct'),
+          builder: (_) => TransactionEditorScreen(
+            controller: widget.controller,
+            initialTransaction: draft,
+            draftOnly: true,
+            saveLabel: 'Вернуться к проверке',
+          ),
+        ),
+      );
+      if (edited == null || !mounted) return;
+      setState(() {
+        final rows = _candidates.toList();
+        rows[index] = row.copyWith(
+          merchant: edited.merchant,
+          amountMinor: edited.amountMinor,
+          date: edited.date,
+          accountId: edited.accountId,
+          categoryId: edited.categoryId,
+          confidence: edited.classificationConfidence,
+        );
+        _candidates = rows;
+      });
+      return;
+    }
     final edited = await showDialog<BankScreenshotCandidate>(
       context: context,
       builder: (context) => _CandidateEditor(
@@ -231,33 +281,47 @@ class _BankScreenshotImportScreenState
                 ],
                 if (_candidates.isNotEmpty) ...[
                   const SizedBox(height: 22),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'Предпросмотр · ${_candidates.length}',
-                          style: Theme.of(context).textTheme.titleLarge,
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final title = Text(
+                        'Предпросмотр · ${_candidates.length}',
+                        style: Theme.of(context).textTheme.titleLarge,
+                      );
+                      final account = DropdownButtonFormField<String>(
+                        key: const Key('bank-screenshot-batch-account'),
+                        initialValue: _batchAccountId,
+                        isExpanded: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Счёт для пакета',
                         ),
-                      ),
-                      SizedBox(
-                        width: 280,
-                        child: DropdownButtonFormField<String>(
-                          key: const Key('bank-screenshot-batch-account'),
-                          initialValue: _batchAccountId,
-                          decoration: const InputDecoration(
-                            labelText: 'Счёт для пакета',
-                          ),
-                          items: [
-                            for (final account in _accounts)
-                              DropdownMenuItem(
-                                value: account.id,
-                                child: Text(account.title),
+                        items: [
+                          for (final account in _accounts)
+                            DropdownMenuItem(
+                              value: account.id,
+                              child: Text(
+                                account.title,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                          ],
-                          onChanged: _setBatchAccount,
-                        ),
-                      ),
-                    ],
+                            ),
+                        ],
+                        onChanged: _setBatchAccount,
+                      );
+                      return constraints.maxWidth < 560
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                title,
+                                const SizedBox(height: 12),
+                                account,
+                              ],
+                            )
+                          : Row(
+                              children: [
+                                Expanded(child: title),
+                                SizedBox(width: 280, child: account),
+                              ],
+                            );
+                    },
                   ),
                   const SizedBox(height: 12),
                   for (var index = 0; index < _candidates.length; index++)
@@ -277,16 +341,29 @@ class _BankScreenshotImportScreenState
                           onPressed: () => _edit(index),
                           icon: const Icon(Icons.edit_outlined),
                         ),
-                        title: Row(
-                          children: [
-                            Expanded(child: Text(_candidates[index].merchant)),
-                            Text(_moneyLabel(_candidates[index])),
-                          ],
+                        title: LayoutBuilder(
+                          builder: (context, constraints) =>
+                              constraints.maxWidth < 320
+                              ? Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(_candidates[index].merchant),
+                                    Text(_moneyLabel(_candidates[index])),
+                                  ],
+                                )
+                              : Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(_candidates[index].merchant),
+                                    ),
+                                    Text(_moneyLabel(_candidates[index])),
+                                  ],
+                                ),
                         ),
                         subtitle: Text(
                           '${_kindLabel(_candidates[index].kind)} · '
                           '${_dateLabel(_candidates[index].date)} · '
-                          '${_candidates[index].categoryId} · '
+                          '${widget.controller.categories.where((c) => c.id == _candidates[index].categoryId).firstOrNull?.name ?? 'Без категории'} · '
                           '${(_candidates[index].confidence * 100).round()}%'
                           '${_candidates[index].possibleDuplicateReason == null ? '' : '\n${_candidates[index].possibleDuplicateReason}'}',
                         ),
@@ -478,5 +555,5 @@ String _moneyLabel(BankScreenshotCandidate candidate) {
           candidate.kind == BankScreenshotTransactionKind.refund
       ? '+'
       : '−';
-  return '$sign${(candidate.amountMinor / 100).toStringAsFixed(2)} ₽';
+  return '$sign${formatMinorMoney(candidate.amountMinor, candidate.currency)}';
 }

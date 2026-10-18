@@ -1,0 +1,4513 @@
+{
+  "format": 1,
+  "origin": "Qesto working-tree Synoball before extraction, 2026-10-09",
+  "clockNormalization": "Only canonical createdAt/updatedAt and core event/audit bookkeeping timestamps; no business dates or source identities.",
+  "identities": {
+    "source": "parity-v1-fc8f75ece37a0533177bf0e258f7fa692c4907494ac9be2bf1bf088b319d3139",
+    "normalizedText": "synthetic кофе ёж"
+  },
+  "scenario": "money-currencies-directions-and-types",
+  "steps": [
+    {
+      "step": "RUB",
+      "outcome": {
+        "ingestionRecordId": "ing-parity-2",
+        "created": [
+          "txn-cand-parity-4",
+          "txn-cand-parity-5",
+          "txn-cand-parity-6"
+        ],
+        "matched": [],
+        "pending": [],
+        "batch": "batch-parity-3",
+        "warnings": [],
+        "failed": [],
+        "resolved": [
+          "txn-cand-parity-4",
+          "txn-cand-parity-5",
+          "txn-cand-parity-6"
+        ],
+        "suppressed": []
+      },
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-RUB",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic RUB",
+            "type": "savings",
+            "currency": "RUB",
+            "balance": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-3",
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-4",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-5",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-6",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          }
+        ],
+        "transactions": [
+          {
+            "id": "txn-cand-parity-4",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-5",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-6",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-8",
+            "transactionId": "txn-cand-parity-4",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-RUB"
+          },
+          {
+            "id": "evd-parity-10",
+            "transactionId": "txn-cand-parity-5",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-RUB"
+          },
+          {
+            "id": "evd-parity-12",
+            "transactionId": "txn-cand-parity-6",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-RUB"
+          }
+        ],
+        "receipts": [],
+        "importBatches": [
+          {
+            "id": "batch-parity-3",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          }
+        ],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-7",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-4",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-9",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-5",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-11",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-6",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-13",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    },
+    {
+      "step": "USD",
+      "outcome": {
+        "ingestionRecordId": "ing-parity-15",
+        "created": [
+          "txn-cand-parity-17",
+          "txn-cand-parity-18",
+          "txn-cand-parity-19"
+        ],
+        "matched": [],
+        "pending": [],
+        "batch": "batch-parity-16",
+        "warnings": [],
+        "failed": [],
+        "resolved": [
+          "txn-cand-parity-17",
+          "txn-cand-parity-18",
+          "txn-cand-parity-19"
+        ],
+        "suppressed": []
+      },
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-RUB",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic RUB",
+            "type": "savings",
+            "currency": "RUB",
+            "balance": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-USD",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic USD",
+            "type": "savings",
+            "currency": "USD",
+            "balance": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-14",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-3",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-14",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-16",
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-4",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-5",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-6",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-17",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-18",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-19",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          }
+        ],
+        "transactions": [
+          {
+            "id": "txn-cand-parity-4",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-5",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-6",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-17",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-18",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-19",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-8",
+            "transactionId": "txn-cand-parity-4",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-RUB"
+          },
+          {
+            "id": "evd-parity-10",
+            "transactionId": "txn-cand-parity-5",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-RUB"
+          },
+          {
+            "id": "evd-parity-12",
+            "transactionId": "txn-cand-parity-6",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-RUB"
+          },
+          {
+            "id": "evd-parity-21",
+            "transactionId": "txn-cand-parity-17",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-USD"
+          },
+          {
+            "id": "evd-parity-23",
+            "transactionId": "txn-cand-parity-18",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-USD"
+          },
+          {
+            "id": "evd-parity-25",
+            "transactionId": "txn-cand-parity-19",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-USD"
+          }
+        ],
+        "receipts": [],
+        "importBatches": [
+          {
+            "id": "batch-parity-3",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-16",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          }
+        ],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-7",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-4",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-9",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-5",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-11",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-6",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-13",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          },
+          {
+            "id": "evt-parity-20",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-17",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-22",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-18",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-24",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-19",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-26",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-15"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    },
+    {
+      "step": "EUR",
+      "outcome": {
+        "ingestionRecordId": "ing-parity-28",
+        "created": [
+          "txn-cand-parity-30",
+          "txn-cand-parity-31",
+          "txn-cand-parity-32"
+        ],
+        "matched": [],
+        "pending": [],
+        "batch": "batch-parity-29",
+        "warnings": [],
+        "failed": [],
+        "resolved": [
+          "txn-cand-parity-30",
+          "txn-cand-parity-31",
+          "txn-cand-parity-32"
+        ],
+        "suppressed": []
+      },
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-RUB",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic RUB",
+            "type": "savings",
+            "currency": "RUB",
+            "balance": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-USD",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic USD",
+            "type": "savings",
+            "currency": "USD",
+            "balance": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-EUR",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic EUR",
+            "type": "savings",
+            "currency": "EUR",
+            "balance": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-14",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-27",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-3",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-14",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-16",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-27",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-29",
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-4",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-5",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-6",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-17",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-18",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-19",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-30",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "4861.22",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-31",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-32",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "15000.00",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          }
+        ],
+        "transactions": [
+          {
+            "id": "txn-cand-parity-4",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-5",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-6",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-17",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-18",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-19",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-30",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-31",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-32",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-8",
+            "transactionId": "txn-cand-parity-4",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-RUB"
+          },
+          {
+            "id": "evd-parity-10",
+            "transactionId": "txn-cand-parity-5",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-RUB"
+          },
+          {
+            "id": "evd-parity-12",
+            "transactionId": "txn-cand-parity-6",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-RUB"
+          },
+          {
+            "id": "evd-parity-21",
+            "transactionId": "txn-cand-parity-17",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-USD"
+          },
+          {
+            "id": "evd-parity-23",
+            "transactionId": "txn-cand-parity-18",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-USD"
+          },
+          {
+            "id": "evd-parity-25",
+            "transactionId": "txn-cand-parity-19",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-USD"
+          },
+          {
+            "id": "evd-parity-34",
+            "transactionId": "txn-cand-parity-30",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-EUR"
+          },
+          {
+            "id": "evd-parity-36",
+            "transactionId": "txn-cand-parity-31",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-EUR"
+          },
+          {
+            "id": "evd-parity-38",
+            "transactionId": "txn-cand-parity-32",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-EUR"
+          }
+        ],
+        "receipts": [],
+        "importBatches": [
+          {
+            "id": "batch-parity-3",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-16",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-29",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          }
+        ],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-7",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-4",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-9",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-5",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-11",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-6",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-13",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          },
+          {
+            "id": "evt-parity-20",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-17",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-22",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-18",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-24",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-19",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-26",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-15"
+            }
+          },
+          {
+            "id": "evt-parity-33",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-30",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-35",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-31",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-37",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-32",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-39",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-28"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    },
+    {
+      "step": "CNY",
+      "outcome": {
+        "ingestionRecordId": "ing-parity-41",
+        "created": [
+          "txn-cand-parity-43",
+          "txn-cand-parity-44",
+          "txn-cand-parity-45"
+        ],
+        "matched": [],
+        "pending": [],
+        "batch": "batch-parity-42",
+        "warnings": [],
+        "failed": [],
+        "resolved": [
+          "txn-cand-parity-43",
+          "txn-cand-parity-44",
+          "txn-cand-parity-45"
+        ],
+        "suppressed": []
+      },
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-RUB",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic RUB",
+            "type": "savings",
+            "currency": "RUB",
+            "balance": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-USD",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic USD",
+            "type": "savings",
+            "currency": "USD",
+            "balance": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-EUR",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic EUR",
+            "type": "savings",
+            "currency": "EUR",
+            "balance": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-CNY",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic CNY",
+            "type": "savings",
+            "currency": "CNY",
+            "balance": {
+              "value": "15000.25",
+              "currency": "CNY"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-14",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-27",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-40",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-3",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-14",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-16",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-27",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-29",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-40",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-42",
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-4",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-5",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-6",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-17",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-18",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-19",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-30",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "4861.22",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-31",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-32",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "15000.00",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-43",
+            "ingestionRecordId": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "amount": {
+              "value": "4861.22",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-CNY",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-44",
+            "ingestionRecordId": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "amount": {
+              "value": "15000.25",
+              "currency": "CNY"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-CNY",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-45",
+            "ingestionRecordId": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "amount": {
+              "value": "15000.00",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-CNY",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          }
+        ],
+        "transactions": [
+          {
+            "id": "txn-cand-parity-4",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-5",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-6",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-17",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-18",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-19",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-30",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-31",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-32",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-43",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-44",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "CNY"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-45",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-8",
+            "transactionId": "txn-cand-parity-4",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-RUB"
+          },
+          {
+            "id": "evd-parity-10",
+            "transactionId": "txn-cand-parity-5",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-RUB"
+          },
+          {
+            "id": "evd-parity-12",
+            "transactionId": "txn-cand-parity-6",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-RUB"
+          },
+          {
+            "id": "evd-parity-21",
+            "transactionId": "txn-cand-parity-17",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-USD"
+          },
+          {
+            "id": "evd-parity-23",
+            "transactionId": "txn-cand-parity-18",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-USD"
+          },
+          {
+            "id": "evd-parity-25",
+            "transactionId": "txn-cand-parity-19",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-USD"
+          },
+          {
+            "id": "evd-parity-34",
+            "transactionId": "txn-cand-parity-30",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-EUR"
+          },
+          {
+            "id": "evd-parity-36",
+            "transactionId": "txn-cand-parity-31",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-EUR"
+          },
+          {
+            "id": "evd-parity-38",
+            "transactionId": "txn-cand-parity-32",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-EUR"
+          },
+          {
+            "id": "evd-parity-47",
+            "transactionId": "txn-cand-parity-43",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-41",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-CNY"
+          },
+          {
+            "id": "evd-parity-49",
+            "transactionId": "txn-cand-parity-44",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-41",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-CNY"
+          },
+          {
+            "id": "evd-parity-51",
+            "transactionId": "txn-cand-parity-45",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-41",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-CNY"
+          }
+        ],
+        "receipts": [],
+        "importBatches": [
+          {
+            "id": "batch-parity-3",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-16",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-29",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-42",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          }
+        ],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-7",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-4",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-9",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-5",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-11",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-6",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-13",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          },
+          {
+            "id": "evt-parity-20",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-17",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-22",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-18",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-24",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-19",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-26",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-15"
+            }
+          },
+          {
+            "id": "evt-parity-33",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-30",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-35",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-31",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-37",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-32",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-39",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-28"
+            }
+          },
+          {
+            "id": "evt-parity-46",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-43",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-48",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-44",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-50",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-45",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-52",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-41"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    },
+    {
+      "step": "serialized-and-restored",
+      "state": {
+        "schemaVersion": 1,
+        "modelVersion": "1.0.0",
+        "entities": [],
+        "institutions": [],
+        "connections": [],
+        "consents": [],
+        "accounts": [
+          {
+            "id": "account-existing-001",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic bank account",
+            "type": "checking",
+            "currency": "RUB",
+            "balance": {
+              "value": "9876.54",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-RUB",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic RUB",
+            "type": "savings",
+            "currency": "RUB",
+            "balance": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-USD",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic USD",
+            "type": "savings",
+            "currency": "USD",
+            "balance": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-EUR",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic EUR",
+            "type": "savings",
+            "currency": "EUR",
+            "balance": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          },
+          {
+            "id": "account-CNY",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic CNY",
+            "type": "savings",
+            "currency": "CNY",
+            "balance": {
+              "value": "15000.25",
+              "currency": "CNY"
+            },
+            "connectionId": null,
+            "institutionId": null,
+            "externalId": null,
+            "isVirtual": false
+          }
+        ],
+        "rawPayloads": [
+          {
+            "id": "raw-parity-1",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-14",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-27",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          },
+          {
+            "id": "raw-parity-40",
+            "contentType": "application/json",
+            "body": "{\"synthetic\":\"statement\"}",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "redacted": false
+          }
+        ],
+        "ingestionRecords": [
+          {
+            "id": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-1",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-3",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-14",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-16",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-27",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-29",
+            "errorCode": null,
+            "errorMessage": null
+          },
+          {
+            "id": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "sourceType": "bankWeb",
+            "connectionId": null,
+            "institutionId": "synthetic-bank",
+            "receivedAt": "2026-09-08T13:00:00.000Z",
+            "rawPayloadId": "raw-parity-40",
+            "status": "completed",
+            "adapterId": "bank-web",
+            "adapterVersion": "1.0.0",
+            "importBatchId": "batch-parity-42",
+            "errorCode": null,
+            "errorMessage": null
+          }
+        ],
+        "candidates": [
+          {
+            "id": "cand-parity-4",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-5",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-6",
+            "ingestionRecordId": "ing-parity-2",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-RUB",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-17",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-18",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-19",
+            "ingestionRecordId": "ing-parity-15",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-USD",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-30",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "4861.22",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-31",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-32",
+            "ingestionRecordId": "ing-parity-28",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "amount": {
+              "value": "15000.00",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-EUR",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-43",
+            "ingestionRecordId": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "amount": {
+              "value": "4861.22",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "expense-CNY",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-44",
+            "ingestionRecordId": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "amount": {
+              "value": "15000.25",
+              "currency": "CNY"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "income-CNY",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          },
+          {
+            "id": "cand-parity-45",
+            "ingestionRecordId": "ing-parity-41",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "amount": {
+              "value": "15000.00",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantGuess": "Synthetic Coffee",
+            "providerCategory": null,
+            "categoryGuess": "cafes",
+            "userCategoryOverride": null,
+            "subcategoryId": null,
+            "providerTransactionId": "own-transfer-CNY",
+            "receiptId": null,
+            "transferDirection": null,
+            "confidence": 1.0,
+            "sourceTrust": "directApi",
+            "status": "confirmed",
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "requiresConfirmation": false,
+            "canonicalId": null
+          }
+        ],
+        "transactions": [
+          {
+            "id": "txn-cand-parity-4",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-5",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "RUB"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-6",
+            "entityId": "entity-existing-001",
+            "accountId": "account-RUB",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "RUB"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-17",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-18",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "USD"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-19",
+            "entityId": "entity-existing-001",
+            "accountId": "account-USD",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "USD"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-30",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-31",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "EUR"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-32",
+            "entityId": "entity-existing-001",
+            "accountId": "account-EUR",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "EUR"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-43",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "status": "posted",
+            "amount": {
+              "value": "4861.22",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-44",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "status": "posted",
+            "amount": {
+              "value": "15000.25",
+              "currency": "CNY"
+            },
+            "direction": "inflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          },
+          {
+            "id": "txn-cand-parity-45",
+            "entityId": "entity-existing-001",
+            "accountId": "account-CNY",
+            "status": "posted",
+            "amount": {
+              "value": "15000.00",
+              "currency": "CNY"
+            },
+            "direction": "outflow",
+            "occurredAt": "2026-09-08T12:00:00.000Z",
+            "rawDescription": "Synthetic Coffee",
+            "normalizedDescription": "synthetic coffee",
+            "merchantId": "mrc-synthetic-coffee",
+            "merchantName": "Synthetic Coffee",
+            "userNote": null,
+            "merchantConfidence": 0.7,
+            "providerCategory": null,
+            "synoballCategory": "cafes",
+            "userCategoryOverride": null,
+            "categoryConfidence": 1.0,
+            "subcategoryId": null,
+            "transferDirection": null,
+            "eventType": "observed",
+            "isRecurring": false,
+            "recurringStreamId": null,
+            "receiptId": null,
+            "tags": [
+              "sber-own-transfer",
+              "transfer"
+            ],
+            "createdAt": "<core-clock>",
+            "updatedAt": "<core-clock>",
+            "fieldTrust": "directApi"
+          }
+        ],
+        "evidence": [
+          {
+            "id": "evd-parity-8",
+            "transactionId": "txn-cand-parity-4",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-RUB"
+          },
+          {
+            "id": "evd-parity-10",
+            "transactionId": "txn-cand-parity-5",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-RUB"
+          },
+          {
+            "id": "evd-parity-12",
+            "transactionId": "txn-cand-parity-6",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-2",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-RUB"
+          },
+          {
+            "id": "evd-parity-21",
+            "transactionId": "txn-cand-parity-17",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-USD"
+          },
+          {
+            "id": "evd-parity-23",
+            "transactionId": "txn-cand-parity-18",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-USD"
+          },
+          {
+            "id": "evd-parity-25",
+            "transactionId": "txn-cand-parity-19",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-15",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-USD"
+          },
+          {
+            "id": "evd-parity-34",
+            "transactionId": "txn-cand-parity-30",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-EUR"
+          },
+          {
+            "id": "evd-parity-36",
+            "transactionId": "txn-cand-parity-31",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-EUR"
+          },
+          {
+            "id": "evd-parity-38",
+            "transactionId": "txn-cand-parity-32",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-28",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-EUR"
+          },
+          {
+            "id": "evd-parity-47",
+            "transactionId": "txn-cand-parity-43",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-41",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "expense-CNY"
+          },
+          {
+            "id": "evd-parity-49",
+            "transactionId": "txn-cand-parity-44",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-41",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "income-CNY"
+          },
+          {
+            "id": "evd-parity-51",
+            "transactionId": "txn-cand-parity-45",
+            "sourceType": "bankWeb",
+            "ingestionRecordId": "ing-parity-41",
+            "confidence": 1.0,
+            "trust": "directApi",
+            "observedAt": "2026-09-08T13:00:00.000Z",
+            "providerTransactionId": "own-transfer-CNY"
+          }
+        ],
+        "receipts": [],
+        "importBatches": [
+          {
+            "id": "batch-parity-3",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-16",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-29",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          },
+          {
+            "id": "batch-parity-42",
+            "entityId": "entity-existing-001",
+            "name": "Synthetic statement",
+            "sourceType": "bankWeb",
+            "createdAt": "2026-09-08T13:00:00.000Z",
+            "status": "completed",
+            "totalRecords": 3,
+            "createdTransactions": 3,
+            "matchedTransactions": 0,
+            "failedRecords": 0,
+            "warnings": []
+          }
+        ],
+        "recurringStreams": [],
+        "events": [
+          {
+            "id": "evt-parity-7",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-4",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-9",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-5",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-11",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-6",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-13",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-2"
+            }
+          },
+          {
+            "id": "evt-parity-20",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-17",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-22",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-18",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-24",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-19",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-26",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-15"
+            }
+          },
+          {
+            "id": "evt-parity-33",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-30",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-35",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-31",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-37",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-32",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-39",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-28"
+            }
+          },
+          {
+            "id": "evt-parity-46",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-43",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-48",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-44",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-50",
+            "type": "transaction.created",
+            "entityId": "entity-existing-001",
+            "subjectId": "txn-cand-parity-45",
+            "occurredAt": "<core-clock>",
+            "payload": {}
+          },
+          {
+            "id": "evt-parity-52",
+            "type": "financial_state.updated",
+            "entityId": "entity-existing-001",
+            "subjectId": null,
+            "occurredAt": "<core-clock>",
+            "payload": {
+              "ingestionRecordId": "ing-parity-41"
+            }
+          }
+        ],
+        "auditEntries": []
+      }
+    }
+  ]
+}

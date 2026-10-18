@@ -168,6 +168,8 @@ void main() {
             for (var m = 6; m <= 9; m++)
               classificationTransaction(
                 'monthly-$m',
+                merchant: 'Яндекс Плюс',
+                category: 'subscriptions',
               ).copyWith(occurredAt: DateTime(2026, m, 10)),
           ],
         ),
